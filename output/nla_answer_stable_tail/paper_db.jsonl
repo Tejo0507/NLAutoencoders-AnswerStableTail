@@ -1,0 +1,35 @@
+{"id":"fraser-taliente2026nla","year":2026,"venue":"Transformer Circuits","peer_reviewed":false,"title":"Natural Language Autoencoders Produce Unsupervised Explanations of LLM Activations","tags":["NLA","activation explanations"]}
+{"id":"liu-wang2025convergence","year":2025,"venue":"EMNLP","peer_reviewed":true,"title":"Answer Convergence as a Signal for Early Stopping in Reasoning","tags":["early stopping","reasoning"]}
+{"id":"zhang2025right","year":2025,"venue":"COLM","peer_reviewed":true,"title":"Reasoning Models Know When They're Right: Probing Hidden States for Self-Verification","tags":["probes","confidence"]}
+{"id":"dingeto2026recap","year":2026,"venue":"arXiv","peer_reviewed":false,"title":"Train the Model, Not the Reader: Decodability Supervision for Verifiable Activation Explanations","tags":["RECAP","faithfulness"]}
+{"id":"caldarella2026past","year":2026,"venue":"arXiv","peer_reviewed":false,"title":"Thinking Past the Answer: Evaluating Harmful Overthinking in Large Reasoning Models","tags":["overthinking","prefixes"]}
+{"id":"farquhar2024semantic","year":2024,"venue":"Nature","peer_reviewed":true,"title":"Detecting hallucinations in large language models using semantic entropy","tags":["uncertainty"]}
+{"id":"huang2024selfcorrect","year":2024,"venue":"ICLR","peer_reviewed":true,"title":"Large Language Models Cannot Self-Correct Reasoning Yet","tags":["self-correction"]}
+{"id":"turpin2023unfaithful","year":2023,"venue":"arXiv","peer_reviewed":false,"title":"Language Models Don't Always Say What They Think","tags":["faithfulness"]}
+{"id":"lanham2023faithfulness","year":2023,"venue":"arXiv","peer_reviewed":false,"title":"Measuring Faithfulness in Chain-of-Thought Reasoning","tags":["faithfulness"]}
+{"id":"jacovi-goldberg2020faithful","year":2020,"venue":"ACL","peer_reviewed":true,"title":"Towards Faithfully Interpretable NLP Systems","tags":["faithfulness"]}
+{"id":"meng2022rome","year":2022,"venue":"NeurIPS","peer_reviewed":true,"title":"Locating and Editing Factual Associations in GPT","tags":["causal tracing"]}
+{"id":"goldowsky-dill2023patching","year":2023,"venue":"arXiv","peer_reviewed":false,"title":"Towards Best Practices of Activation Patching in Language Models","tags":["causal tracing"]}
+{"id":"cunningham2023sae","year":2023,"venue":"arXiv","peer_reviewed":false,"title":"Sparse Autoencoders Find Highly Interpretable Directions in Language Model Residual Stream Space","tags":["SAE"]}
+{"id":"templeton2024mono","year":2024,"venue":"Transformer Circuits","peer_reviewed":false,"title":"Scaling Monosemanticity","tags":["SAE"]}
+{"id":"wei2022cot","year":2022,"venue":"NeurIPS","peer_reviewed":true,"title":"Chain-of-Thought Prompting Elicits Reasoning in Large Language Models","tags":["CoT"]}
+{"id":"lightman2023prm","year":2023,"venue":"arXiv","peer_reviewed":false,"title":"Let's Verify Step by Step","tags":["process supervision"]}
+{"id":"setlur2024progress","year":2024,"venue":"arXiv","peer_reviewed":false,"title":"Rewarding Progress: Scaling Automated Process Verifiers for LLM Reasoning","tags":["PRM"]}
+{"id":"deepseek2025r1","year":2025,"venue":"Nature","peer_reviewed":true,"title":"DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning","tags":["reasoning"]}
+{"id":"liu2025mind","year":2025,"venue":"ICML","peer_reviewed":true,"title":"Mind Your Step (by Step): Chain-of-Thought can Reduce Performance on Tasks where Thinking Makes Humans Worse","tags":["CoT"]}
+{"id":"yang2026dynamic","year":2026,"venue":"ICLR","peer_reviewed":true,"title":"Dynamic Early Exit in Reasoning Models","tags":["early exit"]}
+{"id":"min2026converges","year":2026,"venue":"arXiv","peer_reviewed":false,"title":"Stop When Reasoning Converges","tags":["early exit"]}
+{"id":"wu2026less","year":2026,"venue":"ICLR","peer_reviewed":true,"title":"When More is Less: Understanding Chain-of-Thought Length in LLMs","tags":["overthinking"]}
+{"id":"sui2025survey","year":2025,"venue":"arXiv","peer_reviewed":false,"title":"Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models","tags":["survey"]}
+{"id":"madaan2023selfrefine","year":2023,"venue":"NeurIPS","peer_reviewed":true,"title":"Self-Refine","tags":["self-correction"]}
+{"id":"shinn2023reflexion","year":2023,"venue":"NeurIPS","peer_reviewed":true,"title":"Reflexion","tags":["self-correction"]}
+{"id":"liu2024surveyselfcorrection","year":2024,"venue":"TACL","peer_reviewed":true,"title":"When Can LLMs Actually Correct Their Own Mistakes?","tags":["self-correction"]}
+{"id":"marks2024sae","year":2024,"venue":"arXiv","peer_reviewed":false,"title":"Sparse Feature Circuits","tags":["SAE","causal"]}
+{"id":"hendrycks2021math","year":2021,"venue":"NeurIPS","peer_reviewed":true,"title":"Measuring Mathematical Problem Solving With the MATH Dataset","tags":["benchmark"]}
+{"id":"cobbe2021gsm8k","year":2021,"venue":"arXiv","peer_reviewed":false,"title":"Training Verifiers to Solve Math Word Problems","tags":["benchmark"]}
+{"id":"rein2023gpqa","year":2023,"venue":"COLM","peer_reviewed":true,"title":"GPQA","tags":["benchmark"]}
+{"id":"chen2021humaneval","year":2021,"venue":"arXiv","peer_reviewed":false,"title":"Evaluating Large Language Models Trained on Code","tags":["benchmark"]}
+{"id":"suzgun2022bbh","year":2022,"venue":"arXiv","peer_reviewed":false,"title":"Challenging BIG-Bench Tasks and Whether Chain-of-Thought Can Solve Them","tags":["benchmark"]}
+{"id":"burns2023discover","year":2023,"venue":"arXiv","peer_reviewed":false,"title":"Discovering Latent Knowledge in Language Models Without Supervision","tags":["probes"]}
+{"id":"burns2022discover","year":2022,"venue":"arXiv","peer_reviewed":false,"title":"Discovering Latent Knowledge in Language Models Without Supervision","tags":["probes"]}
+{"id":"gurnee2024representation","year":2024,"venue":"arXiv","peer_reviewed":false,"title":"Language Models Represent Space and Time","tags":["representations"]}

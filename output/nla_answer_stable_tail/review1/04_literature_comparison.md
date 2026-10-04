@@ -1,0 +1,86 @@
+# 04 · Final 8–10 Paper Comparison Table
+
+**Compiled:** 2026-10-03.
+**Purpose:** fulfil the department requirement — *"choose previous research 8 to 10
+papers for comparison with your idea and make a table"* — at research/thesis
+standard. The ten works selected in `03_literature_candidates.md` are compared along
+dimensions that are **material to the Answer-Stable Tail (AST) inference chain**, not
+along generic columns.
+
+**Legend.** PR = project report / technical report (not peer-reviewed).
+"Preprint" = arXiv or similar, not peer-reviewed at time of writing. All numeric
+claims in this table are reproduced from the cited work or the project's own
+2026-09-25 deep-reading notes; nothing is produced by code in this repository. Where
+a value is not reported by the authors, the cell says *"Not reported"*; nothing is
+inferred.
+
+---
+
+## 1. Rationale for each selected paper
+
+| # | Reference (short) | Why selected |
+|---|---|---|
+| P1 | Fraser-Taliente et al. 2026, *Natural Language Autoencoders…*, Transformer Circuits (PR). | **The method the project uses.** Defines AV/AR training, FVE, and the released checkpoints. Its own stated limitations (confabulation, layer sensitivity, decoder prior, ~500 tokens/activation) frame every downstream claim. |
+| P2 | Dingeto 2026, *Train the Model, Not the Reader* (RECAP), arXiv (preprint). | **The direct challenge** to the inference "high reconstruction ⇒ faithful AV sentences". Must be addressed, not ignored, by any project claiming NLA reveals internal state. |
+| P3 | Liu & Wang 2025, *Answer Convergence as a Signal for Early Stopping*, EMNLP. | **Closest competing operational signal.** Answer-chunk agreement + learned hidden-state stopping — the cheap, strong baseline the project must beat on safe-stopping. |
+| P4 | Zhang et al. 2025, *Reasoning Models Know When They're Right*, COLM. | **The hidden-state probe baseline.** Shows correctness is decodable from reasoning-model activations and that probe-guided early exit saves tokens. |
+| P5 | Caldarella et al. 2026, *Thinking Past the Answer*, arXiv (preprint). | **The closest existing operationalisation** of "the tail". Separates verbose from harmful overthinking via a first-correct-prefix evaluation. |
+| P6 | Farquhar et al. 2024, *Detecting hallucinations… via semantic entropy*, Nature. | **The uncertainty baseline.** Current state-of-the-art uncertainty signal; must be included as a comparator against any NLA-based "redundant verification" detector. |
+| P7 | Huang et al. 2024, *LLMs Cannot Self-Correct Reasoning Yet*, ICLR. | **The strongest controlled negative result** on intrinsic self-correction. Prevents the project from treating any "checking-looking" suffix as presumptively useful. |
+| P8 | Turpin et al. 2023, *Language Models Don't Always Say What They Think*, arXiv (preprint). | **CoT is not literal.** Rules out using the surface text of a tail as ground-truth label for internal state. |
+| P9 | Lanham et al. 2023, *Measuring Faithfulness in CoT Reasoning*, arXiv (preprint). | **CoT faithfulness measurement.** Deletion / resample tests give the methodological template for faithfulness audits applicable to NLA sentences. |
+| P10 | Goldowsky-Dill et al. 2023, *Towards Best Practices of Activation Patching*, arXiv (preprint). | **Causal-interpretability methodology.** Any causal AST test (truncation, patching, NLA-edit steering) must inherit these controls. |
+
+## 2. Main comparison table
+
+The table uses twelve columns. Columns 10–12 are the **project-specific** columns the
+department rubric requires: *Limitations*, *Research gap relevant to this project*,
+and *Relevance to the proposed research*.
+
+| # | Authors / Year / Venue | Research problem | Method / algorithm | Dataset / experimental setting | Baselines compared | Evaluation metrics | Main reported results | Key contribution | Limitations (reported or methodological) | Research gap relevant to this project | Relevance to NLA-AST |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **P1** | Fraser-Taliente, Kantamneni, Ong et al., 2026, *Transformer Circuits* (PR) | Produce unsupervised, language-level explanations of LLM residual activations. | Activation Verbaliser (AV) samples text from activation; Activation Reconstructor (AR) maps text back to vector; joint training minimises expected squared reconstruction loss with a KL term; AV warm-started from context summaries, then RL. | Released AV/AR for Qwen2.5-7B-Instruct L20 (d=3584), Gemma-3-12B-IT L32, Gemma-3-27B-IT L41, Llama-3.3-70B-Instruct L53. Training uses large sampled activation sets from the target models' usage. | Random text; context-only summariser; no-information baseline. | Fraction of Variance Explained (FVE); constructed-truth tasks; qualitative audits corroborated by SAE/attribution/steering. | Vector-level reconstruction is substantial (exact FVE values are reported in the project report; not reproduced here without re-verification). Audits produce useful leads with explicit confabulation. | **First free-form language-level activation explainer with a reconstruction bottleneck and released checkpoints.** | Confabulation; layer sensitivity; decoder prior / expressive AV; private-code failure modes; ~500 tokens / activation (expensive to score claim-by-claim); strict model/layer coupling; training is 8×H100 scale. | **No evaluation on reasoning-tail suffixes** or any safe-stopping task; no comparison to cheap uncertainty / probe signals; no claim-level faithfulness certification. | **Foundational method the project uses.** Project treats AV as a *blinded hypothesis generator*, not a detector, consistent with the authors' own limits. |
+| **P2** | Dingeto, 2026, arXiv (preprint) | Can a reconstruction-faithful AV output nonetheless make unfaithful individual claims? Can faithfulness be *supervised*? | RECAP: co-train the *target model* with linear decodability heads that preserve specified facts; test claim-deletion / claim-substitution effects on reconstruction. | Controlled synthetic text and NLA-style setups; evaluator-swapping tests. | Standard AV/AR without RECAP; probes trained post hoc. | Reconstruction error; claim-dependence Δ; decodability of specified variables. | High reconstruction with low claim-dependence is possible under standard recipes; RECAP preserves decodability of pre-specified content; co-adapted codes form in controlled runs. | **A direct, mechanistic challenge to equating reconstruction with claim-level faithfulness**; recipe for supervised auditability. | Preprint; requires target-model retraining (so it does *not* retrofit on released NLA checkpoints); only validates *pre-specified* content. | **No RECAP-supervised NLA for reasoning-model internal states exists**; faithfulness of free-form AV prose about an AST remains unaudited. | Forces the project to treat AV output as unaudited hypothesis, to use blinded claim audits, and to prefer independent labels over AV text. |
+| **P3** | Liu & Wang, 2025, EMNLP | Can we stop CoT reasoning safely once the answer has converged? | Split CoT into sentence chunks; extract intermediate answers; stop on answer-agreement; also learn stopping from hidden states. | Five open models × five reasoning benchmarks (as reported). | Fixed-length CoT; token-entropy stopping; self-consistency. | Final-answer accuracy; tokens generated; token savings at matched accuracy. | Substantial token reductions with limited average accuracy loss across the tested models/benchmarks. Peer-reviewed. | **The strongest and simplest answer-convergence stopping baseline.** | Agreement is an outcome proxy, not a semantic-state label; a stable agreement can precede a missed constraint; does not localise *why* the tail is produced. | **Does not test whether an activation-level readout adds value over its own agreement signal**, nor whether the suffix is causally redundant. | **Primary baseline** the project must beat (or match at lower risk). Supplies the chunk-boundary scaffolding for AST candidates. |
+| **P4** | Zhang, Chen, Pan, Zhao, Panda, Li, He, 2025, COLM | Can hidden states of reasoning models tell us when the model is right? | Train linear/MLP probes on intermediate-answer-position activations; use probe scores for calibrated early exit. | Reasoning models on math and mixed tasks (as reported); in-distribution and transfer settings. | Confidence / log-prob baselines; semantic-entropy where comparable. | Probe AUROC; stopping accuracy–token trade-off; calibration. | In-distribution AUC > 0.7 reported; cross-domain transfer worse; probe-guided early exit reduces tokens. Peer-reviewed. | **Correctness information is linearly decodable** from reasoning-model activations and usable for early exit. | Decodability is availability, not *use*; weaker cross-domain transfer; probe is a readout, not a causal mechanism. | **No direct comparison of a probe baseline vs. an NLA-derived signal** on the AST stopping task; no causal-intervention validation of the probe direction. | **Primary representational baseline.** The project must demonstrate that NLA adds information beyond this cheap signal. |
+| **P5** | Caldarella, Talon, Aljundi, Ricci, Mancini, 2026, arXiv (preprint) | How much of the suffix after the first correct answer is harmless vs. harmful? | Define "first correct prefix" via answer-extraction + verifier; measure whether later tokens flip the answer; separate verbose from harmful overthinking. | Reasoning models on math-style tasks (as reported). | Fixed-length generation; naive stopping. | Accuracy at first-correct prefix; accuracy at full length; token delta. | Reports a non-trivial fraction of traces in which early correct prefixes exist and later tokens cause drift; stopping at first-correct prefix improves accuracy in some tasks. | **Closest operational definition of "the tail"**: first-correct-prefix framework and verbose-vs-harmful split. | Preprint; "first correct" is sensitive to answer parser and can be a lucky early answer; no activation-level evidence; no causal controls on tail removal. | **No independently labelled, causally validated AST benchmark exists**; no cross-paper comparison of first-correct-prefix detectors against probes / entropy / NLA. | **Primary operationalisation** the project will reuse and extend, with K-continuation controls and independent semantic labels. |
+| **P6** | Farquhar, Kossen, Kuhn, Gal, 2024, *Nature* | Can model uncertainty be measured in semantic rather than lexical space? | Sample multiple generations; cluster by meaning; compute entropy over meaning clusters. | Multiple LLMs; question-answering and generation benchmarks (as reported). | Lexical entropy; token-probability baselines; several confidence measures. | AUROC for confabulation detection. | Outperforms lexical entropy and several confidence baselines on tested models and tasks. Peer-reviewed (Nature; DOI 10.1038/s41586-024-07421-0). | **A rigorous meaning-level uncertainty signal.** | Measures uncertainty over outcomes, not whether a suffix is verification/restatement/derivation; requires K samples per input. | **No head-to-head comparison of semantic entropy vs. an NLA-derived signal on safe stopping**; its clustering approach has not been applied to tail-type labelling. | **Primary uncertainty baseline**; a core comparator for any claimed NLA detector. |
+| **P7** | Huang, Chen, Mishra et al., 2024, ICLR | Can LLMs *intrinsically* self-correct their reasoning without external feedback? | Controlled self-correction loops; separate intrinsic from externally-grounded correction. | Multiple reasoning tasks; multiple LLMs. | Zero-shot CoT; self-consistency. | Final accuracy with and without correction loops. | Intrinsic repeated self-correction often *degrades* or does not improve accuracy; many prior gains collapse under controlled conditions. Peer-reviewed. | **The strongest controlled negative result** on intrinsic self-correction. | Does not rule out *all* post-answer reasoning value, especially under external verifiers or specific training. | **No evidence that a textual "I am checking" suffix corresponds to a useful or distinct internal process**; the project cannot assume verification is beneficial. | **Prior-of-skepticism:** forbids the project from using any "verification-looking" label as a positive outcome. |
+| **P8** | Turpin, Michael, Perez, Bowman, 2023, arXiv (preprint) | Is CoT text a literal account of the model's reasoning? | Perturb hidden features of inputs; test whether CoT acknowledges influence; compare to answer behaviour. | Multiple LLMs; standard CoT prompts. | Standard CoT; counterfactual prompts. | Rate of unacknowledged influence; answer parity. | CoT text can be systematically influenced by hidden features the model does not mention. | **CoT is not safe as a surface label for internal state.** | Preprint; focuses on specific prompt perturbations. | **No reliable textual ground-truth label** for a verification state in a reasoning tail. | Rules out using tail text alone as the AST label; motivates blinded independent annotation. |
+| **P9** | Lanham, Chen, Radhakrishnan et al., 2023, arXiv (preprint) | How do we *measure* CoT faithfulness? | Deletion, resampling, paraphrase, and intervention tests on CoT; measure impact on final answer. | Multiple LLMs; multiple reasoning tasks. | Full-CoT; truncated-CoT; paraphrased-CoT. | Answer sensitivity to perturbation. | Many CoT tokens can be deleted or paraphrased without changing the final answer; some settings show meaningful CoT-answer coupling. | **A reusable methodological template** for faithfulness audits that generalises to AV sentences. | Preprint; task- and model-specific results; coarse faithfulness measure. | **This template has not been applied to AV sentences in a reasoning-tail setting.** | Supplies the deletion/resample/paraphrase protocol for AV-claim audits in the project. |
+| **P10** | Goldowsky-Dill, MacLeod, Huang et al., 2023, arXiv (preprint) | What design choices make activation-patching conclusions robust? | Review and controlled study of metric, corruption, restoration, and normalisation choices. | Several open models; standard interpretability setups. | Alternative patching recipes. | Interpretation stability across choices. | Choices substantially change interpretation; recommends matched-random-direction controls, dose-response curves, and multiple sites. | **The methodological reference** for interpretation-robust causal interventions on residual states. | Preprint; standards are not consensus; cost per experiment is non-trivial. | **No causal AST-specific intervention study with matched controls exists.** | **Governs every causal step** of the project's validation ladder (tail replacement, direction interventions, NLA-edit steering). |
+
+## 3. Overview matrix (compact)
+
+A compact view for Review 1 slides.
+
+| # | Method / Signal | Reads activation? | Reads text? | Causal? | Peer-reviewed? | Direct baseline for NLA-AST? |
+|---|---|---|---|---|---|---|
+| P1 | NLA (AV + AR) | **Yes** (full residual state) | Yes (free-form) | No | No (project report) | — (the method itself) |
+| P2 | RECAP target-model co-training | Yes (via decodability heads) | Partial | No | No (preprint) | Faithfulness constraint |
+| P3 | Answer-convergence stopping | Partial (learned hidden-state variant) | Yes (chunked answers) | No | **Yes (EMNLP)** | **Primary cheap baseline** |
+| P4 | Hidden-state correctness probe | **Yes** | No | No | **Yes (COLM)** | **Primary representational baseline** |
+| P5 | First-correct prefix / overthinking | No | Yes (verifier) | No | No (preprint) | Operational tail definition |
+| P6 | Semantic entropy | No (sampling only) | Yes (meaning clusters) | No | **Yes (Nature)** | **Uncertainty baseline** |
+| P7 | Intrinsic self-correction | No | Yes | No | **Yes (ICLR)** | Negative-result prior |
+| P8 | CoT-literal perturbation | No | Yes | No | No (preprint) | Rules out text-only labels |
+| P9 | CoT deletion / resample | Partial | Yes | Partial | No (preprint) | Audit template for AV claims |
+| P10 | Activation-patching methodology | **Yes** | No | **Yes** | No (preprint) | Causal-validation standard |
+
+## 4. Reading of the matrix
+
+- **No row satisfies all three of {activation-reading, free-form language output,
+  causal validation}**. The project's role is to *bridge* these: use P1 as the
+  activation→language interface, P3/P4/P6 as the cheap comparators, P5 as the
+  operational tail definition, and P9/P10 as the audit / causal validators.
+- The *only* row that reads activations in free-form language is P1, and its own
+  authors mark it as a hypothesis generator rather than a detector; P2 shows this
+  is methodologically necessary.
+- The *only* strongly peer-reviewed comparators for safe stopping are P3, P4, and
+  P6 (and P7 as a negative-result constraint). The project's incremental-value
+  claim therefore reduces to: can an NLA-derived signal match or exceed P3/P4/P6
+  on verified safe-stopping at matched compute, with faithfulness audits in the
+  style of P9 and causal controls in the style of P10?
+- No paper in the final 10 — or, to the best of this review's knowledge, in the
+  wider pool — supplies the *combined* benchmark required by this question. This
+  is the research gap formalised in `05_research_gap.md`.
