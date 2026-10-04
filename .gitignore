@@ -1,0 +1,18 @@
+# Datasets are downloaded via scripts/download_datasets.py, not tracked.
+data/raw/
+data/processed/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Microsoft Word lock files
+~$*
+
+# Local editor and tooling settings
+.claude/
+
+# Derived artefacts: the .docx is tracked, intermediate renders are not.
+*.pdf
+output/**/*.zip
