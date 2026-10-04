@@ -45,9 +45,9 @@ plt.rcParams.update(
         "font.family": "DejaVu Sans",
         "font.size": 9,
         "text.color": INK,
-        "savefig.dpi": 200,
+        "savefig.dpi": 400,
         "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.2,
+        "savefig.pad_inches": 0.18,
     }
 )
 
@@ -404,7 +404,7 @@ def fig_literature_argument() -> None:
          "They are scalar or behavioural, and describe no internal state."),
         ("The visible reasoning text cannot settle it",
          "Chain-of-thought is not a literal account, so tail wording is not a reliable label."),
-        ("Activations are a more direct source",
+        ("Activation-level evidence is available",
          "Probing and intervention work shows behaviourally relevant information is present."),
         ("Verbalisers can render activations as text",
          "Natural Language Autoencoders turn a residual-stream vector into readable description."),
@@ -436,7 +436,7 @@ def fig_literature_argument() -> None:
             edge=ACCENT if final else LIGHT,
             lw=1.2 if final else 1.0,
         )
-        inner_in = 0.90 * fw
+        inner_in = 0.86 * fw
         ax.text(
             0.080,
             y + h * 0.69,
