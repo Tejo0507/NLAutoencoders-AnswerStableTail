@@ -6,10 +6,12 @@ ordered and unordered lists.
 
 Document conventions applied here:
   * a title page carrying the project and candidate details, with no page number
+  * one page geometry throughout, so no page differs in size or orientation
   * all body and heading text in black, so nothing renders as a blue hyperlink
-  * the two wide comparison tables placed in their own landscape section
-  * page numbers centred in the footer of every section after the title page
-  * chapter headings forced onto a new page
+  * in-text citations are internal links to their reference entry, styled black
+    and without underline so they read as plain text but remain clickable
+  * table rows never split across a page break, and header rows repeat
+  * page numbers centred in the footer; chapter headings start a new page
 
 Usage:
     python scripts/build_docx.py
@@ -22,7 +24,6 @@ import sys
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
@@ -41,7 +42,14 @@ BODY_FONT = "Cambria"
 HEAD_FONT = "Cambria"
 TABLE_FONT = "Calibri"
 
-INLINE = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))")
+INLINE = re.compile(
+    r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|\[\d{1,2}\])"
+)
+CITATION = re.compile(r"^\[(\d{1,2})\]$")
+
+
+def bookmark_name(n: int | str) -> str:
+    return f"ref{n}"
 
 
 # ------------------------------------------------------------------ helpers
@@ -67,7 +75,55 @@ def style_run(run, *, size=None, color=DARK, font=BODY_FONT):
     rfonts.set(qn("w:eastAsia"), font)
 
 
-def add_runs(paragraph, text, *, size=None, color=DARK, font=BODY_FONT, base_bold=False):
+def add_citation_link(paragraph, label, anchor, *, size=None, font=BODY_FONT):
+    """Append '[n]' as an internal link to its reference entry.
+
+    Styled black and without underline: it must read as ordinary text in print
+    while staying clickable on screen.
+    """
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("w:anchor"), anchor)
+
+    run = OxmlElement("w:r")
+    rpr = OxmlElement("w:rPr")
+
+    rfonts = OxmlElement("w:rFonts")
+    for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+        rfonts.set(qn(attr), font)
+    rpr.append(rfonts)
+
+    col = OxmlElement("w:color")
+    col.set(qn("w:val"), "1A1A1A")
+    rpr.append(col)
+
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "none")
+    rpr.append(underline)
+
+    if size is not None:
+        sz = OxmlElement("w:sz")
+        sz.set(qn("w:val"), str(int(size * 2)))  # half-points
+        rpr.append(sz)
+
+    run.append(rpr)
+    t = OxmlElement("w:t")
+    t.set(qn("xml:space"), "preserve")
+    t.text = label
+    run.append(t)
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
+
+
+def add_runs(
+    paragraph,
+    text,
+    *,
+    size=None,
+    color=DARK,
+    font=BODY_FONT,
+    base_bold=False,
+    link_citations=True,
+):
     """Append inline-formatted runs. Link syntax renders as plain label text."""
     text = unescape(text)
     pos = 0
@@ -77,6 +133,19 @@ def add_runs(paragraph, text, *, size=None, color=DARK, font=BODY_FONT, base_bol
             r.bold = base_bold
             style_run(r, size=size, color=color, font=font)
         tok = m.group(0)
+        cite = CITATION.match(tok)
+        if cite and link_citations:
+            add_citation_link(
+                paragraph, tok, bookmark_name(cite.group(1)), size=size, font=font
+            )
+            pos = m.end()
+            continue
+        if cite:
+            r = paragraph.add_run(tok)
+            r.bold = base_bold
+            style_run(r, size=size, color=color, font=font)
+            pos = m.end()
+            continue
         if tok.startswith("**"):
             r = paragraph.add_run(tok[2:-2])
             r.bold = True
@@ -134,6 +203,24 @@ def repeat_header_row(row) -> None:
     tr_pr.append(el)
 
 
+def keep_row_whole(row) -> None:
+    """Stop a row breaking mid-cell across a page boundary."""
+    tr_pr = row._tr.get_or_add_trPr()
+    el = OxmlElement("w:cantSplit")
+    el.set(qn("w:val"), "true")
+    tr_pr.append(el)
+
+
+def add_bookmark(paragraph, name: str, bid: int) -> None:
+    start = OxmlElement("w:bookmarkStart")
+    start.set(qn("w:id"), str(bid))
+    start.set(qn("w:name"), name)
+    end = OxmlElement("w:bookmarkEnd")
+    end.set(qn("w:id"), str(bid))
+    paragraph._p.insert(0, start)
+    paragraph._p.append(end)
+
+
 def is_table_sep(line: str) -> bool:
     s = line.strip()
     if not s.startswith("|"):
@@ -154,11 +241,12 @@ class Builder:
         self.doc = Document()
         self._configure_styles()
         self._setup_first_section()
-        self.landscape = False
         # Chapter 1 must start on a fresh page, not under the trailing lines of
         # the front matter, so the first H1 already owes a break.
         self.pending_chapter_break = True
         self.front_matter = True
+        self.in_references = False
+        self._bookmark_id = 1000
 
     def _configure_styles(self) -> None:
         d = self.doc
@@ -203,24 +291,6 @@ class Builder:
     def page_break(self) -> None:
         p = self.doc.add_paragraph()
         p.add_run().add_break(WD_BREAK.PAGE)
-
-    def switch_orientation(self, landscape: bool) -> None:
-        if landscape == self.landscape:
-            return
-        s = self.doc.add_section(WD_SECTION.NEW_PAGE)
-        if landscape:
-            s.orientation = WD_ORIENT.LANDSCAPE
-            s.page_width, s.page_height = Cm(29.7), Cm(21.0)
-            s.left_margin = s.right_margin = Cm(1.6)
-            s.top_margin = s.bottom_margin = Cm(1.8)
-        else:
-            s.orientation = WD_ORIENT.PORTRAIT
-            s.page_width, s.page_height = Cm(21.0), Cm(29.7)
-            s.left_margin = s.right_margin = Cm(2.5)
-            s.top_margin = s.bottom_margin = Cm(2.5)
-        s.different_first_page_header_footer = False
-        add_page_number_footer(s)
-        self.landscape = landscape
 
     def usable_width_cm(self) -> float:
         s = self.doc.sections[-1]
@@ -279,6 +349,19 @@ class Builder:
     def paragraph(self, text: str) -> None:
         p = self.doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+        # A reference entry is the target of every in-text citation to it, so it
+        # carries the bookmark and renders its own leading number as plain text.
+        ref = re.match(r"^\[(\d{1,2})\]\s", text) if self.in_references else None
+        if ref:
+            p.paragraph_format.space_after = Pt(7)
+            p.paragraph_format.left_indent = Cm(0.95)
+            p.paragraph_format.first_line_indent = Cm(-0.95)
+            add_runs(p, text, link_citations=False)
+            add_bookmark(p, bookmark_name(ref.group(1)), self._bookmark_id)
+            self._bookmark_id += 1
+            return
+
         if self.front_matter:
             # Separates each contents group from the tight list above it.
             p.paragraph_format.space_before = Pt(10)
@@ -328,28 +411,48 @@ class Builder:
 
     def table(self, header: list[str], rows: list[list[str]]) -> None:
         ncols = len(header)
+
+        # Bind the preceding line to the table so a heading or lead-in sentence
+        # cannot be left stranded at the foot of a page above it.
+        if self.doc.paragraphs:
+            self.doc.paragraphs[-1].paragraph_format.keep_with_next = True
+
         t = self.doc.add_table(rows=1 + len(rows), cols=ncols)
         t.style = "Table Grid"
         t.alignment = WD_TABLE_ALIGNMENT.CENTER
         t.autofit = False
 
-        size = 8.0 if ncols >= 7 else 9.0
+        size = 7.5 if ncols >= 6 else (8.5 if ncols >= 4 else 9.0)
 
-        # Allocate column width from mean content length, clamped so that no
-        # column collapses to an unreadable sliver or swallows the table.
+        # Allocate column width from mean content length, compressed so a short
+        # column is not starved, then floored so nothing becomes a sliver.
         lengths = []
         for c in range(ncols):
             vals = [len(header[c])] + [len(r[c]) if c < len(r) else 0 for r in rows]
             lengths.append(max(6.0, sum(vals) / len(vals)))
         lo, hi = min(lengths), max(lengths)
         if hi > lo:
-            lengths = [1.0 + 3.0 * (v - lo) / (hi - lo) for v in lengths]
+            lengths = [1.0 + 1.8 * (v - lo) / (hi - lo) for v in lengths]
+
+        avail = self.usable_width_cm() - 0.1
         total = sum(lengths)
-        avail = self.usable_width_cm() - 0.2
-        widths = [Cm(avail * v / total) for v in lengths]
+        raw = [avail * v / total for v in lengths]
+
+        floor_cm = min(2.1, avail / ncols)
+        if min(raw) < floor_cm:
+            short = [i for i, w in enumerate(raw) if w < floor_cm]
+            spare = avail - floor_cm * len(short)
+            rest = sum(raw[i] for i in range(ncols) if i not in short) or 1.0
+            raw = [
+                floor_cm if i in short else spare * raw[i] / rest
+                for i in range(ncols)
+            ]
+        widths = [Cm(w) for w in raw]
 
         hdr = t.rows[0]
         repeat_header_row(hdr)
+        for row in t.rows:
+            keep_row_whole(row)
         for c, text in enumerate(header):
             cell = hdr.cells[c]
             cell.text = ""
@@ -378,6 +481,14 @@ class Builder:
         for row in t.rows:
             for c, w in enumerate(widths):
                 row.cells[c].width = w
+
+        # Chain every row to the one below it so Word moves the whole table to
+        # the next page rather than splitting it. The last row is left unchained,
+        # otherwise the table would also drag the following paragraph along.
+        for row in t.rows[:-1]:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    p.paragraph_format.keep_with_next = True
 
         self.doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
@@ -419,11 +530,8 @@ def build() -> None:
             i += 1
             continue
 
-        # Orientation switches around the wide comparison tables.
-        if s.startswith("## Comparative Literature Tables"):
-            b.switch_orientation(True)
-        elif s.startswith("## References"):
-            b.switch_orientation(False)
+        if s.startswith("## References"):
+            b.in_references = True
 
         m = re.match(r"^(#{1,6})\s+(.*)$", s)
         if m:
