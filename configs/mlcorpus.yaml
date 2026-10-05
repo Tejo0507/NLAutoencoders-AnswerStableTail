@@ -1,0 +1,34 @@
+# ML corpus: a larger trace corpus for the two supervised analyses documented
+# in `docs/SUPERVISED_ANALYSES.md`.
+#
+# Generation and AST parameters are IDENTICAL to `pilot.yaml` so that the 21
+# traces already produced under `runs/pilot` are valid rows of this corpus and
+# are reused rather than regenerated. Only `data.n_*` differs, and because
+# `_take_stratified` slices a hash-ordered prefix under the same salt, the
+# pilot's problem set is a strict subset of this one.
+#
+# Semantic-entropy sampling is switched off (`--no-entropy`): it costs roughly
+# a thousand tokens per problem and feeds the O3 uncertainty baseline, which is
+# a separate arm from these analyses. The consequence is carried as a stated
+# limitation - semantic entropy is not available as a predictor here.
+
+run_id: mlcorpus
+description: "Trace corpus for the regression and classification analyses."
+
+data:
+  n_gsm8k: 170
+  n_math: 90
+
+generation:
+  max_new_tokens: 512
+  batch_size: 2
+
+ast:
+  k_continuations: 3
+  continuation_max_new_tokens: 160
+
+semantic_entropy:
+  n_samples: 0
+
+analysis:
+  bootstrap_iterations: 10000
