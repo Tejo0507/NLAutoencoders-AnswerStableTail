@@ -8,7 +8,7 @@ Writes PNG files into ``figures/`` at the repository root:
     fig4_proposed_architecture.png Proposed evaluation pipeline
 
 Usage:
-    python scripts/make_figures.py
+    python scripts/make_review_figures.py
 """
 
 from __future__ import annotations
@@ -174,7 +174,7 @@ def blank_axes(figsize):
     return fig, ax
 
 
-# ---------------------------------------------------------------- figure 1
+# --- figure 1 ---
 
 
 def fig_answer_stable_tail() -> None:
@@ -280,7 +280,7 @@ def fig_answer_stable_tail() -> None:
     plt.close(fig)
 
 
-# ---------------------------------------------------------------- figure 2
+# --- figure 2 ---
 
 
 def fig_nla_mechanism() -> None:
@@ -386,7 +386,7 @@ def fig_nla_mechanism() -> None:
     plt.close(fig)
 
 
-# ---------------------------------------------------------------- figure 3
+# --- figure 3 ---
 
 
 def fig_literature_argument() -> None:
@@ -472,7 +472,7 @@ def fig_literature_argument() -> None:
     plt.close(fig)
 
 
-# ---------------------------------------------------------------- figure 4
+# --- figure 4 ---
 
 
 def fig_proposed_architecture() -> None:

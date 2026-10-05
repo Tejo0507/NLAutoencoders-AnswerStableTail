@@ -14,7 +14,7 @@ Document conventions applied here:
   * page numbers centred in the footer; chapter headings start a new page
 
 Usage:
-    python scripts/build_docx.py
+    python scripts/build_review_docx.py
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def bookmark_name(n: int | str) -> str:
     return f"ref{n}"
 
 
-# ------------------------------------------------------------------ helpers
+# --- helpers ---
 
 
 def unescape(text: str) -> str:
@@ -233,7 +233,7 @@ def split_row(line: str) -> list[str]:
     return [c.strip() for c in line.strip().strip("|").split("|")]
 
 
-# ------------------------------------------------------------------ builder
+# --- builder ---
 
 
 class Builder:
@@ -493,7 +493,7 @@ class Builder:
         self.doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
 
-# ------------------------------------------------------------------ parse
+# --- parse ---
 
 
 def build() -> None:
