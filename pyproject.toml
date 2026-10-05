@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nlaast"
+version = "0.1.0"
+description = "Natural Language Autoencoders for redundancy diagnostics: the Answer-Stable Tail"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Versions are those this study actually ran on; see requirements.lock.txt for
+# the full resolved set. torch is deliberately absent: the CUDA build has to
+# come from the PyTorch index, so it is installed separately by
+# scripts/setup_env.ps1.
+dependencies = [
+    "transformers>=5.0,<6",
+    "accelerate>=1.10",
+    "safetensors>=0.6",
+    "bitsandbytes>=0.48",
+    "datasets>=4.0",
+    "huggingface_hub>=1.0",
+    "math-verify>=0.9",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pyarrow>=18",
+    "scipy>=1.14",
+    "scikit-learn>=1.6",
+    "statsmodels>=0.14",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+    "psutil>=6.0",
+    # Required by the vendored upstream nla_inference module.
+    "orjson>=3.10",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# Only needed to re-render the review document; the pipeline does not use it.
+review = ["python-docx>=1.1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+filterwarnings = [
+    # nlaast.analysis.stats.TestResult is a dataclass, not a test class.
+    "ignore::pytest.PytestCollectionWarning",
+]
+markers = [
+    "slow: needs a GPU and a loaded model",
+    "integration: runs a pipeline stage end to end",
+]
