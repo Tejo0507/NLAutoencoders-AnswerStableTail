@@ -1,0 +1,42 @@
+# Smoke: the tiny end-to-end example to run before anything larger is
+# attempted. Four problems, everything switched on, minimal budgets. It proves
+# the pipeline runs end to end; it proves nothing scientific.
+
+run_id: smoke
+description: "Tiny end-to-end example - correctness of the pipeline, not of any claim."
+
+data:
+  n_gsm8k: 3
+  n_math: 1
+
+generation:
+  max_new_tokens: 256
+  batch_size: 2
+
+ast:
+  k_continuations: 2
+  continuation_max_new_tokens: 96
+
+nla:
+  n_samples: 1
+  windows_per_problem: 1
+  max_new_tokens: 96
+
+semantic_entropy:
+  n_samples: 3
+
+faithfulness:
+  max_claims_per_explanation: 3
+  n_paraphrases: 2
+
+causal:
+  max_problems: 2
+  dose_coefficients: [0.0, 1.0]
+  n_random_directions: 1
+
+analysis:
+  bootstrap_iterations: 500
+
+robustness:
+  enabled_tests: [F4_parser, F6_probe_leakage, F10_position]
+  quantisation_subsample: 2
