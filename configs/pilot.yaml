@@ -1,0 +1,50 @@
+# Pilot: small enough to surface shape, memory, alignment and decoding faults
+# quickly, large enough to be scientifically readable rather than a smoke test.
+#
+# Brief section 13: run a pilot, fix what it finds, rerun it, and only then
+# start the full experiment.
+
+run_id: pilot
+description: "Pilot run - 24 problems, full stage coverage at reduced scale."
+
+data:
+  n_gsm8k: 14
+  n_math: 10
+
+generation:
+  max_new_tokens: 512
+  batch_size: 2
+
+ast:
+  k_continuations: 3
+  continuation_max_new_tokens: 160
+
+nla:
+  n_samples: 2
+  windows_per_problem: 2
+  max_new_tokens: 192
+
+semantic_entropy:
+  n_samples: 5
+
+faithfulness:
+  max_claims_per_explanation: 5
+  n_paraphrases: 3
+
+causal:
+  max_problems: 10
+  dose_coefficients: [0.0, 1.0, 2.0]
+  n_random_directions: 3
+
+analysis:
+  bootstrap_iterations: 2000
+
+robustness:
+  enabled_tests:
+    - F1_length
+    - F3_verbaliser_only
+    - F4_parser
+    - F6_probe_leakage
+    - F8_quantisation
+    - F10_position
+  quantisation_subsample: 8
