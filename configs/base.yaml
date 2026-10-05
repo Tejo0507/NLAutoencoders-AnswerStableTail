@@ -1,0 +1,145 @@
+# Base configuration. Overlays in this directory are deep-merged over it and
+# CLI `--set key=value` assignments are merged last. The fully resolved mapping
+# is hashed into every run manifest.
+#
+# Defaults mirror src/nlaast/config.py; they are restated here so the whole
+# experiment is readable in one file without opening the code.
+
+run_id: dev
+description: "Base defaults - not intended to be run directly; use pilot or main."
+seed: 20261005
+
+stages:
+  - env
+  - data
+  - models
+  - traces
+  - acts
+  - ast
+  - baselines
+  - nla
+  - faithfulness
+  - causal
+  - analysis
+  - robustness
+  - report
+
+# The target model is fixed by the released autoencoder, which is trained
+# against Qwen2.5-7B-Instruct at layer 20 and is not transferable.
+target:
+  repo_id: Qwen/Qwen2.5-7B-Instruct
+  revision: null
+  layer: 20
+  d_model: 3584
+  precision: nf4          # forced by 6.44 GB of VRAM; see PROJECT_PLAN.md section 2
+  device: cuda
+  max_position_embeddings: 8192
+
+generation:
+  max_new_tokens: 640
+  temperature: 0.7
+  top_p: 0.95
+  do_sample: true
+  canonical_greedy: true  # the analysed trace is greedy; sampling is for controls
+  batch_size: 4
+  system_prompt: >-
+    You are a careful mathematical reasoner. Think step by step, then give the
+    final answer on its own last line in the form 'The answer is X.'
+  force_answer_suffix: "\n\nTherefore, the answer is"
+  force_answer_max_new_tokens: 24
+
+data:
+  datasets: [gsm8k, math]
+  math_subjects: [algebra, counting_and_probability]
+  n_gsm8k: 150
+  n_math: 100
+  split: test
+  train_fraction: 0.4     # reserved for probe fitting and tail-direction estimation
+  seed: 20261005
+
+chunk:
+  min_chunk_chars: 12
+  max_chunks: 40
+  alt_mode: newline       # second segmentation for falsification tests F4/F5
+
+ast:
+  k_continuations: 5
+  continuation_temperature: 0.8
+  continuation_max_new_tokens: 200
+  convergence_window: 2   # the Liu & Wang baseline, not the AST criterion
+  require_unanimous: true
+  min_boundary_fraction: 0.0
+  # Cap on the backwards boundary scan. A tail longer than this is reported as
+  # exactly this long, so the bias only ever *understates* tail length - the
+  # safe direction for a claim about redundancy. Affected traces are flagged.
+  max_boundaries_evaluated: 12
+  seed: 7
+
+nla:
+  av_repo: kitft/nla-qwen2.5-7b-L20-av
+  ar_repo: kitft/nla-qwen2.5-7b-L20-ar
+  precision: nf4
+  device: cuda
+  max_new_tokens: 256
+  temperature: 1.0
+  top_p: 0.95
+  n_samples: 2
+  windows_per_problem: 3
+  verbalise_controls: true
+  max_problems: 0         # cap on the NLA arm only; 0 means no cap
+  seed: 1234
+  min_ascii_fraction: 0.75
+  reference_fve: 0.752    # in-distribution value on the checkpoint card
+
+probe:
+  kind: logistic
+  C: 1.0
+  max_iter: 2000
+  standardise: true
+  n_folds: 5
+  seed: 11
+
+semantic_entropy:
+  n_samples: 8
+  temperature: 1.0
+  top_p: 0.95
+  max_new_tokens: 640
+  seed: 99
+
+faithfulness:
+  max_claims_per_explanation: 8
+  n_paraphrases: 3
+  null_percentile: 95.0
+  verbaliser_only_control: true
+  n_verbaliser_only: 1
+  seed: 555
+
+causal:
+  interventions: [truncate, filler, ablate_dir, random_dir, matched_position]
+  dose_coefficients: [0.0, 0.5, 1.0, 1.5, 2.0]
+  n_random_directions: 5
+  filler_text: "Let us consider this further. "
+  max_problems: 60
+  seed: 31337
+
+analysis:
+  bootstrap_iterations: 10000
+  confidence: 0.95
+  fdr_q: 0.05
+  seed: 2024
+
+robustness:
+  enabled_tests:
+    - F1_length
+    - F2_difficulty
+    - F3_verbaliser_only
+    - F4_parser
+    - F5_ast_sensitivity
+    - F6_probe_leakage
+    - F7_layer_sweep
+    - F8_quantisation
+    - F10_position
+  ast_sweep_k: [3, 5]
+  ast_sweep_temperature: [0.6, 0.8, 1.0]
+  layer_sweep: [14, 20, 24]
+  quantisation_subsample: 24

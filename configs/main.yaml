@@ -1,0 +1,45 @@
+# Main experiment - the largest scientifically defensible scale this machine
+# supports.
+#
+# Sizing. Roughly, per problem: one 640-token greedy trace, K=5 resampled
+# continuations of 200 tokens at each candidate boundary that reaches the
+# forcing test, 8 semantic-entropy samples, and a few hundred verbaliser tokens
+# per activation window. On a 6.44 GB RTX 4050 running 4-bit Qwen-7B at roughly
+# 15-25 tok/s single-stream, that is several hours for 250 problems.
+#
+# Every stage is resumable and checkpoints per problem, so the achieved N is
+# whatever completed - and the achieved N, not the configured N, is what the
+# execution report states.
+
+run_id: main
+description: "Main experiment - GSM8K + MATH, full stage coverage."
+
+data:
+  n_gsm8k: 150
+  n_math: 100
+
+generation:
+  max_new_tokens: 640
+  batch_size: 4
+
+ast:
+  k_continuations: 5
+  continuation_max_new_tokens: 200
+
+nla:
+  n_samples: 2
+  windows_per_problem: 2
+  max_new_tokens: 256
+  # The verbaliser emits hundreds of tokens per activation, making this arm an
+  # order of magnitude more expensive than the behavioural ones. It therefore
+  # runs on a deterministic subset, and its achieved N is reported separately.
+  max_problems: 80
+
+semantic_entropy:
+  n_samples: 8
+
+causal:
+  max_problems: 60
+
+analysis:
+  bootstrap_iterations: 10000
