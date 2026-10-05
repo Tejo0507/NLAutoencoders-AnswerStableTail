@@ -1,11 +1,17 @@
-# Datasets are downloaded via scripts/download_datasets.py, not tracked.
+# Benchmarks are staged by the `data` stage, not tracked.
 data/raw/
 data/processed/
+
+# Run artefacts. Every one is reproducible from `scripts/run_pipeline.py` plus
+# the committed config, and a partial run's tables would read like results.
+runs/
 
 # Python
 __pycache__/
 *.pyc
+*.egg-info/
 .venv/
+.pytest_cache/
 
 # Microsoft Word lock files
 ~$*
