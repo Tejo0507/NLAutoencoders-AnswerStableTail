@@ -1,0 +1,16 @@
+,importance
+trace_words,0.1738
+n_tokens,0.1493
+trace_chars,0.1475
+n_lines,0.0918
+n_numbers,0.0766
+n_chunks,0.0641
+q_words,0.0629
+n_latex,0.0571
+cue_conclude,0.0446
+n_equals,0.0408
+truncated,0.0377
+q_numbers,0.0301
+cue_answer,0.0149
+is_math,0.0089
+cue_verify,0.0

@@ -1,0 +1,5 @@
+model,r2,r2_sd,mae,mae_sd,rmse
+Mean baseline,-0.719,1.951,0.151,0.025,0.173
+Ridge,-0.937,2.058,0.153,0.035,0.184
+Random forest,-0.908,2.265,0.153,0.033,0.179
+Gradient boosting,-1.006,2.517,0.148,0.038,0.18
