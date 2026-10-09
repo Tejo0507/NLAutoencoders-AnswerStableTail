@@ -20,6 +20,7 @@ because shrinking the family would make the correction look kinder than it is.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -126,9 +127,63 @@ def nla_stopping_curve(cfg, log):
     thresholds = list(np.linspace(min(vals), max(vals), 25))
     curve = sweep_threshold(per_problem, thresholds, higher_fires=True)
     info = {"available": True, "n_problems": len(per_problem),
+            "problem_ids": sorted(row["problem_id"] for row in per_problem),
             "score": "mean reconstruction cosine at the boundary, carried forward"}
     log.info("NLA stopping curve built from %d problems", len(per_problem))
     return curve, info
+
+
+def baseline_curves_on(cfg, problem_ids, log) -> dict:
+    """Re-sweep the cheap rules over one problem set.
+
+    The NLA arm runs on fewer problems than the behavioural arms - it is an
+    order of magnitude more expensive per problem, and some of its samples fail
+    the integrity gate. Reading each rule off a curve built from a *different*
+    set of problems and calling that a matched-budget comparison confounds the
+    rule with the problems: a baseline evaluated on easier problems looks safer
+    for a reason that has nothing to do with the rule.
+
+    So when the NLA arm is present, the head-to-head is run on the problems it
+    actually covers, with every baseline re-swept over exactly those. The
+    full-corpus curves are still reported, because the behavioural arms'
+    achieved N is a result in its own right.
+    """
+    from nlaast.baselines.stopping import sweep_threshold
+
+    scores_path = cfg.dir / "baselines" / "boundary_scores.json"
+    traces_path = cfg.dir / "traces" / "traces.jsonl"
+    if not scores_path.exists() or not traces_path.exists():
+        return {}
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from score_baselines import build_rows, threshold_grid
+
+    wanted = set(problem_ids)
+    traces = [t for t in read_jsonl(traces_path)
+              if t.get("ok") and t["problem_id"] in wanted]
+    if not traces:
+        return {}
+    base = build_rows(traces)
+    scores = {pid: s for pid, s in read_json(scores_path).items() if pid in wanted}
+    if not scores:
+        return {}
+
+    out = {}
+    for rule in ("convergence", "semantic_entropy", "probe"):
+        per_problem = [
+            {**base[pid], "scores": scores[pid][rule]}
+            for pid in base
+            if pid in scores and any(s is not None for s in scores[pid].get(rule, []))
+        ]
+        if not per_problem:
+            continue
+        grid = threshold_grid(scores, rule)
+        if not grid:
+            continue
+        out[rule] = sweep_threshold(per_problem, grid, higher_fires=True)
+    log.info("re-swept %d baseline rules over the %d problems the NLA arm covers",
+             len(out), len(traces))
+    return out
 
 
 def main() -> int:
@@ -180,13 +235,41 @@ def main() -> int:
 
         # Head-to-head at each matched budget, against every cheaper signal.
         if NLA_RULE in curves:
+            # On the problems the NLA arm actually covers. It runs on fewer
+            # problems than the behavioural arms, and comparing curves built
+            # from different problem sets confounds the rule with the problems.
+            restricted = baseline_curves_on(cfg, nla_info.get("problem_ids") or [], log)
+            comparison_curves = dict(curves)
+            if restricted:
+                comparison_curves.update(restricted)
+                h2h_budgets = budget_grid({NLA_RULE: curves[NLA_RULE], **restricted})
+                basis = "nla_problem_set"
+            else:
+                h2h_budgets = budgets
+                basis = "full_corpus"
+            results["o3_comparison_basis"] = {
+                "basis": basis,
+                "n_problems_nla": nla_info.get("n_problems"),
+                "rules_resswept": sorted(restricted),
+                "budgets": h2h_budgets,
+                "note": ("the head-to-head tests below are computed on the "
+                         "problems the NLA arm covers, with every baseline "
+                         "re-swept over exactly those problems; the table above "
+                         "is the full corpus, where each arm's achieved N "
+                         "differs and is reported per row"),
+            }
+            if restricted:
+                tables.write_table(
+                    tables.stopping_comparison_table(comparison_curves, h2h_budgets),
+                    tbl_dir, "stopping_on_nla_problem_set")
+
             for other in ("convergence", "probe", "semantic_entropy"):
-                if other not in curves:
+                if other not in comparison_curves:
                     continue
                 rows = []
-                for b in budgets:
-                    a = at_matched_budget(curves[NLA_RULE], b)
-                    c = at_matched_budget(curves[other], b)
+                for b in h2h_budgets:
+                    a = at_matched_budget(comparison_curves[NLA_RULE], b)
+                    c = at_matched_budget(comparison_curves[other], b)
                     if a and c:
                         rows.append((b, a, c))
                 if not rows:
@@ -200,6 +283,8 @@ def main() -> int:
                     cfg.analysis.seed,
                 )
                 t.notes["n_budgets"] = len(rows)
+                t.notes["comparison_basis"] = basis
+                t.notes["n_problems"] = nla_info.get("n_problems") if restricted else None
                 t.notes["caveat"] = (
                     "paired over matched-budget operating points, not over "
                     "problems: the unit of analysis is the budget level"
