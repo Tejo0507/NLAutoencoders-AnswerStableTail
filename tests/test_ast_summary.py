@@ -30,7 +30,7 @@ from detect_answer_stable_tail import summarise  # noqa: E402
 
 
 def row(pid, n_chunks, tail_start, *, status="ok", last_qualifies=True,
-        total_tokens=100, convergence_start=None):
+        total_tokens=100, convergence_start=None, stated_at="unset"):
     """One `ast.jsonl` row, with just the fields `summarise` reads."""
     evidence = [{"index": i, "forced_matches_final": False,
                  "continuations_unanimous": False} for i in range(n_chunks)]
@@ -38,12 +38,20 @@ def row(pid, n_chunks, tail_start, *, status="ok", last_qualifies=True,
         evidence[-1] = {"index": n_chunks - 1, "forced_matches_final": True,
                         "continuations_unanimous": True}
     frac = 0.0 if tail_start is None else (n_chunks - tail_start) / n_chunks
+    if stated_at == "unset":
+        stated_at = None if tail_start is None else tail_start
+    gap = (None if (stated_at is None or tail_start is None)
+           else stated_at - tail_start)
     return {
         "problem_id": pid, "status": status, "n_chunks": n_chunks,
         "tail_start": tail_start, "tail_fraction": frac,
         "tail_tokens": 0 if tail_start is None else total_tokens // 2,
         "total_tokens": total_tokens, "convergence_start": convergence_start,
         "final_correct": True, "evidence": evidence,
+        "answer_stated_at_strict": stated_at,
+        "chunks_from_tail_start_to_statement": gap,
+        "tail_starts_before_answer_stated": (
+            None if gap is None else bool(gap > 0)),
     }
 
 
@@ -100,6 +108,41 @@ class TestDistribution:
         assert s["tail_rate"] == 0.0
         assert s["nontrivial_tail_rate"] == 0.0
         assert s["final_boundary_qualifies_rate"] == 0.0
+
+
+class TestDeterminacyVersusStatement:
+    """The central interpretive caveat, measured.
+
+    The criteria ask whether the answer is *determined* from a prefix, not
+    whether the trace has said it: forcing can finish the arithmetic inside
+    the forced answer. On the first real traces the tail began before the
+    answer was stated on every single problem, by up to five chunks. That is
+    correct for a stopping rule and wrong for reading the window as
+    post-answer verification, so the gap is reported rather than implied.
+    """
+
+    def test_a_positive_gap_is_counted_and_averaged(self):
+        rows = [row("p0", 10, 3, stated_at=6), row("p1", 10, 5, stated_at=6)]
+        d = summarise(rows)["determinacy_vs_statement"]
+        assert d["n"] == 2
+        assert d["tail_starts_before_answer_stated"] == 1.0
+        assert d["mean_chunks_before_statement"] == 2.0
+        assert d["max_chunks_before_statement"] == 3
+
+    def test_a_tail_starting_at_the_statement_is_not_counted_as_before(self):
+        d = summarise([row("p0", 10, 6, stated_at=6)])["determinacy_vs_statement"]
+        assert d["tail_starts_before_answer_stated"] == 0.0
+        assert d["mean_chunks_before_statement"] == 0.0
+
+    def test_problems_whose_answer_is_never_stated_are_counted_separately(self):
+        rows = [row("p0", 10, 3, stated_at=5), row("p1", 10, 4, stated_at=None)]
+        d = summarise(rows)["determinacy_vs_statement"]
+        assert d["n"] == 1
+        assert d["n_unstated"] == 1
+
+    def test_the_block_is_absent_when_nothing_can_be_compared(self):
+        assert "determinacy_vs_statement" not in summarise(
+            [row("p0", 10, None, status="no_stable_point")])
 
 
 class TestConvergenceComparison:
