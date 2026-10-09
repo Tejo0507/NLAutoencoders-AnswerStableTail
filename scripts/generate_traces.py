@@ -340,6 +340,12 @@ def boundary_evidence_batch(model, cfg, pid, question, text, chunks,
             "parsed_answer": extract_answer(prefix, PERMISSIVE),
             "forced_answer": forced,
             "forced_text": forced_text[-_CONTINUATION_KEEP_CHARS:],
+            # Whether the forced completion ended on its own or hit
+            # force_answer_max_new_tokens. A completion cut off mid-derivation
+            # can fail criterion 1 for a budget reason rather than an
+            # evidential one, which moves the tail start later; the `ast`
+            # stage reports how often that happened.
+            "forced_finished": bool(fg.finished),
             "forced_matches_final": equivalent(forced, final_answer),
             "continuation_answers": cont_answers,
             "continuation_tails": cont_tails,
