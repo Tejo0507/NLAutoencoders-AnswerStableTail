@@ -26,6 +26,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -48,6 +49,26 @@ def _read_jsonl(path: Path) -> list[dict]:
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()]
+
+
+def _rmtree_with_retries(path: Path, attempts: int = 5) -> None:
+    """Delete a previous fixture run, tolerating Windows file locking.
+
+    A stage subprocess that has only just exited can still hold a log file
+    open long enough for ``rmtree`` to raise, which would fail the fixture and
+    error every test in this module for a reason that has nothing to do with
+    the pipeline. Retried briefly, then reported with its real cause.
+    """
+    for i in range(attempts):
+        if not path.exists():
+            return
+        try:
+            shutil.rmtree(path)
+            return
+        except OSError as exc:
+            if i == attempts - 1:
+                pytest.fail(f"could not clear {path}: {exc!r}")
+            time.sleep(0.5 * (i + 1))
 
 
 @pytest.fixture(scope="module")
@@ -79,8 +100,7 @@ def pipeline(tmp_path_factory):
 
     cfg = config_mod.load("tiny", [])
     run_dir = cfg.dir
-    if run_dir.exists():
-        shutil.rmtree(run_dir)
+    _rmtree_with_retries(run_dir)
     tiny_fixtures.build_run(cfg)
     tiny_fixtures.write_manifest_stub(cfg)
 

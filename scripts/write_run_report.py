@@ -151,6 +151,36 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
               f"**{_fmt(rq1.get('tail_token_share'))}**")
             A(f"- mean tail length: {_fmt(rq1.get('mean_tail_tokens'), 1)} tokens")
         A("")
+        dvs = rq1.get("determinacy_vs_statement")
+        if dvs:
+            A("### Determinacy is not statement")
+            A("")
+            A(f"The criteria ask whether the answer is *determined* from a "
+              f"prefix - forced and resampled answers from it all match the "
+              f"final answer. They do not ask whether the trace has yet "
+              f"**said** the answer. On this corpus the tail begins before the "
+              f"answer is stated on **{_fmt(dvs['tail_starts_before_answer_stated'])}** "
+              f"of problems, by a mean of {_fmt(dvs['mean_chunks_before_statement'], 2)} "
+              f"chunks and up to {dvs['max_chunks_before_statement']}.")
+            A("")
+            A("Two consequences, in opposite directions:")
+            A("")
+            A("- **For the stopping comparison this is exactly right.** A rule "
+              "that stops where the answer is already determined loses nothing, "
+              "and the tokens it skips are genuinely saved.")
+            A("- **For reading the window as post-answer behaviour it is not.** "
+              "A window that begins before the answer is stated contains "
+              "computation that produces the answer, not redundant "
+              "verification of it. Verbalisations sampled from early in such a "
+              "tail should not be read as descriptions of a model checking its "
+              "work, and the faithfulness and causal sections below are "
+              "qualified by that.")
+            A("")
+            if dvs.get("n_unstated"):
+                A(f"On {dvs['n_unstated']} problems the strict extractor never "
+                  f"found the final answer stated anywhere in the trace.")
+                A("")
+
         A("Detection status, edge cases retained:")
         A("")
         A(tables.markdown(tables.ast_status_table(ast_rows)) if ast_rows else "_none_")
