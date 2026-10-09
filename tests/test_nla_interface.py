@@ -22,7 +22,14 @@ from nlaast.nla.meta import (
 )
 from nlaast.nla.verbalizer import score_integrity
 
-#: Verbatim from kitft/nla-qwen2.5-7b-L20-av.
+#: The released kitft/nla-qwen2.5-7b-L20-av sidecar, with one abbreviation:
+#: every constant below - injection character, token id, both neighbour ids,
+#: injection scale, MSE scale, extraction layer, and the AR template - is
+#: verbatim and verified against the real file. The **AV template** is
+#: shortened to its `<concept>{injection_char}</concept>` core; the released
+#: one wraps the same marker in a 125-token researcher-persona prompt. The
+#: marker and its immediate neighbours are what the injection convention
+#: depends on, and they are identical in both.
 AV_SIDECAR = {
     "kind": "nla_model", "schema_version": 2, "role": "av", "d_model": 3584,
     "extraction": {"injection_scale": 150.0, "mse_scale": 59.86651818838306},
@@ -98,6 +105,81 @@ class TestChatTemplateIds:
         report = verify_tokenizer(_FakeTokenizer(bad, "batch_encoding"), meta)
         assert not report["ok"]
         assert "neighbour drift" in report["error"]
+
+
+def _released_sidecar(role: str):
+    """The real checkpoint's directory, if its small files are cached locally.
+
+    `nla_meta.yaml`, the tokeniser and the configs are a few tens of megabytes
+    and can be fetched without the 26 GB of weights:
+
+        snapshot(repo, allow_patterns=["*.json", "*.yaml", "*.jinja", "*.txt"])
+
+    When they are present the compatibility gate can be checked against the
+    conventions the released checkpoints actually ship, rather than against a
+    sidecar this repository wrote. Returns ``None`` otherwise so the test
+    skips rather than fails on a fresh clone.
+    """
+    from nlaast import paths
+
+    hub = paths.model_cache() / "hub"
+    if not hub.is_dir():
+        return None
+    for repo in sorted(hub.glob(f"models--kitft--nla-qwen2.5-7b-L20-{role}")):
+        for snap in sorted(repo.glob("snapshots/*")):
+            if (snap / "nla_meta.yaml").exists():
+                return snap
+    return None
+
+
+@pytest.fixture(scope="module")
+def released():
+    av, ar = _released_sidecar("av"), _released_sidecar("ar")
+    if av is None or ar is None:
+        pytest.skip("released sidecars are not cached locally")
+    return load_meta(av), load_meta(ar), av
+
+
+class TestAgainstTheReleasedSidecars:
+    """The compatibility gate, run against the real conventions.
+
+    The autoencoders are bound to one model at one layer and a mismatch
+    produces confident nonsense rather than an error, so this gate is the last
+    line of defence before 26 GB of weights are loaded and believed. Checking
+    it against the shipped sidecars - not against a copy in this repository -
+    is the only version of the check that could catch a drift in either.
+    """
+
+    def test_the_pair_is_mutually_consistent_with_the_configured_target(self, released):
+        from nlaast import config as config_mod
+
+        av, ar, _ = released
+        cfg = config_mod.load("pilot", [])
+        report = check_consistency(av, ar, cfg.target.layer, cfg.target.d_model)
+        assert report["ok"], report["problems"]
+
+    def test_the_constants_this_project_pinned_are_the_shipped_ones(self, released):
+        av, ar, _ = released
+        assert av.d_model == 3584
+        assert av.extraction_layer_index == 20
+        assert av.injection_token_id == 149705
+        assert (av.injection_left_neighbor_id, av.injection_right_neighbor_id) == (29, 522)
+        assert av.injection_scale == pytest.approx(150.0)
+        assert ar.mse_scale == pytest.approx(math.sqrt(3584))
+        assert ar.ar_template == AR_SIDECAR["prompt_templates"]["ar"]
+
+    def test_the_live_tokeniser_reproduces_the_injection_site(self, released):
+        """With the released AV prompt, which is far longer than the fixture's
+        and places the marker deep inside it."""
+        from transformers import AutoTokenizer
+
+        av, _, av_dir = released
+        tok = AutoTokenizer.from_pretrained(str(av_dir))
+        report = verify_tokenizer(tok, av)
+        assert report["ok"], report
+        assert report["n_injection_sites"] == 1
+        assert (report["left"], report["right"]) == (29, 522)
+        assert report["position"] > 0
 
 
 class TestVendoredUpstream:

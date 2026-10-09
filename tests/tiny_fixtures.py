@@ -41,10 +41,14 @@ ROOT = Path(__file__).resolve().parents[1]
 D_MODEL = 64
 N_LAYERS = 2
 
-#: Verbatim from the released ``kitft/nla-qwen2.5-7b-L20-av`` sidecar. The ids
-#: are *not* copied - they are resolved from the live tokeniser below - but the
-#: templates are the real ones, because a stage that works with a different
-#: template proves nothing about the real one.
+#: The AR template is verbatim from the released
+#: ``kitft/nla-qwen2.5-7b-L20-ar`` sidecar. The AV template is the
+#: ``<concept>{injection_char}</concept>`` core of the released AV prompt,
+#: which wraps the same marker in a 125-token researcher-persona preamble; the
+#: marker and its two neighbour tokens are what the injection convention
+#: depends on and they are identical either way. The injection ids are not
+#: copied at all - they are resolved from the live tokeniser below, so the
+#: fixture sidecar is self-consistent by construction.
 AV_TEMPLATE = "Here is the vector:\n\n<concept>{injection_char}</concept>\n"
 AR_TEMPLATE = "Summary of the following text: <text>{explanation}</text> <summary>"
 INJECTION_CHAR = "㈎"  # U+320E, the marker the released checkpoints use
