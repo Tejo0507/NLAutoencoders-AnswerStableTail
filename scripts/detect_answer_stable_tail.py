@@ -28,11 +28,57 @@ from nlaast.ast_detect import (
     detect_ast,
     matched_windows,
 )
-from nlaast.data.answers import equivalent
+from nlaast.data.answers import PERMISSIVE, STRICT, equivalent, extract_answer
 from nlaast.logging_utils import read_jsonl, write_json, write_jsonl
 from nlaast.seeding import rng
+from nlaast.trace.chunking import Chunk, prefix_text
 
 STAGE = "ast"
+
+
+def answer_stated_at(trace: dict) -> dict:
+    """The first boundary at which the trace has actually *said* the answer.
+
+    This is not the same thing as the Answer-Stable Tail start, and the
+    difference is the central interpretive caveat of the whole construct.
+
+    The AST criteria ask whether the answer is *determined* from a prefix: an
+    answer forced out of the prefix, and answers from independent
+    continuations of it, all match the final answer. A prefix can satisfy that
+    while the trace has not yet performed the arithmetic - the model finishes
+    it inside the forced answer instead. On the first real traces that happened
+    plainly: one trace's tail began at chunk 3 of 8, two chunks before the
+    arithmetic producing the answer appeared.
+
+    For the stopping comparison (O3) determinacy is exactly the right notion -
+    a rule that stops there loses nothing. But a window that precedes the
+    answer being stated contains genuine computation, not post-answer
+    redundancy, which matters for how a verbalisation of that window may be
+    read. So the gap is measured and reported rather than left implicit.
+
+    Returns the first boundary index under the strict and the permissive
+    extractor at which the parsed answer is equivalent to the final answer.
+    """
+    final = trace.get("final_answer")
+    chunks = [Chunk(**{k: c[k] for k in ("index", "text", "char_start", "char_end",
+                                         "token_end", "prefix_tokens")})
+              for c in trace.get("chunks", [])]
+    out: dict[str, int | None] = {"answer_stated_at_strict": None,
+                                  "answer_stated_at_permissive": None}
+    if final is None or not chunks:
+        return out
+    text = trace.get("trace", "")
+    for i in range(len(chunks)):
+        prefix = prefix_text(chunks, i, text)
+        if (out["answer_stated_at_strict"] is None
+                and equivalent(extract_answer(prefix, STRICT), final)):
+            out["answer_stated_at_strict"] = i
+        if (out["answer_stated_at_permissive"] is None
+                and equivalent(extract_answer(prefix, PERMISSIVE), final)):
+            out["answer_stated_at_permissive"] = i
+        if all(v is not None for v in out.values()):
+            break
+    return out
 
 
 def evidence_from_row(row: dict) -> list[BoundaryEvidence]:
@@ -84,6 +130,15 @@ def detect_one(cfg, trace: dict, *, require_unanimous=None, convergence_window=N
     out["dataset"] = trace.get("dataset")
     out["split"] = trace.get("split")
     out["level"] = trace.get("level")
+    out.update(answer_stated_at(trace))
+    stated = out["answer_stated_at_strict"]
+    out["tail_starts_before_answer_stated"] = (
+        None if (stated is None or res.tail_start is None)
+        else bool(res.tail_start < stated)
+    )
+    out["chunks_from_tail_start_to_statement"] = (
+        None if (stated is None or res.tail_start is None) else stated - res.tail_start
+    )
 
     if res.tail_start is not None:
         out["windows"] = {
@@ -155,6 +210,29 @@ def summarise(rows: list[dict]) -> dict:
         out["tail_token_share"] = (
             out["total_tail_tokens"] / out["total_tokens"] if out["total_tokens"] else 0.0
         )
+    # Determinacy versus statement. See answer_stated_at() - a tail that
+    # begins before the trace has said the answer contains computation, not
+    # post-answer redundancy, and that changes how a verbalisation of the
+    # window may be read.
+    gaps = [r["chunks_from_tail_start_to_statement"] for r in rows
+            if r.get("chunks_from_tail_start_to_statement") is not None]
+    if gaps:
+        before = [g for g in gaps if g > 0]
+        out["determinacy_vs_statement"] = {
+            "n": len(gaps),
+            "tail_starts_before_answer_stated": len(before) / len(gaps),
+            "mean_chunks_before_statement": sum(gaps) / len(gaps),
+            "max_chunks_before_statement": max(gaps),
+            "n_unstated": sum(
+                1 for r in rows
+                if r.get("tail_start") is not None
+                and r.get("answer_stated_at_strict") is None),
+            "note": ("A positive gap means the AST criteria were satisfied "
+                     "before the trace stated the answer: forcing elicited it "
+                     "from the prefix. Correct for a stopping rule, but such a "
+                     "window is not post-answer redundancy."),
+        }
+
     # How often the cheap agreement rule fires earlier than the AST. This is
     # the quantitative form of Mo et al.'s point and it is reported whether or
     # not it flatters the AST.
