@@ -46,9 +46,16 @@ class ProbeReport:
     calibration: list[dict[str, float]] = field(default_factory=list)
     folds: list[dict[str, float]] = field(default_factory=list)
     notes: dict[str, Any] = field(default_factory=dict)
+    #: Out-of-fold probability per input row, ``nan`` where no fold could score
+    #: it. This is the only leak-free per-row probe score available, so it is
+    #: what the stopping comparison uses; it is kept out of ``to_dict`` because
+    #: it is per-row data, not a summary.
+    oof: list[float] = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        d.pop("oof", None)
+        return d
 
 
 def _metrics(y: np.ndarray, p: np.ndarray) -> dict[str, float]:
@@ -153,29 +160,92 @@ def grouped_folds(groups: Sequence[str], n_folds: int, seed: int) -> list[np.nda
     return [np.where(fold == k)[0] for k in range(n_folds)]
 
 
+def permute_labels(
+    y: np.ndarray, groups: Sequence[str], scope: str, seed: int
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Destroy the activation-label link for the F6 leakage control.
+
+    Two scopes, because they break different things and only one of them is
+    always meaningful:
+
+    ``across_groups`` reassigns whole problems' label sequences to other
+    problems. The group structure, each problem's internal label pattern and
+    the overall class balance all survive; what is destroyed is which
+    activations go with which labels. This is the control F6 needs.
+
+    ``within_group`` permutes labels inside each problem. It is the weaker
+    control and it is **degenerate on this corpus**: once a trace states its
+    answer the label is usually the same at every later boundary, so permuting
+    inside the problem changes nothing and the "shuffled" probe scores exactly
+    as the real one - which looks like catastrophic leakage and is in fact no
+    test at all. The returned report says how many labels actually moved, so a
+    degenerate run is visible rather than reported as a finding.
+    """
+    y = np.asarray(y, dtype=int).copy()
+    groups = list(groups)
+    rng = np.random.default_rng(seed)
+    order = sorted(set(groups))
+    index = {g: np.array([i for i, gg in enumerate(groups) if gg == g]) for g in order}
+
+    if scope == "within_group":
+        for g in order:
+            idx = index[g]
+            y[idx] = rng.permutation(y[idx])
+    elif scope == "across_groups":
+        perm = rng.permutation(len(order))
+        # A derangement where possible: a group keeping its own labels is not
+        # permuted at all, and with few groups that dilutes the control.
+        if len(order) > 1:
+            for _ in range(10):
+                if all(perm[i] != i for i in range(len(order))):
+                    break
+                perm = rng.permutation(len(order))
+        source = [y[index[order[p]]] for p in perm]
+        for i, g in enumerate(order):
+            idx = index[g]
+            src = source[i]
+            # Problems have different numbers of boundaries, so a donor's
+            # label sequence is tiled or truncated to the recipient's length.
+            if len(src) == 0:
+                continue
+            y[idx] = np.resize(src, len(idx))
+    else:
+        raise ValueError(f"unknown shuffle scope {scope!r}")
+
+    return y, {"scope": scope, "n_groups": len(order)}
+
+
 def cross_validate(
     X: np.ndarray,
     y: np.ndarray,
     groups: Sequence[str],
     cfg: ProbeConfig,
     shuffle_labels: bool = False,
+    shuffle_scope: str = "across_groups",
 ) -> ProbeReport:
     """Grouped cross-validation. ``shuffle_labels`` runs the F6 leakage check.
 
-    Labels are permuted *within* group so the class balance per problem is
-    preserved and only the activation-label link is destroyed. A probe that
-    still scores above chance here is reading something it should not.
+    See ``permute_labels`` for what the two shuffle scopes destroy and why the
+    default is ``across_groups``. A probe that still scores above chance under
+    the shuffle is reading something it should not.
     """
     X = np.asarray(X, dtype=np.float64)
     y = np.asarray(y, dtype=int)
     groups = list(groups)
+    shuffle_info: dict[str, Any] = {}
 
     if shuffle_labels:
-        rng = np.random.default_rng(cfg.seed + 1)
-        y = y.copy()
-        for g in set(groups):
-            idx = np.array([i for i, gg in enumerate(groups) if gg == g])
-            y[idx] = rng.permutation(y[idx])
+        original = y
+        y, shuffle_info = permute_labels(y, groups, shuffle_scope, cfg.seed + 1)
+        shuffle_info["n_labels_changed"] = int(np.sum(y != original))
+        shuffle_info["fraction_changed"] = (
+            float(np.mean(y != original)) if len(y) else float("nan")
+        )
+        if shuffle_info["n_labels_changed"] == 0:
+            log.warning(
+                "label shuffle (%s) changed nothing - this corpus cannot be "
+                "controlled that way and the resulting score is not a leakage "
+                "test", shuffle_scope)
 
     folds = grouped_folds(groups, cfg.n_folds, cfg.seed)
     oof = np.full(len(y), np.nan)
@@ -204,6 +274,7 @@ def cross_validate(
             accuracy=float("nan"), auc=float("nan"), brier=float("nan"),
             positive_rate=float(np.mean(y)) if len(y) else float("nan"),
             notes={"error": "no usable folds - too few samples or one class only"},
+            oof=oof.tolist(),
         )
     overall = _metrics(y[valid], oof[valid])
     return ProbeReport(
@@ -216,7 +287,11 @@ def cross_validate(
         positive_rate=overall["positive_rate"],
         calibration=_calibration(y[valid], oof[valid]),
         folds=fold_metrics,
-        notes={"shuffled_labels": shuffle_labels, "n_groups": len(set(groups))},
+        notes={"shuffled_labels": shuffle_labels, "n_groups": len(set(groups)),
+               "n_scored_out_of_fold": int(valid.sum()),
+               "n_unscored": int((~valid).sum()),
+               **({"shuffle": shuffle_info} if shuffle_labels else {})},
+        oof=oof.tolist(),
     )
 
 
