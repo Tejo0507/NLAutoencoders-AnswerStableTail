@@ -205,16 +205,28 @@ def f5_ast_sensitivity(cfg, log) -> dict:
                 "reason": "run scripts/detect_answer_stable_tail.py --sweep first"}
     sweep = read_json(path)
     rates = {k: v.get("tail_rate") for k, v in sweep.items()}
+    nontrivial = {k: v.get("nontrivial_tail_rate") for k, v in sweep.items()}
     fracs = {k: v.get("mean_tail_fraction") for k, v in sweep.items()}
-    vals = [v for v in rates.values() if v is not None]
+
+    def span(d):
+        vals = [v for v in d.values() if v is not None and np.isfinite(v)]
+        return (max(vals) - min(vals)) if vals else float("nan")
+
     return {
         "status": "ran",
         "tail_rate_by_setting": rates,
+        "nontrivial_tail_rate_by_setting": nontrivial,
         "mean_tail_fraction_by_setting": fracs,
-        "tail_rate_range": (max(vals) - min(vals)) if vals else float("nan"),
+        "tail_rate_range": span(rates),
+        "nontrivial_tail_rate_range": span(nontrivial),
+        "mean_tail_fraction_range": span(fracs),
         "interpretation": (
-            "A tail rate that swings widely across settings means the construct "
-            "is an artefact of its own parameters rather than of the model."
+            "A construct that swings widely across settings is an artefact of "
+            "its own parameters rather than of the model. Read the tail "
+            "*fraction* range first: tail_rate is near its ceiling under every "
+            "setting because the final boundary qualifies almost by "
+            "construction, so a stable tail_rate across the sweep is close to "
+            "uninformative."
         ),
     }
 
