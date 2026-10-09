@@ -70,8 +70,15 @@ def main() -> int:
              len(problems), len(problems) - len(todo), len(todo))
 
     if not todo:
+        # Nothing left to generate. Report the same metrics the generating path
+        # reports rather than a bare count: a resumed run and a run that
+        # finished in one go describe the same corpus, and the manifest is what
+        # the execution report reads.
+        metrics = corpus_metrics(read_jsonl(out_path))
+        metrics["resumed_without_generating"] = True
+        log.info("traces already complete: %s", metrics)
         manifest.finish_stage(STAGE, status="complete", output=str(out_path),
-                              metrics={"n_traces": len(problems)})
+                              metrics=metrics)
         return 0
 
     model = TargetModel(cfg)
@@ -105,22 +112,39 @@ def main() -> int:
     finally:
         model.close()
 
-    rows = read_jsonl(out_path)
-    ok = [r for r in rows if r.get("ok")]
-    metrics = {
-        "n_traces": len(rows),
-        "n_ok": len(ok),
-        "n_failed": len(rows) - len(ok),
-        "mean_tokens": (sum(r.get("n_tokens", 0) for r in ok) / len(ok)) if ok else 0,
-        "mean_chunks": (sum(r.get("n_chunks", 0) for r in ok) / len(ok)) if ok else 0,
-        "accuracy": (sum(1 for r in ok if r.get("final_correct")) / len(ok)) if ok else 0,
-        "truncated_rate": (sum(1 for r in ok if r.get("truncated")) / len(ok)) if ok else 0,
-        "elapsed_min": round((time.monotonic() - started) / 60, 1),
-    }
+    metrics = corpus_metrics(read_jsonl(out_path))
+    metrics["elapsed_min"] = round((time.monotonic() - started) / 60, 1)
     log.info("traces complete: %s", metrics)
     manifest.finish_stage(STAGE, status="complete" if metrics["n_ok"] else "failed",
                           output=str(out_path), metrics=metrics)
     return 0 if metrics["n_ok"] else 1
+
+
+def corpus_metrics(rows: list[dict]) -> dict:
+    """What the trace corpus looks like, from the persisted rows only.
+
+    Computed from the file rather than from the loop's own counters so a
+    resumed run and a run that finished in one go report the same thing. The
+    per-dataset breakdown is here because the achieved N per benchmark is what
+    the stratified comparisons downstream can actually support - a corpus that
+    stopped early is usually unbalanced, and that has to be visible.
+    """
+    ok = [r for r in rows if r.get("ok")]
+    by_dataset: dict[str, int] = {}
+    for r in ok:
+        key = str(r.get("dataset"))
+        by_dataset[key] = by_dataset.get(key, 0) + 1
+    return {
+        "n_traces": len(rows),
+        "n_ok": len(ok),
+        "n_failed": len(rows) - len(ok),
+        "by_dataset": by_dataset,
+        "mean_tokens": (sum(r.get("n_tokens", 0) for r in ok) / len(ok)) if ok else 0,
+        "mean_chunks": (sum(r.get("n_chunks", 0) for r in ok) / len(ok)) if ok else 0,
+        "accuracy": (sum(1 for r in ok if r.get("final_correct")) / len(ok)) if ok else 0,
+        "truncated_rate": (sum(1 for r in ok if r.get("truncated")) / len(ok)) if ok else 0,
+        "n_scan_capped": sum(1 for r in ok if r.get("boundary_scan_capped")),
+    }
 
 
 def process_problem(model: TargetModel, cfg, prob: dict, log, skip_entropy: bool = False) -> dict:
