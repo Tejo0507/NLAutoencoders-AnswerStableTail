@@ -146,6 +146,18 @@ class TestAstAndBaselines:
         assert "require_unanimous=False" in sweep
         assert all("tail_rate" in v for v in sweep.values())
 
+    def test_the_probe_arm_is_scored_out_of_fold(self, pipeline):
+        """No problem may be scored by a probe that saw it.
+
+        The probe's safety/saving curve is the baseline the primary research
+        question is read against, and train-split problems are in the sweep,
+        so an in-sample score there inflates the baseline.
+        """
+        run_dir, _ = pipeline
+        probe = _read_json(run_dir / "baselines" / "probe.json")
+        assert probe["probe_source"] == "grouped_cv_out_of_fold"
+        assert probe["n_boundaries_scored"] > 0
+
     def test_baseline_curves_cover_every_rule_with_data(self, pipeline):
         run_dir, _ = pipeline
         curves = _read_json(run_dir / "baselines" / "curves.json")
@@ -318,6 +330,10 @@ class TestAnalysisAndReport:
         assert f6["status"] == "ran"
         assert "shuffled_auc" in f6 and "real_auc" in f6
         assert isinstance(f6["leak_suspected"], bool)
+        # Both shuffle scopes are reported, each with how many labels it
+        # actually moved - a shuffle that moved none is not a control.
+        assert set(f6["shuffles"]) == {"across_groups", "within_group"}
+        assert f6["shuffles"]["across_groups"]["meaningful"] is True
 
     def test_report_is_self_contained(self, pipeline):
         run_dir, _ = pipeline

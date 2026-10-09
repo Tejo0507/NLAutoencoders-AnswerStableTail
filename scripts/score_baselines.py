@@ -225,38 +225,65 @@ def fit_probe(cfg, traces, base, log):
     log.info("probe data: %d boundaries, %d problems, positive rate %.3f",
              len(y), len(set(groups)), y.mean())
 
-    report = cross_validate(X, y, groups, cfg.probe).to_dict()
+    cv = cross_validate(X, y, groups, cfg.probe)
+    report = cv.to_dict()
     log.info("probe (grouped CV): accuracy=%.3f auc=%.3f brier=%.3f",
              report["accuracy"], report["auc"], report["brier"])
 
-    # Fit on the train split only, then score everything. The eval-split
-    # scores are the ones the O3 comparison uses.
-    train_mask = np.array([base[g]["split"] == "train" for g in groups])
-    if train_mask.sum() < 10 or len(np.unique(y[train_mask])) < 2:
-        log.warning("train split too small or single-class; using grouped CV "
-                    "out-of-fold scores as the probe signal instead")
-        fitted = CorrectnessProbe(cfg.probe).fit(X, y)
-        probe_source = "all_data_refit"
-    else:
-        fitted = CorrectnessProbe(cfg.probe).fit(X[train_mask], y[train_mask])
-        probe_source = "train_split"
-
-    p = fitted.predict_proba(X)
+    # Per-boundary scores for the stopping sweep come from the grouped
+    # cross-validation's out-of-fold predictions, so every score was produced
+    # by a probe that never saw that problem. Fitting on the train split and
+    # scoring everything would put in-sample probabilities on the train-split
+    # problems, and those problems are in the sweep too - which would inflate
+    # the baseline the primary research question is measured against, in the
+    # direction that makes the verbalised readout look worse for the wrong
+    # reason. The grouped folds are hashed by problem id, so this is leak-free
+    # and uses every problem rather than only the eval split.
+    oof = np.asarray(cv.oof, dtype=float) if cv.oof else np.full(len(y), np.nan)
     by_problem: dict[str, list[float | None]] = {
         pid: [None] * base[pid]["n_chunks"] for pid in base
     }
-    for (pid, chunk_i), prob in zip(index, p):
-        if chunk_i < len(by_problem[pid]):
+    n_scored = 0
+    for (pid, chunk_i), prob in zip(index, oof):
+        if chunk_i < len(by_problem[pid]) and np.isfinite(prob):
             by_problem[pid][chunk_i] = float(prob)
+            n_scored += 1
+
+    # A probe is also fitted on the train split alone - not for the sweep, but
+    # because the causal stage and the report quote its direction, and because
+    # the eval-split metrics are the ones comparable with earlier runs.
+    train_mask = np.array([base[g]["split"] == "train" for g in groups])
+    eval_mask = ~train_mask
+    train_split_fit: dict[str, object] = {"available": False}
+    if train_mask.sum() >= 10 and len(np.unique(y[train_mask])) >= 2:
+        fitted = CorrectnessProbe(cfg.probe).fit(X[train_mask], y[train_mask])
+        train_split_fit = {
+            "available": True,
+            "n_train": int(train_mask.sum()),
+            "n_eval": int(eval_mask.sum()),
+            "direction_norm": float(np.linalg.norm(fitted.direction)),
+        }
+        if eval_mask.sum() >= 3 and len(np.unique(y[eval_mask])) >= 2:
+            from sklearn.metrics import roc_auc_score
+
+            train_split_fit["eval_auc"] = float(
+                roc_auc_score(y[eval_mask], fitted.predict_proba(X[eval_mask]))
+            )
+    else:
+        log.warning("train split too small or single-class (%d rows, %d classes); "
+                    "no train-split probe fit. The sweep is unaffected - it uses "
+                    "out-of-fold scores.",
+                    int(train_mask.sum()), len(np.unique(y[train_mask])))
 
     info = {
         "n_examples": int(len(y)),
         "n_problems": len(set(groups)),
         "positive_rate": float(y.mean()),
-        "probe_source": probe_source,
-        "n_train": int(train_mask.sum()),
+        "probe_source": "grouped_cv_out_of_fold",
+        "n_boundaries_scored": n_scored,
+        "n_boundaries_unscored": int(len(y) - n_scored),
         "layer": layer,
-        "direction_norm": float(np.linalg.norm(fitted.direction)),
+        "train_split_fit": train_split_fit,
     }
     return report, by_problem, info
 

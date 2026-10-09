@@ -244,21 +244,54 @@ def f6_probe_leakage(cfg, traces, log) -> dict:
 
     X, y = np.vstack(X), np.asarray(y)
     real = cross_validate(X, y, groups, cfg.probe).to_dict()
-    shuf = cross_validate(X, y, groups, cfg.probe, shuffle_labels=True).to_dict()
+
+    # Two shuffles, because they destroy different things and only one of them
+    # is always meaningful on this corpus. `across_groups` reassigns whole
+    # problems' label sequences, so the group structure and the class balance
+    # survive and only the activation-label link is broken - that is the
+    # control. `within_group` is reported alongside it because it is the
+    # obvious one to try and is *degenerate* here: once a trace states its
+    # answer the label is the same at every later boundary, so permuting inside
+    # the problem often changes nothing and the probe scores exactly as it did
+    # unshuffled. Reading that as leakage would be wrong, so the number of
+    # labels the shuffle actually moved is reported with each arm and the
+    # verdict ignores an arm that moved none.
+    arms: dict[str, dict] = {}
+    for scope in ("across_groups", "within_group"):
+        rep = cross_validate(X, y, groups, cfg.probe, shuffle_labels=True,
+                             shuffle_scope=scope).to_dict()
+        info = rep["notes"].get("shuffle", {})
+        arms[scope] = {
+            "auc": rep["auc"],
+            "accuracy": rep["accuracy"],
+            "n_labels_changed": info.get("n_labels_changed"),
+            "fraction_changed": info.get("fraction_changed"),
+            "meaningful": bool(info.get("n_labels_changed")),
+        }
+
+    primary = arms["across_groups"]
+    leak = (bool(np.isfinite(primary["auc"]) and abs(primary["auc"] - 0.5) > 0.15)
+            if primary["meaningful"] else None)
     return {
         "status": "ran",
         "n": len(y),
+        "n_problems": len(set(groups)),
         "real_auc": real["auc"], "real_accuracy": real["accuracy"],
-        "shuffled_auc": shuf["auc"], "shuffled_accuracy": shuf["accuracy"],
         "positive_rate": real["positive_rate"],
-        "leak_suspected": bool(
-            np.isfinite(shuf["auc"]) and abs(shuf["auc"] - 0.5) > 0.15
-        ),
+        "shuffles": arms,
+        # Kept for continuity with the earlier output shape, pointing at the
+        # arm that is actually a control.
+        "shuffled_auc": primary["auc"],
+        "shuffled_accuracy": primary["accuracy"],
+        "leak_suspected": leak,
         "interpretation": (
-            "Labels are permuted within problem, preserving per-problem class "
-            "balance and destroying only the activation-label link. A shuffled "
-            "AUC away from 0.5 means the probe is reading something it should "
-            "not."
+            "The control permutes whole problems' label sequences between "
+            "problems: group structure, each problem's internal label pattern "
+            "and the class balance all survive, and only which activations go "
+            "with which labels is destroyed. A shuffled AUC away from 0.5 "
+            "means the probe is reading something it should not. "
+            "leak_suspected is null when the shuffle moved no labels at all, "
+            "because then there was nothing to control for."
         ),
     }
 
