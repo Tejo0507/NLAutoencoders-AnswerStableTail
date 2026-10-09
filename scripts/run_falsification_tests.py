@@ -371,6 +371,54 @@ def f8_replay_sequence(prompt_ids, trace, meta, max_positions: int):
     return full, None
 
 
+def f8_placement(log, gpu_headroom_gib: float = 1.0,
+                 host_headroom_gib: float = 2.0) -> dict:
+    """Where to put the bf16 weights, decided from free memory, not assumed.
+
+    Truncated to 21 layers the bf16 target is still around 11 GB. On this
+    machine neither the GPU (6.4 GB) nor the free host memory reliably holds
+    that alone, so the weights are split by what is actually free when F8 runs
+    - which is after ``acts`` and before ``nla``, with no other model resident.
+
+    Falls back to CPU-only when there is no usable GPU, and records what it
+    chose so a failed or slow run can be read afterwards.
+    """
+    import psutil
+    import torch
+
+    from nlaast.models.loading import free_cuda
+
+    record: dict = {"strategy": "cpu"}
+    if not torch.cuda.is_available():
+        log.info("F8: no CUDA; loading bf16 weights on CPU")
+        return {"kwargs": {"device_map": "cpu"}, "record": record}
+
+    free_cuda()
+    free_gpu, total_gpu = torch.cuda.mem_get_info()
+    gpu_gib = int(max(0.0, free_gpu / 2**30 - gpu_headroom_gib))
+    host_gib = int(max(0.0, psutil.virtual_memory().available / 2**30
+                       - host_headroom_gib))
+    record.update(free_gpu_gib=round(free_gpu / 2**30, 2),
+                  total_gpu_gib=round(total_gpu / 2**30, 2),
+                  available_host_gib=round(psutil.virtual_memory().available / 2**30, 2),
+                  gpu_budget_gib=gpu_gib, host_budget_gib=host_gib)
+    if gpu_gib < 2:
+        log.warning("F8: only %.1f GB of VRAM free; loading bf16 weights on CPU",
+                    free_gpu / 2**30)
+        return {"kwargs": {"device_map": "cpu"}, "record": record}
+
+    record["strategy"] = "split_gpu_cpu"
+    log.info("F8: splitting bf16 weights across GPU (%d GiB) and host (%d GiB)",
+             gpu_gib, host_gib)
+    return {
+        "kwargs": {
+            "device_map": "auto",
+            "max_memory": {0: f"{gpu_gib}GiB", "cpu": f"{max(1, host_gib)}GiB"},
+        },
+        "record": record,
+    }
+
+
 def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
     """Does 4-bit quantisation move the activations the autoencoder sees?
 
@@ -381,7 +429,13 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
 
     The bf16 model is loaded truncated to the layers actually needed
     (``layer + 1``), which is the only way ~11 GB of weights fit beside the
-    rest of the system in 15.6 GB of RAM.
+    rest of the system in 15.6 GB of RAM - and even then they often do not.
+    This stage runs between ``acts`` and ``nla``, so no other model is
+    resident and the whole GPU is free; the weights are therefore split across
+    GPU and CPU by free capacity measured at the time rather than loaded
+    entirely into RAM. Without that split the test is simply blocked on this
+    machine, and F8 is the evidence that decides whether the NLA arm's inputs
+    are in distribution - it is not an optional extra.
     """
     import torch
     from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
@@ -407,21 +461,40 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
     log.info("F8: loading bf16 target truncated to %d layers from %s", layer + 1, src)
     conf = AutoConfig.from_pretrained(src)
     conf.num_hidden_layers = layer + 1
-    try:
-        tok = AutoTokenizer.from_pretrained(src)
-        bf16 = AutoModelForCausalLM.from_pretrained(
-            src, config=conf, dtype=torch.bfloat16,
-            low_cpu_mem_usage=True, device_map="cpu",
-        ).eval()
-    except Exception as exc:
-        log.exception("F8: bf16 load failed")
-        return {"status": "failed", "reason": repr(exc),
-                "note": "15.6 GB of RAM against ~11 GB of truncated bf16 weights"}
+    tok = AutoTokenizer.from_pretrained(src)
+    placement = f8_placement(log)
+    bf16 = None
+    attempts: list[dict] = []
+    for attempt in ([placement] if placement["record"]["strategy"] == "cpu"
+                    else [placement, {"kwargs": {"device_map": "cpu"},
+                                      "record": {"strategy": "cpu_fallback"}}]):
+        try:
+            bf16 = AutoModelForCausalLM.from_pretrained(
+                src, config=conf, dtype=torch.bfloat16,
+                low_cpu_mem_usage=True, **attempt["kwargs"],
+            ).eval()
+            placement = attempt
+            break
+        except Exception as exc:
+            log.warning("F8: bf16 load failed under %s: %r",
+                        attempt["record"]["strategy"], exc)
+            attempts.append({"strategy": attempt["record"]["strategy"],
+                             "error": repr(exc)})
+    if bf16 is None:
+        return {"status": "failed", "attempts": attempts,
+                "placement": placement["record"],
+                "note": ("~11 GB of truncated bf16 weights against the free GPU "
+                         "and host memory measured at load time; F8 cannot run "
+                         "without them and the NLA arm's inputs stay unverified")}
+    if attempts:
+        placement["record"]["earlier_attempts"] = attempts
 
     captured: dict = {}
 
     def hook(_m, _i, o):
-        captured["h"] = (o[0] if isinstance(o, tuple) else o).detach().float()
+        # ``.cpu()`` matters: with the weights split across devices this tensor
+        # can come back on the GPU, and the comparison below is numpy.
+        captured["h"] = (o[0] if isinstance(o, tuple) else o).detach().float().cpu()
 
     handle = bf16.model.layers[layer].register_forward_hook(hook)
     cosines, norm_ratios, per_problem = [], [], []
@@ -489,6 +562,7 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
         "per_problem": per_problem,
         "n_skipped": len(skipped),
         "skipped": skipped,
+        "placement": placement["record"],
         "alignment": ("both arms read the same absolute token positions, with "
                       "the sampled token ids replayed verbatim; a problem whose "
                       "prompt no longer tokenises to its recorded length is "
