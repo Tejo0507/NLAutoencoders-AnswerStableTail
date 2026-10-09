@@ -81,26 +81,79 @@ def answer_stated_at(trace: dict) -> dict:
     return out
 
 
-def evidence_from_row(row: dict) -> list[BoundaryEvidence]:
-    return [
-        BoundaryEvidence(
+#: Punctuation a completed forced answer ends on. Anything else means the
+#: generation stopped mid-sentence, which at a 24-token budget means the cap.
+_FORCED_TERMINATORS = (".", "!", "?")
+
+
+def forced_was_cut_off(boundary: dict) -> bool | None:
+    """Did this boundary's forced answer hit the token cap?
+
+    Criterion 1 forces an answer out of a truncated prefix under a tight
+    budget (``generation.force_answer_max_new_tokens``, 24 by default) so the
+    model commits rather than starting a fresh derivation. When the model
+    instead begins writing one out, the budget cuts it off mid-expression and
+    the permissive extractor reads whatever number happens to be last. On a
+    real trace that produced ``"the answer is: Weight of sweet potatoes =
+    2 x 5 pounds = "`` -> parsed as ``5``, so the boundary failed criterion 1
+    even though all three resampled continuations reached the correct answer.
+
+    That failure is a property of the budget, not of the prefix, and it moves
+    the tail start **later** - the conservative direction for a claim about
+    redundancy, but a measurement artefact that has to be counted rather than
+    hoped away.
+
+    Uses the recorded ``forced_finished`` flag when the trace carries one, and
+    otherwise falls back to whether the text ends on a sentence terminator, so
+    traces generated before the flag existed are still assessed.
+    """
+    finished = boundary.get("forced_finished")
+    if finished is not None:
+        return not bool(finished)
+    text = (boundary.get("forced_text") or "").rstrip()
+    if not text:
+        return None
+    return not text.endswith(_FORCED_TERMINATORS)
+
+
+def evidence_from_row(row: dict, relax_forced_budget: bool = False
+                      ) -> list[BoundaryEvidence]:
+    """Boundary evidence as recorded, or with the criterion-1 budget relaxed.
+
+    ``relax_forced_budget`` treats criterion 1 as satisfied at a boundary
+    whose forced answer was **cut off by the token budget** and whose
+    resampled continuations were unanimous. It is not the pre-registered
+    criterion and never replaces it: it is run as a sensitivity arm so the
+    tail can be reported as an interval - the detected value, and what it
+    would be if no forced answer had run out of budget - instead of a point
+    estimate with a caveat attached.
+    """
+    out = []
+    for b in row.get("boundaries", []):
+        matches = bool(b.get("forced_matches_final"))
+        n_cont = len(b.get("continuation_answers", []))
+        if (relax_forced_budget and not matches and n_cont
+                and int(b.get("continuations_matching", 0)) == n_cont
+                and forced_was_cut_off(b)):
+            matches = True
+        out.append(BoundaryEvidence(
             index=b["index"],
             parsed_answer=b.get("parsed_answer"),
             forced_answer=b.get("forced_answer"),
-            forced_matches_final=bool(b.get("forced_matches_final")),
+            forced_matches_final=matches,
             continuation_answers=list(b.get("continuation_answers", [])),
             continuations_matching=int(b.get("continuations_matching", 0)),
             prefix_tokens=int(b.get("prefix_tokens", 0)),
-        )
-        for b in row.get("boundaries", [])
-    ]
+        ))
+    return out
 
 
 def detect_one(cfg, trace: dict, *, require_unanimous=None, convergence_window=None,
-               min_boundary_fraction=None, k_cap: int | None = None) -> dict:
+               min_boundary_fraction=None, k_cap: int | None = None,
+               relax_forced_budget: bool = False) -> dict:
     """Run detection on one trace. The keyword arguments drive the F5 sweep."""
     acfg = cfg.ast
-    evidence = evidence_from_row(trace)
+    evidence = evidence_from_row(trace, relax_forced_budget=relax_forced_budget)
     if k_cap is not None:
         # Simulate a smaller K by truncating the recorded continuations. Exact,
         # because the continuations are independent samples.
@@ -131,6 +184,22 @@ def detect_one(cfg, trace: dict, *, require_unanimous=None, convergence_window=N
     out["split"] = trace.get("split")
     out["level"] = trace.get("level")
     out.update(answer_stated_at(trace))
+
+    # Criterion-1 budget artefacts, counted per trace. The decisive case is a
+    # boundary that failed only because its forced answer was cut off while
+    # its resampled continuations all agreed - there criterion 2 says the
+    # answer was determined and criterion 1 says only that 24 tokens were not
+    # enough to say so.
+    evaluated = [b for b in trace.get("boundaries", []) if b.get("evaluated")]
+    cut = [b for b in evaluated if forced_was_cut_off(b)]
+    out["n_boundaries_evaluated"] = len(evaluated)
+    out["n_forced_cut_off"] = len(cut)
+    out["n_forced_cut_off_blocking"] = sum(
+        1 for b in cut
+        if not b.get("forced_matches_final")
+        and b.get("n_continuations")
+        and b.get("continuations_matching") == b.get("n_continuations")
+    )
     stated = out["answer_stated_at_strict"]
     out["tail_starts_before_answer_stated"] = (
         None if (stated is None or res.tail_start is None)
@@ -233,6 +302,26 @@ def summarise(rows: list[dict]) -> dict:
                      "window is not post-answer redundancy."),
         }
 
+    # Criterion-1 budget artefacts. See forced_was_cut_off().
+    evaluated = sum(r.get("n_boundaries_evaluated", 0) for r in rows)
+    if evaluated:
+        cut = sum(r.get("n_forced_cut_off", 0) for r in rows)
+        blocking = sum(r.get("n_forced_cut_off_blocking", 0) for r in rows)
+        out["forced_answer_budget"] = {
+            "n_boundaries_evaluated": evaluated,
+            "n_cut_off": cut,
+            "cut_off_rate": cut / evaluated,
+            "n_cut_off_and_blocking": blocking,
+            "blocking_rate": blocking / evaluated,
+            "n_problems_affected": sum(
+                1 for r in rows if r.get("n_forced_cut_off_blocking", 0) > 0),
+            "note": ("A blocking case is a boundary whose forced answer was cut "
+                     "off by the token budget and failed criterion 1, while "
+                     "every resampled continuation from the same prefix reached "
+                     "the final answer. Such boundaries move the tail start "
+                     "later, so the measured tail is conservative."),
+        }
+
     # How often the cheap agreement rule fires earlier than the AST. This is
     # the quantitative form of Mo et al.'s point and it is reported whether or
     # not it flatters the AST.
@@ -307,6 +396,22 @@ def run_sweep(cfg, traces: list[dict], log) -> dict:
     sweep["require_unanimous=False"] = {
         "status": "ran",
         **summarise([detect_one(cfg, t, require_unanimous=False) for t in traces]),
+    }
+
+    # Criterion 1 under an unlimited forcing budget, approximated: a boundary
+    # whose forced answer was cut off mid-derivation, but whose resampled
+    # continuations were unanimous, is counted as satisfying it. This is an
+    # upper bound on the tail, not an alternative definition - together with
+    # the detected value it brackets how much of the measured tail length is
+    # an artefact of force_answer_max_new_tokens.
+    sweep["forced_budget_relaxed"] = {
+        "status": "ran",
+        "is_upper_bound": True,
+        "note": ("not the pre-registered criterion: counts a budget-truncated "
+                 "forced answer as agreeing when every resampled continuation "
+                 "from the same prefix agreed. Read with the detected value as "
+                 "an interval."),
+        **summarise([detect_one(cfg, t, relax_forced_budget=True) for t in traces]),
     }
 
     # The baseline parameter, swept against what it actually changes.

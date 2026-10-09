@@ -151,6 +151,44 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
               f"**{_fmt(rq1.get('tail_token_share'))}**")
             A(f"- mean tail length: {_fmt(rq1.get('mean_tail_tokens'), 1)} tokens")
         A("")
+        fab = rq1.get("forced_answer_budget")
+        sweep_path = cfg.dir / "ast" / "sweep_F5.json"
+        relaxed = (read_json(sweep_path).get("forced_budget_relaxed")
+                   if sweep_path.exists() else None)
+        if fab and fab.get("n_cut_off_and_blocking"):
+            A("### The forcing budget bounds the tail from below")
+            A("")
+            A(f"Criterion 1 forces an answer out of a truncated prefix under "
+              f"`generation.force_answer_max_new_tokens` "
+              f"({cfg.generation.force_answer_max_new_tokens} tokens) so the "
+              f"model commits rather than starting a fresh derivation. When it "
+              f"starts writing one out anyway, the budget cuts it off and the "
+              f"extractor reads whatever number happens to be last. That "
+              f"happened on **{_fmt(fab['cut_off_rate'])}** of evaluated "
+              f"boundaries, and on **{_fmt(fab['blocking_rate'])}** it was "
+              f"*blocking*: the forced answer was truncated and failed "
+              f"criterion 1 while every resampled continuation from the same "
+              f"prefix reached the final answer. "
+              f"{fab['n_problems_affected']} problems are affected.")
+            A("")
+            A("Such a boundary fails for a budget reason, not an evidential "
+              "one, and it moves the tail start later - so the detected tail "
+              "is a **lower** bound.")
+            A("")
+            if relaxed and relaxed.get("mean_tail_fraction") is not None:
+                A(f"Counting those boundaries as satisfying criterion 1 gives "
+                  f"the upper end of the interval. Mean tail fraction: "
+                  f"**{_fmt(rq1.get('mean_tail_fraction'))}** as detected, "
+                  f"**{_fmt(relaxed.get('mean_tail_fraction'))}** relaxed. "
+                  f"Tail share of generated tokens: "
+                  f"**{_fmt(rq1.get('tail_token_share'))}** to "
+                  f"**{_fmt(relaxed.get('tail_token_share'))}**.")
+                A("")
+                A("The relaxed figure is not the pre-registered criterion and "
+                  "is reported only as the other end of the interval. Every "
+                  "number elsewhere in this report uses the detected tail.")
+                A("")
+
         dvs = rq1.get("determinacy_vs_statement")
         if dvs:
             A("### Determinacy is not statement")
