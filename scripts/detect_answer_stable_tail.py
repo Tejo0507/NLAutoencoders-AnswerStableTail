@@ -253,6 +253,96 @@ def summarise(rows: list[dict]) -> dict:
     return out
 
 
+def run_sweep(cfg, traces: list[dict], log) -> dict:
+    """F5: does the tail survive its own definition being perturbed?
+
+    Two settings are swept, and one that used to be swept is not.
+
+    ``k`` (resampled continuations) is simulated by truncating the recorded
+    continuations, which is exact because they are independent samples - but
+    only *downwards*. A requested ``k`` above the number actually generated
+    cannot be simulated at all; it silently reproduced the base result and was
+    then reported as "stable across settings", which is the one thing a
+    falsification test must never do. Such a setting is now recorded as
+    ``not_applicable`` with the reason.
+
+    ``require_unanimous`` genuinely changes criterion 2 and is swept.
+
+    ``convergence_window`` is **not** an AST parameter. It parameterises the
+    Liu & Wang agreement baseline, and sweeping it leaves every tail untouched
+    by construction; reporting an unchanged tail fraction across it looked like
+    evidence of robustness and was an identity. It is swept here against the
+    quantity it actually moves - where the agreement rule fires relative to the
+    tail - and reported under its own key.
+    """
+    available_k = max(
+        (max((len(b.get("continuation_answers") or []) for b in t.get("boundaries", [])),
+             default=0) for t in traces),
+        default=0,
+    )
+    sweep: dict = {
+        "_meta": {
+            "n_traces": len(traces),
+            "max_continuations_recorded": available_k,
+            "configured_k": cfg.ast.k_continuations,
+            "note": ("k can only be simulated downwards from the recorded "
+                     "continuations; convergence_window is a baseline "
+                     "parameter and does not enter the tail criteria"),
+        }
+    }
+
+    for k in cfg.robustness.ast_sweep_k:
+        key = f"k={k}"
+        if k > available_k:
+            sweep[key] = {
+                "status": "not_applicable",
+                "reason": (f"only {available_k} continuations were generated per "
+                           f"boundary, so k={k} cannot be simulated; raise "
+                           f"ast.k_continuations and regenerate to test it"),
+            }
+            continue
+        sweep[key] = {"status": "ran",
+                      **summarise([detect_one(cfg, t, k_cap=k) for t in traces])}
+
+    sweep["require_unanimous=False"] = {
+        "status": "ran",
+        **summarise([detect_one(cfg, t, require_unanimous=False) for t in traces]),
+    }
+
+    # The baseline parameter, swept against what it actually changes.
+    conv: dict = {}
+    for w in (1, 2, 3):
+        rows = [detect_one(cfg, t, convergence_window=w) for t in traces]
+        s = summarise(rows)
+        conv[f"convergence_window={w}"] = {
+            "n_fired": sum(1 for r in rows if r.get("convergence_start") is not None),
+            "convergence_vs_ast": s.get("convergence_vs_ast"),
+            "mean_tail_fraction": s.get("mean_tail_fraction"),
+        }
+    sweep["baseline_convergence_window"] = {
+        "status": "ran",
+        "settings": conv,
+        "note": ("the tail is identical under every setting here by "
+                 "construction - convergence_window is not an AST parameter. "
+                 "What moves is where the agreement baseline fires relative to "
+                 "the tail."),
+    }
+
+    ran = {k: v for k, v in sweep.items()
+           if isinstance(v, dict) and v.get("status") == "ran"
+           and "mean_tail_fraction" in v}
+    log.info("F5 sweep: mean tail fraction %s",
+             {k: round(v["mean_tail_fraction"], 3) for k, v in ran.items()})
+    log.info("F5 sweep: non-trivial tail rate %s",
+             {k: round(v["nontrivial_tail_rate"], 3) for k, v in ran.items()})
+    skipped = [k for k, v in sweep.items()
+               if isinstance(v, dict) and v.get("status") == "not_applicable"]
+    if skipped:
+        log.warning("F5 sweep: %s could not be simulated from the recorded "
+                    "continuations and is reported as not applicable", skipped)
+    return sweep
+
+
 def main() -> int:
     p = base_parser(__doc__)
     p.add_argument("--sweep", action="store_true",
@@ -298,24 +388,7 @@ def main() -> int:
                  "(mean gap %.2f chunks)", 100 * c["convergence_earlier"], c["mean_gap_chunks"])
 
     if args.sweep:
-        sweep = {}
-        for k in cfg.robustness.ast_sweep_k:
-            srows = [detect_one(cfg, t, k_cap=k) for t in traces]
-            sweep[f"k={k}"] = summarise(srows)
-        for w in (1, 2, 3):
-            srows = [detect_one(cfg, t, convergence_window=w) for t in traces]
-            sweep[f"convergence_window={w}"] = summarise(srows)
-        srows = [detect_one(cfg, t, require_unanimous=False) for t in traces]
-        sweep["require_unanimous=False"] = summarise(srows)
-        write_json(out_dir / "sweep_F5.json", sweep)
-        # Tail *rate* barely moves across settings - see the caveat in
-        # summarise() - so the sensitivity that matters is in the tail
-        # fraction, and both are logged.
-        log.info("F5 sweep: mean tail fraction %s",
-                 {k: round(v.get("mean_tail_fraction", float("nan")), 3)
-                  for k, v in sweep.items()})
-        log.info("F5 sweep: non-trivial tail rate %s",
-                 {k: round(v["nontrivial_tail_rate"], 3) for k, v in sweep.items()})
+        write_json(out_dir / "sweep_F5.json", run_sweep(cfg, traces, log))
 
     manifest.finish_stage(STAGE, status="complete",
                           output=str(out_dir / "ast.jsonl"), metrics=summary)

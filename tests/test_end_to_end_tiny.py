@@ -169,8 +169,19 @@ class TestAstAndBaselines:
     def test_f5_sweep_written(self, pipeline):
         run_dir, _ = pipeline
         sweep = _read_json(run_dir / "ast" / "sweep_F5.json")
-        assert "require_unanimous=False" in sweep
-        assert all("tail_rate" in v for v in sweep.values())
+        assert sweep["require_unanimous=False"]["status"] == "ran"
+        assert "tail_rate" in sweep["require_unanimous=False"]
+        # The baseline parameter is kept out of the criteria sweep, and a
+        # setting that could not be simulated is marked rather than reported
+        # as an identical - and therefore apparently robust - result.
+        assert "baseline_convergence_window" in sweep
+        assert sweep["_meta"]["max_continuations_recorded"] >= 1
+        for key, value in sweep.items():
+            if key in ("_meta", "baseline_convergence_window"):
+                continue
+            assert value["status"] in ("ran", "not_applicable")
+            if value["status"] == "not_applicable":
+                assert value["reason"]
 
     def test_the_probe_arm_is_scored_out_of_fold(self, pipeline):
         """No problem may be scored by a probe that saw it.

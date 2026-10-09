@@ -204,31 +204,51 @@ def f5_ast_sensitivity(cfg, log) -> dict:
         return {"status": "skipped",
                 "reason": "run scripts/detect_answer_stable_tail.py --sweep first"}
     sweep = read_json(path)
-    rates = {k: v.get("tail_rate") for k, v in sweep.items()}
-    nontrivial = {k: v.get("nontrivial_tail_rate") for k, v in sweep.items()}
-    fracs = {k: v.get("mean_tail_fraction") for k, v in sweep.items()}
+    meta = sweep.get("_meta", {})
+    # Only settings that genuinely perturb the tail criteria, and only those
+    # the recorded continuations could actually simulate. A setting that
+    # silently reproduced the base result would otherwise be counted as
+    # evidence of robustness.
+    ran = {k: v for k, v in sweep.items()
+           if k != "_meta" and isinstance(v, dict) and v.get("status") == "ran"
+           and "mean_tail_fraction" in v}
+    skipped = {k: v.get("reason") for k, v in sweep.items()
+               if k != "_meta" and isinstance(v, dict)
+               and v.get("status") == "not_applicable"}
 
-    def span(d):
-        vals = [v for v in d.values() if v is not None and np.isfinite(v)]
+    def span(key):
+        vals = [v.get(key) for v in ran.values()]
+        vals = [v for v in vals if v is not None and np.isfinite(v)]
         return (max(vals) - min(vals)) if vals else float("nan")
 
-    return {
-        "status": "ran",
-        "tail_rate_by_setting": rates,
-        "nontrivial_tail_rate_by_setting": nontrivial,
-        "mean_tail_fraction_by_setting": fracs,
-        "tail_rate_range": span(rates),
-        "nontrivial_tail_rate_range": span(nontrivial),
-        "mean_tail_fraction_range": span(fracs),
+    out = {
+        "status": "ran" if ran else "skipped",
+        "settings_exercised": sorted(ran),
+        "settings_not_applicable": skipped,
+        "max_continuations_recorded": meta.get("max_continuations_recorded"),
+        "tail_rate_by_setting": {k: v.get("tail_rate") for k, v in ran.items()},
+        "nontrivial_tail_rate_by_setting": {
+            k: v.get("nontrivial_tail_rate") for k, v in ran.items()},
+        "mean_tail_fraction_by_setting": {
+            k: v.get("mean_tail_fraction") for k, v in ran.items()},
+        "tail_rate_range": span("tail_rate"),
+        "nontrivial_tail_rate_range": span("nontrivial_tail_rate"),
+        "mean_tail_fraction_range": span("mean_tail_fraction"),
+        "baseline_convergence_window": sweep.get("baseline_convergence_window"),
         "interpretation": (
             "A construct that swings widely across settings is an artefact of "
             "its own parameters rather than of the model. Read the tail "
             "*fraction* range first: tail_rate is near its ceiling under every "
             "setting because the final boundary qualifies almost by "
             "construction, so a stable tail_rate across the sweep is close to "
-            "uninformative."
+            "uninformative. Settings listed as not applicable were not tested "
+            "at all and are not evidence of stability - k can only be "
+            "simulated downwards from the continuations actually generated."
         ),
     }
+    if not ran:
+        out["reason"] = "no sweep setting could be exercised"
+    return out
 
 
 # --- F6 ---
