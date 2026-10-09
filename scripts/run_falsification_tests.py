@@ -304,6 +304,40 @@ def f7_layer_sweep(cfg, traces, log) -> dict:
 
 
 # --- F8 ---
+def f8_replay_sequence(prompt_ids, trace, meta, max_positions: int):
+    """The token sequence to run the bf16 arm on, or why it cannot be compared.
+
+    Returns ``(ids, None)`` or ``(None, reason)``.
+
+    The 4-bit activations were read at absolute positions in
+    ``prompt_ids + sampled_trace_ids``, with the sampled ids replayed verbatim
+    (DECISIONS.md D6). The bf16 arm has to reproduce that sequence exactly. Two
+    things would silently break the comparison:
+
+    * re-tokenising the decoded trace, or tokenising ``prompt + trace`` as one
+      string - byte-level BPE can merge across what used to be a token
+      boundary, shifting every position;
+    * a prompt that tokenises to a different length than it did at extraction,
+      which moves the absolute positions even when the trace ids are right.
+
+    Either way the two arms would be compared at different tokens and the
+    cosine would understate for a reason that has nothing to do with
+    quantisation - which is the only thing F8 is measuring. So both are refused
+    rather than approximated.
+    """
+    trace_ids = trace.get("token_ids")
+    if not trace_ids:
+        return None, "trace has no token_ids"
+    stored = meta.get("prompt_tokens")
+    if stored is not None and int(stored) != len(prompt_ids):
+        return None, (f"prompt length {len(prompt_ids)} != {stored} recorded "
+                      f"at extraction")
+    full = list(prompt_ids) + list(trace_ids)
+    if len(full) > max_positions:
+        return None, f"sequence of {len(full)} tokens exceeds {max_positions}"
+    return full, None
+
+
 def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
     """Does 4-bit quantisation move the activations the autoencoder sees?
 
@@ -358,6 +392,7 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
 
     handle = bf16.model.layers[layer].register_forward_hook(hook)
     cosines, norm_ratios, per_problem = [], [], []
+    skipped: list[dict] = []
     started = time.monotonic()
     try:
         for t in usable:
@@ -369,10 +404,14 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
             ]
             prompt = tok.apply_chat_template(messages, tokenize=False,
                                              add_generation_prompt=True)
-            ids = tok(prompt + t["trace"], return_tensors="pt",
-                      add_special_tokens=False)["input_ids"]
-            if ids.shape[1] > cfg.target.max_position_embeddings:
+            prompt_ids = tok(prompt, add_special_tokens=False)["input_ids"]
+            full, reason = f8_replay_sequence(
+                prompt_ids, t, meta, cfg.target.max_position_embeddings)
+            if full is None:
+                log.warning("F8: skipping %s - %s", pid, reason)
+                skipped.append({"problem_id": pid, "reason": reason})
                 continue
+            ids = torch.tensor([full], dtype=torch.long)
             with torch.inference_mode():
                 bf16(input_ids=ids, use_cache=False)
             hidden = captured["h"][0]
@@ -383,6 +422,7 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
                 if p < hidden.shape[0]:
                     rows.append((i, p))
             if not rows:
+                skipped.append({"problem_id": pid, "reason": "no in-range positions"})
                 continue
             a = np.stack([arr[i] for i, _ in rows]).astype(np.float64)
             b = np.stack([hidden[p].numpy() for _, p in rows]).astype(np.float64)
@@ -401,7 +441,8 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
         free_cuda()
 
     if not cosines:
-        return {"status": "failed", "reason": "no comparable positions"}
+        return {"status": "failed", "reason": "no comparable positions",
+                "skipped": skipped}
     c = np.asarray(cosines)
     return {
         "status": "ran",
@@ -413,6 +454,12 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
         "min_cosine": float(c.min()),
         "mean_norm_ratio_nf4_over_bf16": float(np.mean(norm_ratios)),
         "per_problem": per_problem,
+        "n_skipped": len(skipped),
+        "skipped": skipped,
+        "alignment": ("both arms read the same absolute token positions, with "
+                      "the sampled token ids replayed verbatim; a problem whose "
+                      "prompt no longer tokenises to its recorded length is "
+                      "skipped and listed rather than compared off-position"),
         "interpretation": (
             "The verbaliser normalises its input to a fixed L2 norm, so only "
             "direction matters. A mean cosine near 1.0 means the 4-bit model "
