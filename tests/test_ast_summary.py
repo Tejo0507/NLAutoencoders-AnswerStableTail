@@ -26,7 +26,12 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from detect_answer_stable_tail import run_sweep, summarise  # noqa: E402
+from detect_answer_stable_tail import (  # noqa: E402
+    evidence_from_row,
+    forced_was_cut_off,
+    run_sweep,
+    summarise,
+)
 
 
 def row(pid, n_chunks, tail_start, *, status="ok", last_qualifies=True,
@@ -145,6 +150,74 @@ class TestDeterminacyVersusStatement:
             [row("p0", 10, None, status="no_stable_point")])
 
 
+class TestForcedBudget:
+    """Criterion 1 can fail because 24 tokens ran out, not because the answer
+    was undetermined.
+
+    Observed on a real trace: forcing from a mid-derivation prefix produced
+    "the answer is: Weight of sweet potatoes = 2 x 5 pounds = ", which the
+    permissive extractor read as 5, so the boundary failed - while all three
+    resampled continuations from the same prefix reached the correct answer.
+    """
+
+    def test_the_recorded_flag_is_preferred_when_present(self):
+        assert forced_was_cut_off({"forced_finished": False}) is True
+        assert forced_was_cut_off({"forced_finished": True}) is False
+
+    def test_the_flag_wins_over_the_text_heuristic(self):
+        """A trace that carries the exact signal must not be second-guessed."""
+        b = {"forced_finished": True, "forced_text": "... = 2 \\times 5 = "}
+        assert forced_was_cut_off(b) is False
+
+    def test_older_traces_fall_back_to_the_text(self):
+        assert forced_was_cut_off({"forced_text": "the answer is 7 pounds."}) is False
+        assert forced_was_cut_off({"forced_text": "... pounds} = "}) is True
+
+    def test_no_text_and_no_flag_is_unknown_not_false(self):
+        assert forced_was_cut_off({}) is None
+        assert forced_was_cut_off({"forced_text": "   "}) is None
+
+    def test_relaxing_the_budget_only_rescues_unanimous_boundaries(self):
+        row = {"boundaries": [
+            # cut off, unanimous -> rescued
+            {"index": 0, "forced_matches_final": False, "forced_finished": False,
+             "continuation_answers": ["7", "7"], "continuations_matching": 2,
+             "prefix_tokens": 4},
+            # cut off, not unanimous -> left alone
+            {"index": 1, "forced_matches_final": False, "forced_finished": False,
+             "continuation_answers": ["7", "3"], "continuations_matching": 1,
+             "prefix_tokens": 8},
+            # finished and disagreed -> left alone, this is real evidence
+            {"index": 2, "forced_matches_final": False, "forced_finished": True,
+             "continuation_answers": ["7", "7"], "continuations_matching": 2,
+             "prefix_tokens": 12},
+        ]}
+        strict = evidence_from_row(row)
+        assert [e.forced_matches_final for e in strict] == [False, False, False]
+        relaxed = evidence_from_row(row, relax_forced_budget=True)
+        assert [e.forced_matches_final for e in relaxed] == [True, False, False]
+
+    def test_relaxing_never_overturns_a_satisfied_criterion(self):
+        row = {"boundaries": [
+            {"index": 0, "forced_matches_final": True, "forced_finished": True,
+             "continuation_answers": ["7"], "continuations_matching": 1,
+             "prefix_tokens": 4},
+        ]}
+        assert evidence_from_row(row, relax_forced_budget=True)[0].forced_matches_final
+
+    def test_the_summary_counts_blocking_cases_separately(self):
+        rows = [{
+            **row("p0", 4, 2),
+            "n_boundaries_evaluated": 4,
+            "n_forced_cut_off": 3,
+            "n_forced_cut_off_blocking": 2,
+        }]
+        fab = summarise(rows)["forced_answer_budget"]
+        assert fab["cut_off_rate"] == 0.75
+        assert fab["blocking_rate"] == 0.5
+        assert fab["n_problems_affected"] == 1
+
+
 def sweep_trace(pid, n_chunks, stable_from, k, answer="42"):
     """A `traces.jsonl` row with enough structure for detection to run on it."""
     text = " ".join(f"Step {i} of the derivation here." for i in range(n_chunks - 1))
@@ -229,6 +302,30 @@ class TestF5Sweep:
         fracs = {c["mean_tail_fraction"] for c in conv.values()}
         assert len(fracs) == 1
         assert "not an AST parameter" in sweep["baseline_convergence_window"]["note"]
+
+    def test_the_relaxed_budget_arm_is_present_and_marked_as_a_bound(self):
+        traces = [sweep_trace(f"p{i}", 8, 4, k=3) for i in range(4)]
+        arm = run_sweep(self._cfg([3]), traces, self._log())["forced_budget_relaxed"]
+        assert arm["status"] == "ran"
+        assert arm["is_upper_bound"] is True
+        assert "not the pre-registered criterion" in arm["note"]
+        assert "mean_tail_fraction" in arm
+
+    def test_the_relaxed_arm_never_shortens_the_tail(self):
+        """It only ever adds qualifying boundaries, so the tail can grow but
+        not shrink - which is what makes the pair an interval."""
+        traces = []
+        for i in range(4):
+            t = sweep_trace(f"p{i}", 8, 4, k=3)
+            for b in t["boundaries"][2:4]:
+                b["forced_matches_final"] = False
+                b["forced_finished"] = False
+                b["continuation_answers"] = ["42", "42", "42"]
+                b["continuations_matching"] = 3
+            traces.append(t)
+        sweep = run_sweep(self._cfg([3]), traces, self._log())
+        assert (sweep["forced_budget_relaxed"]["mean_tail_fraction"]
+                >= sweep["k=3"]["mean_tail_fraction"])
 
     def test_the_meta_block_records_what_was_available(self):
         traces = [sweep_trace(f"p{i}", 8, 4, k=3) for i in range(4)]
