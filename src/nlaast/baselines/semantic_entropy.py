@@ -113,8 +113,13 @@ def normalised_entropy(result: EntropyResult) -> float:
     Needed because the number of samples per boundary is not always equal once
     generation failures are counted, and raw nats are not comparable across
     different sample counts.
+
+    With no samples at all there is nothing to normalise, and ``nan`` is the
+    honest answer - see ``confidence_score``.
     """
-    if result.n_samples <= 1:
+    if result.n_samples == 0:
+        return float("nan")
+    if result.n_samples == 1:
         return 0.0
     return result.semantic_entropy / math.log(result.n_samples)
 
@@ -125,5 +130,14 @@ def confidence_score(result: EntropyResult) -> float:
     Expressed as confidence rather than entropy so every rule in
     ``stopping.py`` fires on a *high* score and the sweep code does not need
     per-rule polarity flags.
+
+    ``nan`` when no samples were generated. Returning a confident 1.0 there -
+    which is what dividing by a zero sample count used to amount to - would put
+    a rule that stops at the very first boundary of every problem on the
+    comparison curve and label it semantic entropy. A configuration that
+    switches entropy sampling off (``semantic_entropy.n_samples: 0``, as the
+    larger trace corpus does) must make the arm *unavailable*, not perfectly
+    confident.
     """
-    return 1.0 - normalised_entropy(result)
+    norm = normalised_entropy(result)
+    return float("nan") if math.isnan(norm) else 1.0 - norm

@@ -148,6 +148,22 @@ class TestSemanticEntropy:
         r = semantic_entropy([])
         assert r.n_samples == 0 and np.isnan(r.semantic_entropy)
 
+    def test_no_samples_means_no_score_not_perfect_confidence(self):
+        """A configuration can switch entropy sampling off entirely.
+
+        Scoring that as confidence 1.0 would put a rule on the comparison
+        curve that stops at the first boundary of every problem and label it
+        semantic entropy. The arm has to be unavailable instead.
+        """
+        r = semantic_entropy([])
+        assert np.isnan(normalised_entropy(r))
+        assert np.isnan(confidence_score(r))
+
+    def test_a_single_sample_is_confident_because_it_cannot_disagree(self):
+        r = semantic_entropy(["42"])
+        assert normalised_entropy(r) == pytest.approx(0.0)
+        assert confidence_score(r) == pytest.approx(1.0)
+
     def test_method_is_labelled_as_the_adaptation(self):
         # It is not Farquhar et al.'s NLI clustering and must not be reported
         # as though it were.
