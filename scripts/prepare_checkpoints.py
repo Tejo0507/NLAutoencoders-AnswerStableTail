@@ -22,7 +22,7 @@ from pathlib import Path
 from _stage import base_parser, paths, setup, should_skip
 
 from nlaast.models import loading
-from nlaast.logging_utils import write_json
+from nlaast.logging_utils import read_json, write_json
 from nlaast.nla import meta as nla_meta
 
 STAGE = "models"
@@ -31,6 +31,20 @@ STAGE = "models"
 def disk_free_gb(path: Path) -> float:
     path.mkdir(parents=True, exist_ok=True)
     return shutil.disk_usage(path).free / 1e9
+
+
+def merge_resolved(path: Path, prepared: dict) -> dict:
+    """Add this call's checkpoint records to whatever earlier calls recorded.
+
+    The three checkpoints cannot coexist on this machine, so this stage is
+    *expected* to run more than once with ``--skip``: the target first, then
+    the autoencoders after the target's bf16 source has been evicted.
+    Rewriting the file from the current call's resolved set would drop the
+    provenance of everything an earlier call prepared - and that record is the
+    answer to "which weights produced this result".
+    """
+    existing = read_json(path) if path.exists() else {}
+    return {**existing, **prepared}
 
 
 def main() -> int:
@@ -151,13 +165,19 @@ def main() -> int:
 
     out = cfg.stage_dir(STAGE)
     write_json(out / "checks.json", checks)
-    write_json(
-        out / "resolved.json",
-        {k: v.provenance() for k, v in resolved.items()},
-    )
+
+    record_path = out / "resolved.json"
+    before = set(read_json(record_path)) if record_path.exists() else set()
+    merged = merge_resolved(record_path,
+                            {k: v.provenance() for k, v in resolved.items()})
+    write_json(record_path, merged)
+    for name in sorted(before - set(resolved)):
+        log.info("kept the earlier provenance record for %s (%s)",
+                 name, merged[name].get("local_path"))
     manifest.finish_stage(
         STAGE, status="complete", output=str(out),
-        metrics={"prepared": sorted(resolved), "checks_ok": True},
+        metrics={"prepared": sorted(resolved), "all_recorded": sorted(merged),
+                 "skipped": sorted(args.skip), "checks_ok": True},
     )
     return 0
 
