@@ -341,3 +341,21 @@ class TestAnalysisAndReport:
         assert "Answer-Stable Tail" in md or "answer-stable tail" in md.lower()
         assert (run_dir / "report" / "manifest_snapshot.json").exists()
         assert list((run_dir / "report" / "figures").glob("*.png"))
+
+    def test_the_report_says_how_each_baseline_was_scored(self, pipeline):
+        """At these sample sizes that is not a footnote: a baseline scored
+        in-sample, or an arm absent rather than weak, changes how the headline
+        comparison table should be read."""
+        run_dir, _ = pipeline
+        md = (run_dir / "report" / "RESULTS.md").read_text(encoding="utf-8")
+        assert "How each signal was scored" in md
+        assert "grouped_cv_out_of_fold" in md
+        assert "semantic entropy" in md
+
+    def test_the_report_lists_stages_that_did_not_run(self, pipeline):
+        """A stage that produced nothing must be visible as such, not omitted -
+        otherwise the report reads as though the study were complete."""
+        run_dir, _ = pipeline
+        md = (run_dir / "report" / "RESULTS.md").read_text(encoding="utf-8")
+        assert "| stage | status | elapsed (s) |" in md
+        assert "not run" in md or "pending" in md
