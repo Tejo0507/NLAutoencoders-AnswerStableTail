@@ -71,6 +71,38 @@ class NLAMeta:
         return d
 
 
+def chat_template_ids(tokenizer, content: str) -> list[int]:
+    """Token ids for one user turn, as a flat ``list[int]``.
+
+    ``apply_chat_template(tokenize=True)`` does not return a list of ids on
+    every ``transformers`` version: 5.x returns a ``BatchEncoding``
+    (``{"input_ids": [...], "attention_mask": [...]}``), and it can return a
+    batch dimension or a tensor. Iterating that object yields its *keys*, so
+    the injection-site scan would find no injection site and report tokenizer
+    drift that does not exist - which is a confident, wrong diagnosis of the
+    one failure upstream warns is unrecoverable. Normalised in one place so
+    both the verifier and the verbaliser see the same thing.
+    """
+    out = tokenizer.apply_chat_template(
+        [{"role": "user", "content": content}], tokenize=True, add_generation_prompt=True
+    )
+    ids = out["input_ids"] if hasattr(out, "keys") else out
+    if hasattr(ids, "tolist"):
+        ids = ids.tolist()
+    ids = list(ids)
+    while ids and isinstance(ids[0], (list, tuple)):
+        if len(ids) != 1:
+            raise ValueError(
+                f"chat template returned {len(ids)} sequences; expected one"
+            )
+        ids = list(ids[0])
+    if not all(isinstance(t, int) for t in ids):
+        raise TypeError(
+            f"chat template produced {type(ids[0]).__name__} rather than token ids"
+        )
+    return ids
+
+
 def load_meta(checkpoint_dir: Path | str) -> NLAMeta:
     path = Path(checkpoint_dir) / "nla_meta.yaml"
     if not path.exists():
@@ -159,9 +191,7 @@ def verify_tokenizer(tokenizer, meta: NLAMeta) -> dict:
     files were re-saved) is validated before any inference runs.
     """
     content = meta.av_template.format(injection_char=meta.injection_char)
-    ids = tokenizer.apply_chat_template(
-        [{"role": "user", "content": content}], tokenize=True, add_generation_prompt=True
-    )
+    ids = chat_template_ids(tokenizer, content)
     positions = [i for i, t in enumerate(ids) if t == meta.injection_token_id]
     report: dict[str, Any] = {
         "n_injection_sites": len(positions),

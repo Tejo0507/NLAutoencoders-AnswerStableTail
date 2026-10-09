@@ -13,7 +13,13 @@ import pytest
 import torch
 import yaml
 
-from nlaast.nla.meta import check_consistency, load_meta, upstream
+from nlaast.nla.meta import (
+    chat_template_ids,
+    check_consistency,
+    load_meta,
+    upstream,
+    verify_tokenizer,
+)
 from nlaast.nla.verbalizer import score_integrity
 
 #: Verbatim from kitft/nla-qwen2.5-7b-L20-av.
@@ -42,6 +48,56 @@ def write_sidecar(tmp_path, data, name="ckpt"):
     d.mkdir(parents=True, exist_ok=True)
     (d / "nla_meta.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
     return d
+
+
+class _FakeTokenizer:
+    """Returns chat-template ids in one of the shapes transformers has used.
+
+    ``apply_chat_template(tokenize=True)`` returned a bare ``list[int]`` in
+    transformers 4.x and returns a ``BatchEncoding`` in 5.x. The injection-site
+    check iterates the result, so on 5.x it iterated dictionary *keys*, found
+    no injection site, and refused to run the verbaliser with a "tokenizer
+    drift" error that was not true. These pin the normalisation.
+    """
+
+    def __init__(self, ids, shape):
+        self._ids, self._shape = ids, shape
+
+    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=True):
+        assert tokenize and add_generation_prompt
+        if self._shape == "list":
+            return list(self._ids)
+        if self._shape == "batch_encoding":
+            return {"input_ids": list(self._ids), "attention_mask": [1] * len(self._ids)}
+        if self._shape == "nested":
+            return {"input_ids": [list(self._ids)], "attention_mask": [[1] * len(self._ids)]}
+        if self._shape == "tensor":
+            return {"input_ids": torch.tensor([self._ids]), "attention_mask": None}
+        raise AssertionError(self._shape)
+
+
+IDS = [11, 12, 29, 149705, 522, 13]
+
+
+class TestChatTemplateIds:
+    @pytest.mark.parametrize("shape", ["list", "batch_encoding", "nested", "tensor"])
+    def test_every_return_shape_flattens_to_the_same_ids(self, shape):
+        assert chat_template_ids(_FakeTokenizer(IDS, shape), "x") == IDS
+
+    @pytest.mark.parametrize("shape", ["list", "batch_encoding", "nested", "tensor"])
+    def test_verify_tokenizer_finds_the_site_in_every_shape(self, shape, tmp_path):
+        meta = load_meta(write_sidecar(tmp_path, AV_SIDECAR, f"av_{shape}"))
+        report = verify_tokenizer(_FakeTokenizer(IDS, shape), meta)
+        assert report["ok"], report
+        assert report["position"] == 3
+        assert (report["left"], report["right"]) == (29, 522)
+
+    def test_a_genuinely_drifted_neighbour_is_still_caught(self, tmp_path):
+        meta = load_meta(write_sidecar(tmp_path, AV_SIDECAR, "av_drift"))
+        bad = [11, 12, 999, 149705, 522, 13]
+        report = verify_tokenizer(_FakeTokenizer(bad, "batch_encoding"), meta)
+        assert not report["ok"]
+        assert "neighbour drift" in report["error"]
 
 
 class TestVendoredUpstream:

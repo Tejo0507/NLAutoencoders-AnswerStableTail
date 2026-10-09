@@ -15,23 +15,39 @@ from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from common_data import build_table
+from common_data import build_table, write_provenance
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--folds", type=int, default=3)
 parser.add_argument("--repeats", type=int, default=20)
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--out", default="outputs/classification")
+parser.add_argument("--runs", nargs="*", default=None,
+                    help="run ids to pool; default is every run poolable with "
+                         "the largest one (see common_data.POOLING_KEYS)")
 args = parser.parse_args()
 
 os.makedirs(args.out, exist_ok=True)
 
-df = build_table()
+df, provenance = build_table(run_ids=args.runs)
 features = [c for c in df.columns if c not in ("id", "dataset", "final_correct")]
 X = df[features].values.astype(float)
 y = df["final_correct"].values
 
+print(f"corpus: {provenance['n_rows']} rows from runs {provenance['runs']}")
+if provenance["excluded"]:
+    print(f"excluded runs: {provenance['excluded']}")
 print(f"rows: {len(df)}  correct: {y.sum()}  incorrect: {(1 - y).sum()}")
+
+# Stratified k-fold needs at least `folds` members of the minority class, and
+# at these corpus sizes one class can be that small. Failing here with the
+# count is better than a fold that silently comes out single-class.
+minority = int(min(y.sum(), len(y) - y.sum()))
+if len(df) < 2 * args.folds or minority < args.folds:
+    raise SystemExit(
+        f"corpus too small: {len(df)} rows, minority class {minority}, "
+        f"{args.folds} folds requested. Generate more traces, or lower --folds."
+    )
 
 models = {
     "Majority baseline": DummyClassifier(strategy="most_frequent"),
@@ -142,5 +158,14 @@ ax.legend()
 fig.tight_layout()
 fig.savefig(f"{args.out}/length_by_class.png", dpi=200)
 plt.close(fig)
+
+write_provenance(args.out, provenance, extra={
+    "analysis": "classification of final_correct",
+    "folds": args.folds, "repeats": args.repeats, "seed": args.seed,
+    "n_positive": int(y.sum()), "n_negative": int(len(y) - y.sum()),
+    "best_model_by_auroc": best,
+    "caveat": ("Cross-validated on a corpus of this size the intervals are "
+               "wide; read model_scores.csv with n_rows in mind."),
+})
 
 print(f"\nfigures and tables written to {args.out}/")

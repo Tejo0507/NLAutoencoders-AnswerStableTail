@@ -14,21 +14,35 @@ from sklearn.model_selection import RepeatedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from common_data import build_table
+from common_data import build_table, write_provenance
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--folds", type=int, default=3)
 parser.add_argument("--repeats", type=int, default=20)
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--out", default="outputs/regression")
+parser.add_argument("--runs", nargs="*", default=None,
+                    help="run ids to pool; default is every run poolable with "
+                         "the largest one (see common_data.POOLING_KEYS)")
 args = parser.parse_args()
 
 os.makedirs(args.out, exist_ok=True)
 
-df = build_table(with_ast=True)
+df, provenance = build_table(with_ast=True, run_ids=args.runs)
 features = [c for c in df.columns if c not in ("id", "dataset", "tail_fraction")]
 X = df[features].values.astype(float)
 y = df["tail_fraction"].values
+
+print(f"corpus: {provenance['n_rows']} rows from runs {provenance['runs']}")
+if provenance["excluded"]:
+    print(f"excluded runs: {provenance['excluded']}")
+if provenance["dropped_without_ok_tail"]:
+    print(f"dropped without an ok tail: {provenance['dropped_without_ok_tail']}")
+if len(df) < 2 * args.folds:
+    raise SystemExit(
+        f"corpus too small: {len(df)} rows for {args.folds} folds. Only "
+        f"problems whose AST status is 'ok' have a tail fraction to predict."
+    )
 
 print(f"rows: {len(df)}  target mean: {y.mean():.3f}  min: {y.min():.2f}  max: {y.max():.2f}")
 
@@ -145,5 +159,17 @@ ax.legend()
 fig.tight_layout()
 fig.savefig(f"{args.out}/target_distribution.png", dpi=200)
 plt.close(fig)
+
+write_provenance(args.out, provenance, extra={
+    "analysis": "regression on tail_fraction",
+    "folds": args.folds, "repeats": args.repeats, "seed": args.seed,
+    "target_mean": float(y.mean()),
+    "target_min": float(y.min()), "target_max": float(y.max()),
+    "best_model_by_mae": best,
+    "caveat": ("A negative held-out R2 at this corpus size means the features "
+               "carry less signal than the target's own mean, which at small n "
+               "is as much a sample-size statement as a modelling one. Read "
+               "model_scores.csv with n_rows in mind."),
+})
 
 print(f"\nfigures and tables written to {args.out}/")

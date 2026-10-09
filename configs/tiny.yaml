@@ -1,0 +1,75 @@
+# Fixture-backed end-to-end check. NOT an experiment.
+#
+# Every model this overlay names is a 2-layer, 64-wide randomly initialised
+# Qwen2 built by `tests/tiny_fixtures.py`, and the traces and activations are
+# synthetic. It exists so that the stages needing the released autoencoder -
+# `nla`, `faithfulness`, `causal`, `analysis`, `report` - can be run to
+# completion in seconds on CPU, which is otherwise only possible after a 26 GB
+# download. `tests/test_end_to_end_tiny.py` drives it.
+#
+# Nothing it produces is a result. The weights are random.
+
+run_id: tiny
+description: "Fixture-backed end-to-end check - random weights, no scientific content."
+
+target:
+  repo_id: nlaast-fixture/target
+  layer: 1
+  d_model: 64
+  precision: bf16
+  device: cpu
+  max_position_embeddings: 1024
+
+generation:
+  max_new_tokens: 24
+  batch_size: 2
+  force_answer_max_new_tokens: 8
+
+data:
+  n_gsm8k: 3
+  n_math: 1
+
+chunk:
+  min_chunk_chars: 8
+  max_chunks: 12
+
+ast:
+  k_continuations: 2
+  continuation_max_new_tokens: 12
+
+nla:
+  av_repo: nlaast-fixture/av
+  ar_repo: nlaast-fixture/ar
+  precision: bf16
+  device: cpu
+  max_new_tokens: 16
+  n_samples: 2
+  windows_per_problem: 1
+  # Random weights produce random text, so the English/tag gate would reject
+  # everything and the downstream stages would see an empty corpus. The gate
+  # itself is tested properly in tests/test_nla_interface.py.
+  min_ascii_fraction: 0.0
+
+semantic_entropy:
+  n_samples: 3
+
+faithfulness:
+  max_claims_per_explanation: 3
+  n_paraphrases: 2
+
+causal:
+  max_problems: 2
+  dose_coefficients: [0.0, 1.0]
+  n_random_directions: 1
+
+probe:
+  n_folds: 2
+
+analysis:
+  bootstrap_iterations: 200
+
+robustness:
+  enabled_tests: [F1_length, F2_difficulty, F3_verbaliser_only, F4_parser,
+                  F5_ast_sensitivity, F6_probe_leakage, F7_layer_sweep, F10_position]
+  layer_sweep: [0, 1]
+  quantisation_subsample: 2
