@@ -26,7 +26,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from detect_answer_stable_tail import summarise  # noqa: E402
+from detect_answer_stable_tail import run_sweep, summarise  # noqa: E402
 
 
 def row(pid, n_chunks, tail_start, *, status="ok", last_qualifies=True,
@@ -143,6 +143,99 @@ class TestDeterminacyVersusStatement:
     def test_the_block_is_absent_when_nothing_can_be_compared(self):
         assert "determinacy_vs_statement" not in summarise(
             [row("p0", 10, None, status="no_stable_point")])
+
+
+def sweep_trace(pid, n_chunks, stable_from, k, answer="42"):
+    """A `traces.jsonl` row with enough structure for detection to run on it."""
+    text = " ".join(f"Step {i} of the derivation here." for i in range(n_chunks - 1))
+    text += f" The answer is {answer}."
+    chunks, pos = [], 0
+    for i in range(n_chunks):
+        chunks.append({"index": i, "text": f"chunk {i}", "char_start": pos,
+                       "char_end": pos + 10, "token_end": i * 4 + 3,
+                       "prefix_tokens": (i + 1) * 4})
+        pos += 10
+    boundaries = []
+    for i in range(n_chunks):
+        stable = i >= stable_from
+        boundaries.append({
+            "index": i,
+            "parsed_answer": answer if stable else None,
+            "forced_answer": answer if stable else "0",
+            "forced_matches_final": stable,
+            "continuation_answers": [answer if stable else "0"] * k,
+            "continuations_matching": k if stable else 0,
+            "n_continuations": k,
+            "prefix_tokens": (i + 1) * 4,
+        })
+    return {"id": pid, "problem_id": pid, "dataset": "gsm8k", "split": "eval",
+            "level": None, "question": "q?", "gold": answer, "trace": text,
+            "n_tokens": n_chunks * 4, "n_chunks": n_chunks, "chunks": chunks,
+            "boundaries": boundaries, "final_answer": answer,
+            "final_correct": True, "truncated": False, "ok": True}
+
+
+class TestF5Sweep:
+    """A sensitivity sweep must not report untested settings as stable.
+
+    `k` is simulated by truncating the recorded continuations, which is exact
+    downwards and impossible upwards: a requested k above the number generated
+    silently reproduced the base result and was then reported as evidence of
+    robustness. `convergence_window` is not an AST parameter at all - sweeping
+    it leaves every tail untouched by construction, so an unchanged tail
+    fraction across it is an identity, not a finding.
+    """
+
+    @staticmethod
+    def _cfg(sweep_k):
+        from nlaast import config as config_mod
+
+        base = config_mod.load("pilot", []).to_dict()
+        base["ast"]["k_continuations"] = 3
+        base["robustness"]["ast_sweep_k"] = sweep_k
+        return config_mod.from_mapping(base)
+
+    @staticmethod
+    def _log():
+        import logging
+
+        return logging.getLogger("test")
+
+    def test_a_k_above_what_was_generated_is_not_applicable(self):
+        traces = [sweep_trace(f"p{i}", 8, 4, k=3) for i in range(4)]
+        sweep = run_sweep(self._cfg([3, 5]), traces, self._log())
+        assert sweep["k=3"]["status"] == "ran"
+        assert sweep["k=5"]["status"] == "not_applicable"
+        assert "only 3 continuations" in sweep["k=5"]["reason"]
+        assert "mean_tail_fraction" not in sweep["k=5"]
+
+    def test_a_reachable_k_is_exercised(self):
+        traces = [sweep_trace(f"p{i}", 8, 4, k=5) for i in range(4)]
+        sweep = run_sweep(self._cfg([3, 5]), traces, self._log())
+        assert sweep["k=3"]["status"] == sweep["k=5"]["status"] == "ran"
+
+    def test_unanimity_is_always_swept(self):
+        traces = [sweep_trace(f"p{i}", 8, 4, k=3) for i in range(4)]
+        sweep = run_sweep(self._cfg([3]), traces, self._log())
+        assert sweep["require_unanimous=False"]["status"] == "ran"
+
+    def test_the_baseline_window_is_reported_separately_from_the_criteria(self):
+        traces = [sweep_trace(f"p{i}", 8, 4, k=3) for i in range(4)]
+        sweep = run_sweep(self._cfg([3]), traces, self._log())
+        assert "convergence_window=2" not in sweep
+        conv = sweep["baseline_convergence_window"]["settings"]
+        assert set(conv) == {f"convergence_window={w}" for w in (1, 2, 3)}
+        # Identical tails under every window - which is the point of the note.
+        fracs = {c["mean_tail_fraction"] for c in conv.values()}
+        assert len(fracs) == 1
+        assert "not an AST parameter" in sweep["baseline_convergence_window"]["note"]
+
+    def test_the_meta_block_records_what_was_available(self):
+        traces = [sweep_trace(f"p{i}", 8, 4, k=3) for i in range(4)]
+        meta = run_sweep(self._cfg([3, 5]), traces, self._log())["_meta"]
+        assert meta["max_continuations_recorded"] == 3
+        assert meta["configured_k"] == 3
+        assert meta["n_traces"] == 4
 
 
 class TestConvergenceComparison:

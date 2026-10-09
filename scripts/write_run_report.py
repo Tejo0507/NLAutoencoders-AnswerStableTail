@@ -372,10 +372,14 @@ def _summarise_test(name: str, r: dict) -> str:
                 f"{_fmt(r.get('mean_chunks_alternative'), 1)} under the "
                 f"alternative segmentation")
     if name == "F5_ast_sensitivity":
-        return (f"mean tail fraction varies by "
-                f"{_fmt(r.get('mean_tail_fraction_range'))} across settings; "
-                f"non-trivial tail rate by "
-                f"{_fmt(r.get('nontrivial_tail_rate_range'))}")
+        txt = (f"over {len(r.get('settings_exercised') or [])} settings, mean "
+               f"tail fraction varies by "
+               f"{_fmt(r.get('mean_tail_fraction_range'))}, non-trivial tail "
+               f"rate by {_fmt(r.get('nontrivial_tail_rate_range'))}")
+        na = r.get("settings_not_applicable") or {}
+        if na:
+            txt += f"; not testable: {', '.join(sorted(na))}"
+        return txt
     if name == "F6_probe_leakage":
         parts = [f"real AUC {_fmt(r.get('real_auc'))}"]
         for scope, arm in (r.get("shuffles") or {}).items():
