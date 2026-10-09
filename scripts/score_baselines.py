@@ -112,11 +112,21 @@ def main() -> int:
     for t in traces:
         answers = [s.get("answer") for s in t.get("entropy_samples", [])]
         res = semantic_entropy(answers, t.get("final_answer"))
+        conf = confidence_score(res)
         entropy[t["problem_id"]] = {
-            **res.to_dict(), "confidence": confidence_score(res)
+            # A problem with no entropy samples has no score, not a confident
+            # one. Carried as None so the rule drops out of the comparison
+            # instead of appearing as "stop immediately, every time".
+            **res.to_dict(), "confidence": None if not np.isfinite(conf) else conf
         }
     write_jsonl(out_dir / "semantic_entropy.jsonl",
                 [{"id": k, "problem_id": k, **v} for k, v in entropy.items()])
+    n_entropy_scored = sum(1 for v in entropy.values() if v["confidence"] is not None)
+    if entropy and n_entropy_scored == 0:
+        log.warning("semantic entropy is unavailable on every problem "
+                    "(semantic_entropy.n_samples=%d); the arm will be absent "
+                    "from the stopping comparison rather than reported",
+                    cfg.semantic_entropy.n_samples)
 
     # -- 3. hidden-state correctness probe --------------------------------
     probe_report, probe_scores, probe_info = fit_probe(cfg, traces, base, log)
@@ -169,6 +179,8 @@ def main() -> int:
         "mean_entropy_clusters": float(np.mean(
             [v["n_clusters"] for v in entropy.values()]
         )) if entropy else float("nan"),
+        "n_problems_with_entropy_score": n_entropy_scored,
+        "semantic_entropy_available": bool(n_entropy_scored),
         "matched_budgets": budgets,
     }
     log.info("baselines: %s", metrics)
