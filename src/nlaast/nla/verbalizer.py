@@ -37,7 +37,13 @@ import numpy as np
 from ..config import Config
 from ..logging_utils import get
 from ..models import loading
-from .meta import NLAMeta, load_meta, upstream, verify_tokenizer
+from .meta import (
+    NLAMeta,
+    chat_template_ids,
+    load_meta,
+    upstream,
+    verify_tokenizer,
+)
 
 log = get(__name__)
 
@@ -145,11 +151,7 @@ class ActivationVerbalizer:
         import torch
 
         content = self.meta.av_template.format(injection_char=self.meta.injection_char)
-        ids = self.tokenizer.apply_chat_template(
-            [{"role": "user", "content": content}],
-            tokenize=True,
-            add_generation_prompt=True,
-        )
+        ids = chat_template_ids(self.tokenizer, content)
         return torch.tensor(ids, dtype=torch.long).unsqueeze(0)
 
     def _build_embeds(self, vectors):
