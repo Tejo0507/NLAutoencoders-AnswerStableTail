@@ -108,12 +108,46 @@ def summarise(rows: list[dict]) -> dict:
         "n_with_tail": len(with_tail),
         "tail_rate": len(with_tail) / n if n else 0.0,
     }
+
+    # How often the *final* boundary qualifies, and how often the tail is
+    # nothing but that boundary.
+    #
+    # This matters for reading `tail_rate`. At the last boundary the prefix is
+    # the whole trace, so forcing an answer from it reproduces the final answer
+    # and continuations from it restate the same answer - both criteria are
+    # close to tautological there. A tail therefore almost always exists, and
+    # `tail_rate` sits near 1 whenever the final answer parses and generation
+    # was not truncated. It is an upper bound on nothing interesting. The
+    # informative quantity is `tail_fraction`: how much of the trace the tail
+    # covers. A tail consisting only of the final chunk is recorded separately
+    # as trivial, because it means no redundancy was detected.
+    last_qualifies = sum(
+        1 for r in rows
+        if r.get("evidence")
+        and r["evidence"][-1].get("forced_matches_final")
+        and r["evidence"][-1].get("continuations_unanimous")
+    )
+    trivial = [r for r in with_tail if r["tail_start"] == r["n_chunks"] - 1]
+    out["final_boundary_qualifies_rate"] = last_qualifies / n if n else 0.0
+    out["n_trivial_tail"] = len(trivial)
+    out["trivial_tail_share"] = len(trivial) / len(with_tail) if with_tail else 0.0
+    out["n_nontrivial_tail"] = len(with_tail) - len(trivial)
+    out["nontrivial_tail_rate"] = (len(with_tail) - len(trivial)) / n if n else 0.0
+    out["tail_rate_caveat"] = (
+        "The final boundary satisfies both criteria almost by construction - "
+        "its prefix is the whole trace - so tail_rate is close to 1 whenever "
+        "the final answer parses and generation was not truncated. Read "
+        "tail_fraction and nontrivial_tail_rate instead."
+    )
+
     if with_tail:
         fr = [r["tail_fraction"] for r in with_tail]
         tt = [r["tail_tokens"] for r in with_tail]
         out.update(
             mean_tail_fraction=sum(fr) / len(fr),
             median_tail_fraction=sorted(fr)[len(fr) // 2],
+            min_tail_fraction=min(fr),
+            max_tail_fraction=max(fr),
             mean_tail_tokens=sum(tt) / len(tt),
             total_tail_tokens=sum(tt),
             total_tokens=sum(r["total_tokens"] for r in with_tail),
@@ -166,11 +200,20 @@ def main() -> int:
     write_json(out_dir / "summary.json", summary)
 
     log.info("status: %s", summary["status_counts"])
-    log.info("tail detected on %d/%d problems (%.1f%%)",
-             summary["n_with_tail"], summary["n"], 100 * summary["tail_rate"])
+    log.info("tail detected on %d/%d problems (%.1f%%); %d are trivial "
+             "(final chunk only), so %.1f%% have a non-trivial tail",
+             summary["n_with_tail"], summary["n"], 100 * summary["tail_rate"],
+             summary["n_trivial_tail"], 100 * summary["nontrivial_tail_rate"])
+    log.info("the final boundary qualifies on %.1f%% of problems - near "
+             "tautological, so tail_rate is near its ceiling by construction; "
+             "read tail_fraction",
+             100 * summary["final_boundary_qualifies_rate"])
     if summary["n_with_tail"]:
-        log.info("mean tail fraction %.3f | tail tokens are %.1f%% of all generated tokens",
-                 summary["mean_tail_fraction"], 100 * summary["tail_token_share"])
+        log.info("tail fraction: mean %.3f, median %.3f, range %.2f-%.2f | "
+                 "tail tokens are %.1f%% of all generated tokens",
+                 summary["mean_tail_fraction"], summary["median_tail_fraction"],
+                 summary["min_tail_fraction"], summary["max_tail_fraction"],
+                 100 * summary["tail_token_share"])
     if "convergence_vs_ast" in summary:
         c = summary["convergence_vs_ast"]
         log.info("agreement rule fires earlier than the AST on %.1f%% of problems "
@@ -187,8 +230,14 @@ def main() -> int:
         srows = [detect_one(cfg, t, require_unanimous=False) for t in traces]
         sweep["require_unanimous=False"] = summarise(srows)
         write_json(out_dir / "sweep_F5.json", sweep)
-        log.info("F5 sweep: tail rates %s",
-                 {k: round(v["tail_rate"], 3) for k, v in sweep.items()})
+        # Tail *rate* barely moves across settings - see the caveat in
+        # summarise() - so the sensitivity that matters is in the tail
+        # fraction, and both are logged.
+        log.info("F5 sweep: mean tail fraction %s",
+                 {k: round(v.get("mean_tail_fraction", float("nan")), 3)
+                  for k, v in sweep.items()})
+        log.info("F5 sweep: non-trivial tail rate %s",
+                 {k: round(v["nontrivial_tail_rate"], 3) for k, v in sweep.items()})
 
     manifest.finish_stage(STAGE, status="complete",
                           output=str(out_dir / "ast.jsonl"), metrics=summary)
