@@ -170,18 +170,33 @@ class ArmSummary:
     accuracy_delta: float
     mean_markers: float
     marker_delta: float
+    #: ``None`` when the summary pools every dose of this arm.
+    coefficient: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def summarise_arm(results: Sequence[InterventionResult], arm: str) -> ArmSummary:
+def summarise_arm(results: Sequence[InterventionResult], arm: str,
+                  coefficient: float | None = None) -> ArmSummary:
+    """Aggregate one arm, optionally at one dose.
+
+    ``coefficient`` matters for the gate below. ``ablate_dir`` is swept over a
+    dose grid that includes 0.0 - a no-op edit, kept as the within-arm control
+    - while ``random_dir`` and ``matched_position`` are run at full strength
+    only. Pooling the sweep and comparing it against those would compare a
+    diluted candidate against undiluted controls, and would understate the
+    candidate for a reason that has nothing to do with the hypothesis.
+    """
     rows = [r for r in results if r.intervention == arm]
+    if coefficient is not None:
+        rows = [r for r in rows if abs(r.coefficient - coefficient) < 1e-9]
     if not rows:
         return ArmSummary(arm, 0, float("nan"), float("nan"), float("nan"),
-                          float("nan"), float("nan"))
+                          float("nan"), float("nan"), coefficient)
     return ArmSummary(
         arm=arm,
+        coefficient=coefficient,
         n=len(rows),
         answer_change_rate=float(np.mean([r.answer_changed for r in rows])),
         accuracy=float(np.mean([r.correct for r in rows])),
@@ -214,7 +229,9 @@ def dose_response(results: Sequence[InterventionResult], arm: str) -> list[dict[
     return out
 
 
-def direction_claim_supported(results: Sequence[InterventionResult]) -> dict[str, Any]:
+def direction_claim_supported(
+    results: Sequence[InterventionResult], compare_at: float = 1.0
+) -> dict[str, Any]:
     """Does the evidence support "a tail direction exists"?
 
     RQ3 asks whether tail-window states carry a direction whose ablation
@@ -223,10 +240,14 @@ def direction_claim_supported(results: Sequence[InterventionResult]) -> dict[str
     individual verdicts as well as the conjunction, so a partial result is
     still reportable - which matters, because a partial result is the likely
     outcome at this scale.
+
+    The controls run at one dose, so the candidate is read at that same dose
+    (``compare_at``) rather than pooled over its sweep. The sweep is still
+    reported in full, as the dose-response curve.
     """
-    ablate = summarise_arm(results, "ablate_dir")
-    random_ = summarise_arm(results, "random_dir")
-    matched = summarise_arm(results, "matched_position")
+    ablate = summarise_arm(results, "ablate_dir", coefficient=compare_at)
+    random_ = summarise_arm(results, "random_dir", coefficient=compare_at)
+    matched = summarise_arm(results, "matched_position", coefficient=compare_at)
     curve = dose_response(results, "ablate_dir")
 
     def _finite(x: float) -> bool:
@@ -253,10 +274,16 @@ def direction_claim_supported(results: Sequence[InterventionResult]) -> dict[str
         "monotone_dose_response": monotone,
         "answers_preserved": answer_preserved,
         "supported": bool(beats_random and beats_position and monotone and answer_preserved),
+        "compared_at_coefficient": compare_at,
         "arms": {
             "ablate_dir": ablate.to_dict(),
             "random_dir": random_.to_dict(),
             "matched_position": matched.to_dict(),
         },
+        "arms_pooled_over_doses": {
+            "ablate_dir": summarise_arm(results, "ablate_dir").to_dict(),
+        },
         "dose_response": curve,
+        "note": ("the three arms above are read at the same projection "
+                 "coefficient; ablate_dir's full sweep is dose_response"),
     }
