@@ -88,6 +88,12 @@ def pipeline(tmp_path_factory):
         ("ast", ["detect_answer_stable_tail.py", "--sweep"]),
         ("baselines", ["score_baselines.py"]),
         ("nla", ["run_autoencoder.py"]),
+        # After the substitution below, reconstruction is recomputed from the
+        # substituted text so its integrity flags and cosines agree with the
+        # explanations the audit sees. Without this the NLA arm has no
+        # integrity-passing reconstruction, and every stage that reads one -
+        # F10, the stopping curve, the restricted head-to-head - is skipped.
+        ("nla_reconstruct", ["run_autoencoder.py", "--phase", "reconstruct", "--force"]),
         ("faithfulness", ["audit_faithfulness.py"]),
         ("causal", ["run_interventions.py"]),
         ("analysis", ["aggregate_results.py"]),
@@ -296,6 +302,28 @@ class TestAnalysisAndReport:
         # Unevaluable tests stay in the family with a null q-value.
         for entry in t["tests"]:
             assert "q_value" in entry
+
+    def test_the_head_to_head_runs_on_the_problems_the_nla_arm_covers(self, pipeline):
+        """The NLA arm runs on fewer problems than the behavioural arms.
+
+        Reading each rule off a curve built from a different problem set and
+        calling that a matched-budget comparison confounds the rule with the
+        problems, so the baselines are re-swept over exactly the NLA arm's set
+        before the head-to-head tests.
+        """
+        run_dir, _ = pipeline
+        results = _read_json(run_dir / "analysis" / "results.json")
+        assert results["nla_stopping"]["available"] is True
+        basis = results["o3_comparison_basis"]
+        assert basis["basis"] == "nla_problem_set"
+        assert basis["rules_resswept"]
+        assert basis["n_problems_nla"] > 0
+        assert (run_dir / "analysis" / "tables"
+                / "stopping_on_nla_problem_set.csv").exists()
+        h2h = [t for t in results["tests"]["tests"] if t["name"].startswith("O3:")]
+        assert h2h
+        for t in h2h:
+            assert t["notes"]["comparison_basis"] == "nla_problem_set"
 
     def test_tables_written(self, pipeline):
         run_dir, _ = pipeline
