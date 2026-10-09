@@ -168,6 +168,36 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
     else:
         A("_Stopping comparison did not run._")
         A("")
+    # How each comparison signal was produced. At these sample sizes this is
+    # not a footnote: a baseline scored in-sample, or an arm that is absent
+    # rather than merely weak, changes how the table above should be read.
+    bl = stages.get("baselines", {}).get("metrics") or {}
+    probe_path = cfg.dir / "baselines" / "probe.json"
+    probe_meta = read_json(probe_path) if probe_path.exists() else {}
+    if bl or probe_meta:
+        A("### How each signal was scored")
+        A("")
+        A(f"- rules on the curve: {', '.join(bl.get('rules', [])) or 'none'}")
+        if probe_meta:
+            tsf = probe_meta.get("train_split_fit") or {}
+            A(f"- correctness probe: per-boundary scores are "
+              f"`{probe_meta.get('probe_source')}` over "
+              f"{probe_meta.get('n_boundaries_scored')} boundaries, so no problem "
+              f"is scored by a probe that saw it. Grouped-CV AUC "
+              f"{_fmt((probe_meta.get('report') or {}).get('auc'))}"
+              + (f"; train-split fit held out AUC {_fmt(tsf.get('eval_auc'))} on "
+                 f"{tsf.get('n_eval')} boundaries." if tsf.get("available")
+                 else "; no train-split fit was possible at this corpus size."))
+        if "semantic_entropy_available" in bl:
+            if bl["semantic_entropy_available"]:
+                A(f"- semantic entropy: scored on "
+                  f"{bl.get('n_problems_with_entropy_score')} problems "
+                  f"(symbolic-equivalence clustering, not NLI - see DECISIONS.md D3)")
+            else:
+                A("- semantic entropy: **unavailable** on every problem, so the arm "
+                  "is absent from the table above rather than reported as weak")
+        A("")
+
     nla_info = results.get("nla_stopping") or {}
     if nla_info and not nla_info.get("available", True):
         A(f"The NLA arm could not be placed on the curve: {nla_info.get('reason')}.")
@@ -299,9 +329,14 @@ def _summarise_test(name: str, r: dict) -> str:
     if name == "F5_ast_sensitivity":
         return f"tail-rate range across settings {_fmt(r.get('tail_rate_range'))}"
     if name == "F6_probe_leakage":
-        return (f"real AUC {_fmt(r.get('real_auc'))} vs shuffled "
-                f"{_fmt(r.get('shuffled_auc'))}; leak suspected: "
-                f"{r.get('leak_suspected')}")
+        parts = [f"real AUC {_fmt(r.get('real_auc'))}"]
+        for scope, arm in (r.get("shuffles") or {}).items():
+            tag = "" if arm.get("meaningful") else " (moved no labels - no control)"
+            parts.append(f"{scope} {_fmt(arm.get('auc'))}{tag}")
+        leak = r.get("leak_suspected")
+        parts.append("leak suspected: "
+                     + ("not testable" if leak is None else str(leak)))
+        return "; ".join(parts)
     if name == "F7_layer_sweep":
         return "; ".join(f"L{k}: AUC {_fmt(v.get('auc'))}"
                          for k, v in (r.get("layers") or {}).items())
