@@ -269,3 +269,108 @@ Benjamini–Hochberg is applied across the pre-registered family. Tests that
 could not be evaluated (too few samples, a single class, identical arms) are
 carried through with a null q-value rather than dropped: shrinking *m* would
 make the correction look kinder than it is.
+
+---
+
+## D17. The probe's stopping score is out-of-fold, not train-split-fitted
+
+The obvious reading of "fit the probe on the train split" is: fit there, then
+score every boundary with that model. But every problem is in the stopping
+sweep, including the train-split ones — so their probe scores would be
+in-sample, and the probe is the **baseline the primary research question is
+measured against**. An inflated baseline makes the verbalised readout look
+worse for a reason that has nothing to do with the readout.
+
+The per-boundary score therefore comes from the grouped cross-validation's
+out-of-fold predictions: every score is produced by a probe that never saw that
+problem. Folds are hashed by problem id, so this is leak-free *and* uses the
+whole corpus rather than the eval split alone. The train-split fit is still
+made — the causal stage quotes its direction, and its eval-split AUC is the
+figure comparable with earlier runs — but it does not feed the sweep.
+
+---
+
+## D18. F6 permutes labels *between* problems, not within
+
+The published form of a probe leakage control permutes labels within group, so
+per-group class balance survives and only the activation–label link is
+destroyed.
+
+**On this corpus that control is degenerate.** Once a trace states its answer,
+the correctness label is the same at every later boundary, so permuting inside
+the problem moves nothing: the "shuffled" probe scores exactly as the real one,
+which reads as catastrophic leakage while in fact testing nothing. A test on a
+corpus with one label per problem reproduces it — the shuffled AUC came out at
+1.0.
+
+The control reassigns **whole problems' label sequences between problems**.
+Group structure, each problem's internal label pattern and the overall class
+balance all survive; what is destroyed is which activations go with which
+labels. Both scopes are reported, each with the number of labels it actually
+moved, and the verdict is null rather than `false` when a shuffle moved none —
+a shuffle that changes nothing is not evidence of anything.
+
+---
+
+## D19. The candidate direction and its controls are read at one dose
+
+`ablate_dir` is swept over a projection-coefficient grid that includes `0.0`,
+its own no-op control. `random_dir` and `matched_position` run at full strength
+only. Comparing the pooled sweep against those compares a diluted candidate
+against undiluted controls, and would let a real effect fail the gate because
+its own no-op arm dragged the mean down.
+
+`direction_claim_supported` therefore reads all three arms at the same
+coefficient (1.0 by default) and reports the pooled figure separately, next to
+the full dose–response curve.
+
+---
+
+## D20. F8 splits its bf16 weights across GPU and host memory
+
+Truncated to the 21 layers it needs, the bf16 target is still about 11 GB,
+against 15.65 GB of RAM of which 2–3 GB is typically free. Loaded CPU-only, F8
+does not run on this machine — and F8 is the measurement that decides whether
+the NLA arm is being fed in-distribution vectors.
+
+F8 is sequenced between `acts` and `nla`, so no other model is resident and the
+whole GPU is free. It measures free VRAM and free host memory at load time and
+splits the weights across both, falling back to CPU-only when there is no usable
+GPU slice. The placement, the measurements behind it and any failed attempt are
+recorded in the result, so a slow or failed F8 is readable rather than
+mysterious.
+
+---
+
+## D21. An unsampled semantic-entropy arm is absent, not confident
+
+Normalised entropy is `H / log(n_samples)`, which is 0 — maximal confidence —
+for `n_samples <= 1`. With **zero** samples that is the wrong answer: fed to
+the sweep it is a rule that fires at the first boundary of every problem, and
+it would appear on the O3 curve labelled semantic entropy. The larger trace
+corpus runs with `semantic_entropy.n_samples: 0` by design, so this was
+reachable.
+
+No samples now yields `nan`, which the sweep already reads as "this rule cannot
+fire here", and the stage records that the arm is unavailable. One sample still
+scores 1.0: a single sample genuinely cannot disagree with itself.
+
+---
+
+## D22. Which runs pool into the supervised corpus is decided, not globbed
+
+`common_data.build_table` fed the two root-level supervised scripts by globbing
+`runs/*/traces/traces.jsonl` and keeping the first row per problem id. That
+pooled the fixture run (traces from a randomly initialised 64-wide model), the
+smoke runs (a different token cap), and — because sorted-path order puts
+`mlcorpus` before `pilot` — traces written **before** the chunker and
+answer-parser fixes, in preference to the corrected ones on every shared
+problem. A stale chunk boundary is baked into the trace; no reparse repairs it.
+
+Comparability is now decided by the settings that determine what a trace *is*
+(target, decoding, chunker, AST parameters) **plus the code revision that
+produced it**, with the most recently written run as the reference so current
+traces are never outvoted by a larger older one. A dirty working tree yields a
+revision unique to its run and so never pools automatically; `--runs` overrides
+when a human has checked. Every result carries a `provenance.json` naming the
+runs, the row count and the signature.
