@@ -128,10 +128,25 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
     rq1 = results.get("rq1") or {}
     if rq1:
         A(f"Detected on **{rq1.get('n_with_tail', 0)} of {rq1.get('n', 0)}** problems "
-          f"({_fmt(rq1.get('tail_rate'))}).")
+          f"({_fmt(rq1.get('tail_rate'))}), of which "
+          f"{rq1.get('n_trivial_tail', 0)} cover only the final chunk - a tail "
+          f"that short means no redundancy was detected. Non-trivial tail rate: "
+          f"**{_fmt(rq1.get('nontrivial_tail_rate'))}**.")
+        A("")
+        A(f"**Read `tail_rate` with care.** At the final boundary the prefix is "
+          f"the whole trace, so forcing an answer from it reproduces the final "
+          f"answer and continuations from it restate the same answer: both "
+          f"criteria are close to tautological there. The final boundary "
+          f"qualifies on {_fmt(rq1.get('final_boundary_qualifies_rate'))} of "
+          f"problems here, which puts `tail_rate` near its ceiling by "
+          f"construction. The quantity that carries information is how *much* "
+          f"of the trace the tail covers.")
         A("")
         if rq1.get("n_with_tail"):
-            A(f"- mean tail fraction: **{_fmt(rq1.get('mean_tail_fraction'))}** of chunks")
+            A(f"- tail fraction: mean **{_fmt(rq1.get('mean_tail_fraction'))}**, "
+              f"median {_fmt(rq1.get('median_tail_fraction'))}, range "
+              f"{_fmt(rq1.get('min_tail_fraction'), 2)}-"
+              f"{_fmt(rq1.get('max_tail_fraction'), 2)} of chunks")
             A(f"- tail tokens as a share of all generated tokens: "
               f"**{_fmt(rq1.get('tail_token_share'))}**")
             A(f"- mean tail length: {_fmt(rq1.get('mean_tail_tokens'), 1)} tokens")
@@ -327,7 +342,10 @@ def _summarise_test(name: str, r: dict) -> str:
                 f"{_fmt(r.get('mean_chunks_alternative'), 1)} under the "
                 f"alternative segmentation")
     if name == "F5_ast_sensitivity":
-        return f"tail-rate range across settings {_fmt(r.get('tail_rate_range'))}"
+        return (f"mean tail fraction varies by "
+                f"{_fmt(r.get('mean_tail_fraction_range'))} across settings; "
+                f"non-trivial tail rate by "
+                f"{_fmt(r.get('nontrivial_tail_rate_range'))}")
     if name == "F6_probe_leakage":
         parts = [f"real AUC {_fmt(r.get('real_auc'))}"]
         for scope, arm in (r.get("shuffles") or {}).items():
