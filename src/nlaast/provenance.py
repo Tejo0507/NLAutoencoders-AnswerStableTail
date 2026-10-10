@@ -155,10 +155,20 @@ class Manifest:
         return self.stage_status(stage) == "complete"
 
     def start_stage(self, stage: str, **meta: Any) -> None:
+        # The commit is recorded per stage, not once per run.
+        #
+        # The run-level ``git`` block is captured when the manifest is first
+        # created and never again, so on a long run - the pilot spanned five
+        # days and dozens of commits - it names the code the *directory* was
+        # made under, not the code that produced any particular result. The
+        # report was attributing the whole run to a commit from before most of
+        # the stages existed. Which code produced a number is the one thing a
+        # reproducibility record has to get right.
         self.data["stages"][stage] = {
             "status": "running",
             "started": utcnow(),
             "monotonic_start": time.monotonic(),
+            "git": git_commit(),
             **meta,
         }
         self.flush()
