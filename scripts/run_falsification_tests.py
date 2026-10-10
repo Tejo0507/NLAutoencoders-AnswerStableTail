@@ -214,6 +214,13 @@ def f5_ast_sensitivity(cfg, log) -> dict:
     ran = {k: v for k, v in sweep.items()
            if k != "_meta" and isinstance(v, dict) and v.get("status") == "ran"
            and "mean_tail_fraction" in v}
+    # An arm marked as an upper bound is not a perturbation of the criteria -
+    # it answers "what if the forcing budget had not run out", which is a
+    # different question and moves the tail far more than any criterion does
+    # (0.356 to 0.486 against 0.356 to 0.360). Pooling them into one range
+    # would report the budget's effect as definitional instability.
+    bounds = {k: v for k, v in ran.items() if v.get("is_upper_bound")}
+    ran = {k: v for k, v in ran.items() if not v.get("is_upper_bound")}
     skipped = {k: v.get("reason") for k, v in sweep.items()
                if k != "_meta" and isinstance(v, dict)
                and v.get("status") == "not_applicable"}
@@ -237,6 +244,12 @@ def f5_ast_sensitivity(cfg, log) -> dict:
         "nontrivial_tail_rate_range": span("nontrivial_tail_rate"),
         "mean_tail_fraction_range": span("mean_tail_fraction"),
         "baseline_convergence_window": sweep.get("baseline_convergence_window"),
+        "bound_arms": {
+            k: {"mean_tail_fraction": v.get("mean_tail_fraction"),
+                "tail_token_share": v.get("tail_token_share"),
+                "note": v.get("note")}
+            for k, v in bounds.items()
+        },
         "interpretation": (
             "A construct that swings widely across settings is an artefact of "
             "its own parameters rather than of the model. Read the tail "
@@ -245,7 +258,10 @@ def f5_ast_sensitivity(cfg, log) -> dict:
             "construction, so a stable tail_rate across the sweep is close to "
             "uninformative. Settings listed as not applicable were not tested "
             "at all and are not evidence of stability - k can only be "
-            "simulated downwards from the continuations actually generated."
+            "simulated downwards from the continuations actually generated. "
+            "Arms under bound_arms are excluded from the ranges above: they "
+            "answer what the tail would be under a different measurement "
+            "budget, not under a different definition."
         ),
     }
     if not ran:
