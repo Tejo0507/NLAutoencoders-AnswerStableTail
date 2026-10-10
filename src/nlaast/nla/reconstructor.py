@@ -144,6 +144,55 @@ class ActivationReconstructor:
         loading.free_cuda()
 
 
+def empirical_baseline_mse(
+    vectors: np.ndarray, n_pairs: int = 200_000, seed: int = 0
+) -> dict[str, float]:
+    """What an *uninformative* prediction scores on this activation sample.
+
+    PROJECT_PLAN.md §5 specifies FVE "against the empirical variance baseline
+    of our own activation sample", and that is not 2.0. A baseline of 2.0
+    assumes an uninformative prediction is orthogonal to the target, which
+    holds for a random direction in high dimensions - but not for a *plausible*
+    prediction, and residual-stream activations at one layer are strongly
+    anisotropic. On the pilot, two layer-20 vectors drawn at random from
+    different problems have a mean cosine of 0.58, so simply guessing a typical
+    layer-20 activation already achieves MSE 0.83.
+
+    Measured against 2.0 the reconstruction looks far better than it is: the
+    same mean MSE gives FVE 0.87 against 2.0 and 0.68 against the empirical
+    baseline. Both are reported, because the number means nothing without the
+    baseline it used, and the comparison with the checkpoint card's 0.752 is
+    only meaningful against whatever baseline *that* used.
+
+    Direction is all that matters here - both vectors are normalised before
+    the MSE - so the vectors are unit-normalised and random distinct pairs are
+    sampled.
+    """
+    v = np.atleast_2d(np.asarray(vectors, dtype=np.float64))
+    n = v.shape[0]
+    if n < 2:
+        return {"available": False, "n_vectors": int(n)}
+    norms = np.linalg.norm(v, axis=1, keepdims=True)
+    u = v / np.maximum(norms, 1e-12)
+
+    rng = np.random.default_rng(seed)
+    i = rng.integers(0, n, n_pairs)
+    j = rng.integers(0, n, n_pairs)
+    keep = i != j
+    cos = np.einsum("ij,ij->i", u[i[keep]], u[j[keep]])
+    return {
+        "available": True,
+        "n_vectors": int(n),
+        "n_pairs": int(keep.sum()),
+        "mean_pairwise_cosine": float(cos.mean()),
+        "median_pairwise_cosine": float(np.median(cos)),
+        "baseline_mse": float(np.mean(2.0 * (1.0 - cos))),
+        "note": ("MSE a prediction drawn from this same activation "
+                 "distribution achieves; 2.0 would assume an orthogonal "
+                 "prediction, which these activations are not"),
+    }
+
+
 def fraction_variance_explained(
     mses: Sequence[float], baseline_mse: float | None = None
 ) -> dict[str, float]:
