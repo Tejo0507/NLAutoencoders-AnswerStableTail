@@ -428,3 +428,85 @@ F8 is also the only test whose input the pipeline deliberately destroys, so
 when the bf16 weights are gone but an earlier pass succeeded, the earlier
 result is carried forward labelled `reused_from_earlier_run` rather than
 replaced by a `blocked` one.
+
+---
+
+## D25. FVE is reported against two baselines, and the empirical one is primary
+
+`FVE = 1 − mean(MSE) / baseline`. A baseline of 2.0 assumes an uninformative
+prediction is *orthogonal* to the target. A random direction in 3584
+dimensions is — but a plausible guess is not, and layer-20 residual streams
+are strongly anisotropic. Measured on the pilot's own vectors, two drawn at
+random have a **mean cosine of 0.586**, so guessing a typical layer-20
+activation already achieves MSE 0.829.
+
+§5 of the plan asks for "the empirical variance baseline of our own activation
+sample", and the difference is not cosmetic:
+
+| | against 2.0 | against 0.829 |
+|---|---|---|
+| real windows | 0.866 | **0.677** |
+| Gaussian control | 0.391 | **−0.470** |
+
+The control is the point. Against 2.0 it looks like partial signal; against the
+empirical baseline it reconstructs *worse than guessing*, which is what an
+uninformative control should do. Both are reported, the empirical one named as
+the figure to read. The checkpoint card's 0.752 uses an unstated baseline and
+is therefore comparable to neither — the report says so rather than inviting
+the comparison.
+
+---
+
+## D26. A budget that cannot be matched is not compared
+
+`at_matched_budget` returned each rule's *nearest* operating point regardless
+of distance. A safety/saving curve is a step function — the rule fires at a
+boundary or it does not — and on a small corpus the steps are wide. Asking all
+four pilot rules for a saving of 0.632 returned convergence at 0.407 and the
+probe at 0.855: a 45-point spread, with their safe-stopping rates then
+compared as though the budgets were equal. That is exactly what D9 exists to
+prevent, and the table looked matched.
+
+A point must now lie within **0.05** of the target to count. On the pilot that
+leaves one evaluable head-to-head of three. The two that cannot be made stay
+in the pre-registered family as unevaluable (D16) rather than disappearing
+from it, and the comparison table carries the realised saving, the gap and a
+`matched` flag per row.
+
+Each head-to-head also records both arms' mean safe rates and the direction in
+words, because a reader scanning q-values can read a significant result as a
+win for the readout when here it is the opposite.
+
+---
+
+## D27. A constant outcome is reported as untested, not as refuted
+
+`direction_claim_supported` compares the candidate direction against two
+controls on the change in rechecking-marker count. On the pilot that count is
+**identically zero**: not one of the twenty markers occurs in any of the 24
+traces, because this model writes clean step-by-step derivations. With a
+constant outcome `|0| > |0|` is false, every comparison fails, and the gate
+returned "not supported" — which reads as evidence against a tail direction
+when there is none either way.
+
+The gate now checks whether the outcome varies before judging it, and returns
+`supported: null` with the reason when it does not, with both control
+comparisons null rather than false. An experiment with no power is a different
+statement from a negative result.
+
+The same principle already applied to F6 (`leak_suspected: null` when the
+label shuffle moved nothing) and F5 (`not_applicable` for a `k` the recorded
+continuations cannot simulate). It is now applied consistently.
+
+---
+
+## D28. Provenance is recorded per stage, not once per run
+
+The manifest captured git state when the run directory was created and never
+again. The pilot then spanned five days and some sixty commits, most of the
+methodological fixes among them, so the single commit the report named
+predated the code behind nearly every number in it.
+
+`start_stage` now records the commit each stage ran under, and the report lists
+the distinct ones — including, honestly, how many stages have no such record
+because they predate the change.
