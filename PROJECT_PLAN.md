@@ -5,9 +5,11 @@
 scientific specification; this document translates it into an executable plan. It does not
 restate the literature, it states what gets built and run.
 
-Written 2026-10-05. This file is the intent. The record of what actually ran is
-`docs/STATUS.md` plus the per-run manifests under `runs/`; the final execution report
-will be written from a completed run and does not exist yet.
+Written 2026-10-05, **before any data was collected**, and deliberately left as
+written: the definitions in §5 and the test family in §6 are pre-registrations,
+and editing them after seeing results would destroy the only thing that makes
+them pre-registrations. The record of what actually ran is `docs/STATUS.md`,
+the per-run manifests under `runs/`, and `runs/<id>/report/RESULTS.md`.
 
 ---
 
@@ -257,6 +259,28 @@ overwrites: a re-run with the same id refuses unless `--force`.
 
 ## 9. Status
 
-See `docs/STATUS.md`. This plan is the intent; that file is the record of what has
-actually run. No stage downstream of `ast` has completed, so there is no execution
-report yet.
+See `docs/STATUS.md`. This plan is the intent; that file is the record of what
+has actually run.
+
+As of 2026-10-10 the pilot has executed all thirteen stages on 24 problems,
+including the released autoencoder, and `runs/pilot/report/RESULTS.md` is the
+execution report for it. The `main` configuration in §2's sizing has not been
+attempted: at the pilot's measured throughput it is over 50 hours on this
+machine, and §2 already states that the achieved N is what gets reported.
+
+Four things in this plan the run changed the reading of, all recorded in
+`docs/DECISIONS.md` rather than edited into the text above:
+
+- **§5's tail definition measures determinacy, not statement.** On every pilot
+  problem with a tail, the tail begins before the trace states the answer.
+  Correct for the §5 safe-stopping outcome; not interchangeable with
+  "post-answer redundancy".
+- **`force_answer_max_new_tokens` bounds the tail from below.** The budget cut
+  the forced answer off on 40.7% of evaluated boundaries. The measured tail is
+  a floor, and the relaxed arm gives the ceiling.
+- **Q1 passed convincingly.** 4-bit layer-20 activations match bf16 at cosine
+  0.987, and Q2's integrity gate passed on essentially every sample. §2's
+  "threat to validity, not a detail" is measured and small.
+- **The §3 probe baseline is largely positional.** Its AUC sits 0.034 above an
+  activation-free positional predictor, which matters because O3 is scored
+  against it.
