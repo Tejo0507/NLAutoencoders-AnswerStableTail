@@ -169,25 +169,39 @@ def ensure_nf4(
         low_cpu_mem_usage=True,
     )
     out.mkdir(parents=True, exist_ok=True)
-    _save_sharded(model, out)
+
+    # Everything that still needs the bf16 source, before the source goes:
+    # the tokeniser, and the NLA sidecar plus the trained value head, which
+    # the quantised copy is useless without.
     tok = AutoTokenizer.from_pretrained(src)
     tok.save_pretrained(out)
-
-    # Carry the NLA sidecar across - it is the authoritative source for the
-    # injection convention and the quantised copy is useless without it.
     for extra in ("nla_meta.yaml", "value_head.safetensors"):
         p = Path(src) / extra
         if p.exists():
             shutil.copy2(p, out / extra)
             log.info("copied %s alongside the NF4 checkpoint", extra)
 
+    # The weights are now entirely in VRAM, so the bf16 snapshot is dead
+    # weight - and on this machine it is the 11-15 GB standing between the
+    # converted copy and a volume with room to write it. Evicting *before* the
+    # save rather than after is what makes the second and third conversions
+    # possible at all: with the source still present, the reconstructor's
+    # output had nowhere to go.
+    #
+    # The cost is explicit: if the save fails after this point the source has
+    # to be downloaded again. `_save_sharded` checks for room before writing a
+    # byte precisely so that this is unlikely rather than merely unlucky.
+    if evict_source:
+        log.info("evicting the bf16 source before writing the conversion - "
+                 "the weights are in VRAM and the source is no longer needed")
+        _evict_snapshot(Path(src), repo_id)
+
+    _save_sharded(model, out)
+
     del model
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-
-    if evict_source:
-        _evict_snapshot(Path(src), repo_id)
     return ResolvedModel(repo_id, out, sha, "nf4")
 
 
