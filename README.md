@@ -10,13 +10,21 @@ already settled — beyond what much cheaper signals already say?*
 [![Status](https://img.shields.io/badge/status-under%20development-orange)]()
 
 > **Pilot complete; main run not attempted.** The pipeline has been run end to
-> end at pilot scale — 24 problems, all 13 stages, including the released
-> autoencoder. The findings below are real and come from that run. **Twenty-four
-> problems is a pilot**: every interval is wide, and nothing here is a claim
-> about language models in general. Section [Current state](#current-state) says
-> what ran and what it found; [`docs/STATUS.md`](docs/STATUS.md) gives the
-> detail. `runs/` itself is untracked — it is reproducible from the committed
-> config — so the per-run tables live there rather than in the repository.
+> end at pilot scale — 24 problems, all 13 stages, the released autoencoder,
+> and the full nine-test falsification battery. The findings below are real and
+> come from that run. **Twenty-four problems is a pilot**: every interval is
+> wide, two of the three planned head-to-head comparisons could not be made at
+> all, and nothing here is a claim about language models in general. Section
+> [Current state](#current-state) says what ran and what it found;
+> [`docs/STATUS.md`](docs/STATUS.md) gives the detail and
+> `runs/pilot/report/RESULTS.md` is the execution report. `runs/` itself is
+> untracked — it is reproducible from the committed config.
+>
+> **On the central question the answer is negative:** the verbalised readout
+> does not beat the cheap signals at matched token budget; where the comparison
+> can be made, it loses. That was named as an acceptable outcome before any
+> data was collected, and it is reported with the weight a positive result
+> would have had.
 
 ---
 
@@ -113,11 +121,16 @@ NF4 and run.
 
 | | |
 |---|---|
-| **The 4-bit deviation is small.** | Layer-20 activations from the NF4 target match the bf16 ones at cosine **0.987** (median 0.991, min 0.937). The verbaliser normalises its input, so only direction reaches it. Its integrity gate passed on essentially every sample. The threat [`DECISIONS.md`](docs/DECISIONS.md) D2 identified is measured and small. |
+| **The answer to the primary question is no.** | Of three planned head-to-head comparisons at matched token budget, only one could be made on 21 problems — and it goes **against** the readout: safe-stopping rate **0.095** versus semantic entropy's **0.286** (q = 0.0065). The other two have no operating point near a shared budget and stay in the family as unevaluable. The review named this as an acceptable outcome in advance. |
+| **But the claims it makes are reconstruction-dependent.** | 967 claims over 246 explanations: **0.759** degrade reconstruction more when deleted than a meaning-preserving paraphrase does, only **0.003** are reproduced from matched-norm noise, giving **0.756** dependent-and-not-noise. Length-adjusted the rate is 0.781, and the noise rate is flat across thresholds. |
+| **Fidelity is not tail-specific.** | Tail windows reconstruct at cosine **0.870**, a matched *pre-stabilisation* window at **0.869**, a matched-length window elsewhere at 0.859. F10's answer: the readout describes a late mathematical-reasoning state about equally well wherever it is sampled. The Gaussian control at 0.391 is what shows it is doing anything. |
+| **Removing the tail changes no answer.** | Truncating at the tail start, and replacing the tail with matched-length filler, both leave accuracy at **0.800** — identical to the unintervened baseline — on 10 of 10 eval problems. |
+| **RQ3 is untested, not refuted.** | The causal gate's readout, a rechecking-marker count, is **identically zero across all 24 traces**: this model writes clean derivations with no "wait" or "let me check". With a constant outcome nothing can be beaten or missed, so the gate reports `null`, not `false`. |
+| **The 4-bit deviation is small.** | Layer-20 activations from the NF4 target match the bf16 ones at cosine **0.987** (median 0.991, min 0.937). The verbaliser normalises its input, so only direction reaches it; its integrity gate passed on 0.976 of samples against 0.786 for noise. The threat [`DECISIONS.md`](docs/DECISIONS.md) D2 identified is measured and small. |
 | **`tail_rate` is near its ceiling by construction.** | A tail exists on 21/24 — and the *final* boundary qualifies on 21/24, which is why: at the last boundary the prefix is the whole trace, so both criteria are near-tautological. The informative quantity is the tail **fraction**: mean 0.356, and tail tokens are 31.7% of all generated tokens. |
 | **Determinacy is not statement.** | On every problem with a tail, the tail begins *before* the trace states the answer — mean 2.19 chunks earlier. Forcing elicits the answer from the prefix. Right for a stopping rule; wrong for reading the window as post-answer verification. |
 | **The measured tail is a lower bound.** | The 24-token forcing budget cut the forced answer off on 40.7% of evaluated boundaries, and on 24.1% that alone failed criterion 1 while every resampled continuation agreed. Relaxing it moves the tail fraction 0.356 → 0.486. |
-| **The hidden-state probe is largely reading position.** | Grouped-CV AUC **0.996** — but the same model on activation-free positional features alone reaches **0.962**. A 0.034 margin. Its label becomes true once the answer is worked out and stays true, so it is ordered by position. One of the baselines the primary question is scored against. |
+| **The hidden-state probe is largely reading position.** | Grouped-CV AUC **0.996** — but the same model on activation-free positional features alone reaches **0.962**. A 0.034 margin. And layer 20 is not special: 0.995 at layer 14, 0.994 at layer 24. Its label becomes true once the answer is worked out and stays true, so it is ordered by position. One of the baselines the primary question is scored against. |
 | **Cheap surface features do not explain the tail.** | Tail-fraction regression on question- and trace-surface features reaches R² ≈ 0.003 against a mean baseline of −0.415. The redundancy is not a surface-form phenomenon. |
 
 **Not done**
