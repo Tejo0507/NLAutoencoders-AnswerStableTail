@@ -91,6 +91,49 @@ def nf4_config(skip: list[str] | None = None):
     )
 
 
+#: Shard size for converted checkpoints. ``save_pretrained`` defaults to 50 GB
+#: in transformers 5.x, which writes a 7B model as one file - and safetensors
+#: preallocates it. On this machine that single write failed with
+#: ``os error 112`` (disk full) against ~10 GB of free space, which is the
+#: failure this value exists to avoid. Several small writes also mean a
+#: half-finished conversion leaves identifiable files rather than one stub.
+SHARD_SIZE = "2GB"
+
+#: Written output is larger than the parameter count suggests - index files,
+#: the quantisation state tensors bitsandbytes stores alongside each weight,
+#: and the unquantised embedding and ``lm_head``. Budgeted with headroom
+#: before the write starts rather than discovered partway through it.
+_SAVE_HEADROOM = 1.6
+
+
+def _save_sharded(model, out: Path) -> None:
+    """Save a converted checkpoint, in shards, having first checked for room.
+
+    A conversion that runs out of disk halfway through has already spent the
+    download and the quantisation pass, and on this machine the download is
+    15 GB. Refusing before the first byte, with the volume and the shortfall
+    named, is worth the few lines.
+    """
+    needed = 0
+    for p in model.parameters():
+        needed += p.numel() * getattr(p, "element_size", lambda: 1)()
+    for b in model.buffers():
+        needed += b.numel() * b.element_size()
+    required = needed * _SAVE_HEADROOM
+    free = shutil.disk_usage(out).free
+    log.info("saving to %s: ~%.1f GB of weights, %.1f GB free",
+             out, needed / 1e9, free / 1e9)
+    if free < required:
+        raise OSError(
+            f"not enough space to write the converted checkpoint to {out}: "
+            f"{free / 1e9:.1f} GB free, about {required / 1e9:.1f} GB needed "
+            f"(weights {needed / 1e9:.1f} GB plus index and quantisation "
+            f"state). Point NLAAST_QUANT_DIR at a volume with more room, or "
+            f"free space on this one."
+        )
+    model.save_pretrained(out, safe_serialization=True, max_shard_size=SHARD_SIZE)
+
+
 def _quant_dir(repo_id: str) -> Path:
     return paths.quantised_models() / repo_id.replace("/", "__")
 
@@ -126,7 +169,7 @@ def ensure_nf4(
         low_cpu_mem_usage=True,
     )
     out.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(out, safe_serialization=True)
+    _save_sharded(model, out)
     tok = AutoTokenizer.from_pretrained(src)
     tok.save_pretrained(out)
 
