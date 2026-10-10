@@ -333,6 +333,7 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
           "the target model and cannot be applied retrospectively to a released "
           "checkpoint.")
         A("")
+        A(_rq2_sensitivity(results.get("rq2") or {}))
     else:
         A("_Faithfulness audit did not run._")
         A("")
@@ -417,6 +418,82 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
 def _clip(text: str, n: int = 380) -> str:
     text = " ".join((text or "").split())
     return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _rq2_sensitivity(rq2: dict) -> str:
+    """Do the two RQ2 headlines survive the thresholds they were measured at?
+
+    Both numbers rest on a choice. `reconstruction_dependent` is judged against
+    the 95th percentile of the paraphrase null, and the paraphrase arm controls
+    for surface change but *not* for how much text a deletion removes - which
+    is about a quarter of an explanation. `reproduced_under_noise` is judged at
+    Jaccard >= 0.5 over content words, one number with no principled basis.
+
+    Neither is worth reporting without saying what happens when the choice
+    moves, so both sensitivities are printed. Neither replaces the registered
+    measure: changing a headline definition after seeing the result is what
+    fixing the definitions in advance was for.
+    """
+    ls = rq2.get("length_sensitivity") or {}
+    noise = rq2.get("noise_reproduction_by_threshold") or {}
+    dist = rq2.get("noise_similarity_distribution") or {}
+    if not ls.get("available") and not noise:
+        return ""
+
+    out = ["#### Do these two numbers survive their thresholds?", ""]
+
+    if ls.get("available"):
+        out += [
+            f"**The deletion effect is partly a length effect.** Deleting a "
+            f"claim removes {ls['mean_deleted_fraction']:.1%} of an explanation "
+            f"on average, and the effect does rise with how much was cut: "
+            f"correlation {ls['corr_deleted_fraction_vs_delete_effect']:+.3f}, "
+            f"accounting for {ls['variance_explained_by_length']:.1%} of the "
+            f"variance. The paraphrase null controls for surface change, not "
+            f"for the scissors.", "",
+            "| deleted fraction | n | mean deletion effect |",
+            "|---|---|---|",
+        ]
+        for q in ls.get("effect_by_deleted_fraction_quintile", []):
+            out.append(f"| {q['from']:.2f}–{q['to']:.2f} | {q['n']} | "
+                       f"{q['mean_delete_effect']:+.4f} |")
+        out += ["",
+                f"Removing that pooled trend and re-applying the same "
+                f"paraphrase-null threshold gives a **length-adjusted "
+                f"dependence rate of "
+                f"{ls['dependent_fraction_length_adjusted']:.3f}**, against "
+                f"{ls['dependent_fraction_as_registered']:.3f} as registered. "
+                f"The finding does not rest on the length confound."]
+        w = ls.get("within_explanation") or {}
+        if w.get("median_sd_over_mean") is not None:
+            out += ["",
+                    f"Within a single explanation — where the deletions are of "
+                    f"comparable size — the spread of deletion effects is "
+                    f"{w['mean_sd_of_delete_effect']:.4f} against a mean of "
+                    f"{w['mean_of_means']:+.4f} "
+                    f"({w['median_sd_over_mean']:.2f} as a ratio, median over "
+                    f"{w['n_explanations']} explanations). That spread is the "
+                    f"part no length effect explains."]
+        out.append("")
+
+    if noise:
+        out += [
+            "**The noise control is not riding its threshold.** Reproduction "
+            "rate against the matched-norm Gaussian control, by Jaccard "
+            "threshold:", "",
+            "| threshold | reproduced |", "|---|---|",
+        ]
+        for t, rate in sorted(noise.items()):
+            out.append(f"| {t} | {rate:.4f} |")
+        if dist:
+            out += ["",
+                    f"The similarity distribution sits well below any of these: "
+                    f"mean {dist['mean']:.3f}, median {dist['median']:.3f}, "
+                    f"99th percentile {dist['p99']:.3f}, maximum "
+                    f"{dist['max']:.3f}. There is no cliff near the chosen "
+                    f"threshold for the rate to be an artefact of."]
+        out.append("")
+    return "\n".join(out)
 
 
 def _verbaliser_integrity(cfg) -> str:

@@ -191,6 +191,101 @@ def main() -> int:
     return 0
 
 
+def length_sensitivity(rows: list[dict]) -> dict:
+    """How much of the deletion effect is just "the explanation got shorter".
+
+    The paraphrase arm is the pre-registered null, and it controls for
+    *surface change*: a lexical rewrite that preserves length and content
+    words. It does **not** control for the amount of text removed, and
+    deleting a claim removes about a quarter of an explanation. On the pilot
+    the paraphrase null moves reconstruction cosine by 0.002 while a deletion
+    moves it by 0.037 - so the threshold is easy to clear, and it is worth
+    knowing how much of that is the claim and how much is the scissors.
+
+    Reported here rather than substituted for the pre-registered measure.
+    Changing the headline definition after seeing the result is the thing §5
+    of the plan fixed its definitions in advance to prevent; this is the
+    sensitivity analysis that belongs beside it.
+
+    Three quantities:
+
+    * the correlation between deleted fraction and deletion effect, and the
+      variance it accounts for;
+    * a **length-adjusted** dependence rate: the deletion effect with the
+      pooled linear trend in deleted fraction removed, still judged against
+      the same paraphrase-null threshold;
+    * the spread of deletion effects *within* one explanation, where the
+      deletions are of comparable size, which is the part a length effect
+      cannot explain.
+    """
+    pairs, thresholds, within = [], [], []
+    for r in rows:
+        claims = r.get("claims") or []
+        total = len(r.get("explanation") or "")
+        if not claims or total <= 0:
+            continue
+        effects = []
+        for c in claims:
+            frac = len(c["claim_text"]) / total
+            pairs.append((frac, float(c["delete_effect"])))
+            thresholds.append(float(c["null_threshold"]))
+            effects.append(float(c["delete_effect"]))
+        if len(effects) >= 2:
+            arr = np.asarray(effects)
+            within.append((float(arr.std()), float(arr.mean())))
+
+    if len(pairs) < 10:
+        return {"available": False, "n": len(pairs)}
+
+    frac = np.asarray([p[0] for p in pairs])
+    eff = np.asarray([p[1] for p in pairs])
+    thr = np.asarray(thresholds)
+    r = float(np.corrcoef(frac, eff)[0, 1]) if frac.std() > 0 else float("nan")
+
+    slope, intercept = (np.polyfit(frac, eff, 1) if frac.std() > 0 else (0.0, eff.mean()))
+    # Residual deletion effect: what is left once the pooled length trend is
+    # taken out, re-centred so it stays comparable with the same threshold.
+    residual = eff - (slope * frac + intercept) + eff.mean()
+
+    out: dict = {
+        "available": True,
+        "n_claims": int(eff.size),
+        "mean_deleted_fraction": float(frac.mean()),
+        "corr_deleted_fraction_vs_delete_effect": r,
+        "variance_explained_by_length": float(r * r) if np.isfinite(r) else float("nan"),
+        "ols_slope_per_unit_fraction": float(slope),
+        "dependent_fraction_as_registered": float(np.mean(eff > thr)),
+        "dependent_fraction_length_adjusted": float(np.mean(residual > thr)),
+    }
+    # Effect by quintile of deleted fraction, so a monotone length trend is
+    # visible rather than compressed into one correlation.
+    edges = np.quantile(frac, np.linspace(0, 1, 6))
+    out["effect_by_deleted_fraction_quintile"] = [
+        {"from": float(edges[i]), "to": float(edges[i + 1]),
+         "n": int(sel.sum()), "mean_delete_effect": float(eff[sel].mean())}
+        for i in range(5)
+        if (sel := (frac >= edges[i]) & (frac <= edges[i + 1])).any()
+    ]
+    if within:
+        w = np.asarray(within)
+        nonzero = np.abs(w[:, 1]) > 1e-12
+        out["within_explanation"] = {
+            "n_explanations": int(w.shape[0]),
+            "mean_sd_of_delete_effect": float(w[:, 0].mean()),
+            "mean_of_means": float(w[:, 1].mean()),
+            "median_sd_over_mean": (float(np.median(w[nonzero, 0] / np.abs(w[nonzero, 1])))
+                                    if nonzero.any() else float("nan")),
+        }
+    out["note"] = (
+        "The deletion effect rises with how much text was removed, so the "
+        "registered dependence rate is an upper bound. The length-adjusted "
+        "rate removes the pooled linear trend and keeps the same "
+        "paraphrase-null threshold. The within-explanation spread is the part "
+        "no length effect explains: those deletions are of comparable size."
+    )
+    return out
+
+
 def summarise_from_rows(rows: list[dict]) -> dict:
     """Aggregate directly from the persisted records, so the summary can be
     recomputed after a resume without re-running the audit."""
@@ -233,6 +328,23 @@ def summarise_from_rows(rows: list[dict]) -> dict:
             "mean_base_cosine": float(np.mean([r["base_cosine"] for r in sel])),
         }
     out["by_window_kind"] = by_kind
+    out["length_sensitivity"] = length_sensitivity(rows)
+
+    # The noise control's threshold is one number (Jaccard >= 0.5 over content
+    # words) and the rate it produces is a headline, so the rate is reported
+    # across a range of thresholds too. A rate that collapses as the threshold
+    # moves would be an artefact of where it was set; one that is flat is not.
+    sims = np.array([float(c.get("noise_similarity", 0.0)) for c in claims])
+    out["noise_reproduction_by_threshold"] = {
+        f"{t:.1f}": float((sims >= t).mean()) for t in (0.2, 0.3, 0.4, 0.5, 0.6)
+    }
+    out["noise_similarity_distribution"] = {
+        "mean": float(sims.mean()), "median": float(np.median(sims)),
+        "p90": float(np.percentile(sims, 90)), "p99": float(np.percentile(sims, 99)),
+        "max": float(sims.max()),
+        "note": ("best Jaccard over content words between a claim and any "
+                 "claim the matched-norm Gaussian control produced"),
+    }
     return out
 
 
