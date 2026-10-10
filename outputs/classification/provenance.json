@@ -1,0 +1,64 @@
+{
+  "runs": [
+    "pilot"
+  ],
+  "reference_run": "pilot",
+  "pooling_signature": {
+    "target.repo_id": "Qwen/Qwen2.5-7B-Instruct",
+    "target.precision": "nf4",
+    "target.layer": 20,
+    "generation.max_new_tokens": 512,
+    "generation.temperature": 0.7,
+    "generation.top_p": 0.95,
+    "generation.canonical_greedy": true,
+    "generation.system_prompt": "You are a careful mathematical reasoner. Think step by step, then give the final answer on its own last line in the form 'The answer is X.'",
+    "generation.force_answer_suffix": "\n\nTherefore, the answer is",
+    "generation.force_answer_max_new_tokens": 24,
+    "chunk.min_chunk_chars": 12,
+    "chunk.max_chunks": 40,
+    "ast.k_continuations": 3,
+    "ast.continuation_temperature": 0.8,
+    "ast.continuation_max_new_tokens": 160,
+    "ast.require_unanimous": true,
+    "ast.min_boundary_fraction": 0.0,
+    "ast.max_boundaries_evaluated": 12,
+    "code_revision": "dirty:pilot:56c58ecc6ef3"
+  },
+  "excluded": {
+    "mlcorpus": {
+      "differs_on": [
+        "code_revision"
+      ],
+      "detail": {
+        "code_revision": {
+          "this_run": "dirty:mlcorpus:56c58ecc6ef3",
+          "reference": "dirty:pilot:56c58ecc6ef3"
+        }
+      }
+    }
+  },
+  "disqualified": {
+    "tiny": "target is 'nlaast-fixture/target', not the model this study is bound to ('Qwen/Qwen2.5-7B-Instruct')"
+  },
+  "available": [
+    "mlcorpus",
+    "pilot"
+  ],
+  "explicit": false,
+  "traces_per_run": {
+    "pilot": 24
+  },
+  "n_traces_loaded": 24,
+  "n_rows": 24,
+  "requires_ast": false,
+  "dropped_without_ok_tail": 0,
+  "note": "Rows come only from runs whose pooling signature matches the reference run; see POOLING_KEYS in common_data.py.",
+  "analysis": "classification of final_correct",
+  "folds": 3,
+  "repeats": 20,
+  "seed": 42,
+  "n_positive": 19,
+  "n_negative": 5,
+  "best_model_by_auroc": "Logistic regression",
+  "caveat": "Cross-validated on a corpus of this size the intervals are wide; read model_scores.csv with n_rows in mind."
+}

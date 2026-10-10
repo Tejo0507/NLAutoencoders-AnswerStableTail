@@ -35,7 +35,9 @@ y = df["tail_fraction"].values
 
 print(f"corpus: {provenance['n_rows']} rows from runs {provenance['runs']}")
 if provenance["excluded"]:
-    print(f"excluded runs: {provenance['excluded']}")
+    print(f"excluded runs (not poolable): {sorted(provenance['excluded'])}")
+if provenance["disqualified"]:
+    print(f"disqualified runs (never corpus data): {provenance['disqualified']}")
 if provenance["dropped_without_ok_tail"]:
     print(f"dropped without an ok tail: {provenance['dropped_without_ok_tail']}")
 if len(df) < 2 * args.folds:

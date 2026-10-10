@@ -1,5 +1,5 @@
 model,accuracy,accuracy_sd,f1,auroc,auroc_sd
-Majority baseline,0.818,0.0,0.9,0.5,0.0
-Logistic regression,0.779,0.1,0.858,0.849,0.103
-Random forest,0.733,0.103,0.82,0.767,0.127
-Gradient boosting,0.771,0.096,0.86,0.674,0.168
+Majority baseline,0.792,0.059,0.883,0.5,0.0
+Logistic regression,0.812,0.113,0.879,0.808,0.188
+Random forest,0.812,0.128,0.871,0.757,0.226
+Gradient boosting,0.848,0.117,0.903,0.757,0.183

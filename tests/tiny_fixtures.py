@@ -364,6 +364,20 @@ def build_run(cfg) -> dict[str, int]:
     run = cfg.dir
     (run / "data").mkdir(parents=True, exist_ok=True)
 
+    # Declare the run synthetic, in a file anything reading `runs/` can see.
+    # This test writes its run *last*, so a "newest run wins" rule picks it:
+    # the root-level supervised analyses once fitted on six rows of this
+    # noise and wrote the result to outputs/. Comparing settings is not enough
+    # on its own, because the reference run is what the comparison is made
+    # against. See FIXTURE_MARKER in common_data.py.
+    (run / "FIXTURE").write_text(
+        "Synthetic run written by tests/test_end_to_end_tiny.py.\n\n"
+        "The traces, activations and verbalisations here come from randomly\n"
+        "initialised 64-dimensional models. Every number in this directory is\n"
+        "noise. Nothing that pools corpus data may read it.\n",
+        encoding="utf-8",
+    )
+
     problems = [{
         "id": s["pid"], "problem_id": s["pid"], "dataset": s["dataset"],
         "split": s["split"], "level": s["level"], "gold": s["gold"],

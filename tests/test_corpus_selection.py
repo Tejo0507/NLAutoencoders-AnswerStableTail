@@ -59,7 +59,8 @@ def _deep_update(base: dict, overrides: dict) -> dict:
 
 
 def make_run(runs_root: Path, name: str, ids, *, commit="c" * 40, dirty=False,
-             config_overrides=None, mtime=None, tails=None, with_config=True):
+             config_overrides=None, mtime=None, tails=None, with_config=True,
+             fixture_marker=False):
     """A minimal run directory: traces, optional AST rows, config and manifest."""
     import os
     import yaml
@@ -93,6 +94,9 @@ def make_run(runs_root: Path, name: str, ids, *, commit="c" * 40, dirty=False,
     (d / "manifest.json").write_text(
         json.dumps({"git": {"commit": commit, "dirty": dirty}}), encoding="utf-8")
 
+    if fixture_marker:
+        (d / common_data.FIXTURE_MARKER).write_text("synthetic", encoding="utf-8")
+
     if mtime is not None:
         p = d / "traces" / "traces.jsonl"
         os.utime(p, (mtime, mtime))
@@ -115,8 +119,66 @@ class TestReferenceChoice:
         assert sel["reference_run"] == "pilot"
 
     def test_no_traces_anywhere_is_a_clear_error(self, runs):
-        with pytest.raises(SystemExit, match="no run under runs/ has traces"):
+        with pytest.raises(SystemExit, match="no run under runs/ holds usable traces"):
             common_data.select_runs()
+
+
+class TestDisqualification:
+    """Some runs can never be corpus data, and comparison is too late to say so.
+
+    The end-to-end test writes its fixture run *last*, so "newest run wins"
+    chose it as the reference - and then every real run was excluded for
+    differing from a 64-dimensional random model. The supervised analyses
+    fitted on six rows of that noise and wrote the result to `outputs/`. A run
+    that cannot be corpus data has to be ruled out *before* it can become the
+    thing everything else is compared against.
+    """
+
+    def test_a_marked_fixture_run_is_never_the_reference(self, runs):
+        make_run(runs, "pilot", [f"p{i}" for i in range(5)], mtime=1_000_000)
+        make_run(runs, "tiny", ["f0"], mtime=9_000_000, fixture_marker=True)
+        sel = common_data.select_runs()
+        assert sel["reference_run"] == "pilot"
+        assert sel["runs"] == ["pilot"]
+        assert "tiny" in sel["disqualified"]
+        assert "synthetic fixture" in sel["disqualified"]["tiny"]
+
+    def test_a_foreign_target_model_is_disqualified_without_a_marker(self, runs):
+        """Second, independent guard: the released autoencoder is bound to one
+        model, so a run against another is not a run of this study."""
+        make_run(runs, "pilot", ["p0"], mtime=1_000_000)
+        make_run(runs, "tiny", ["f0"], mtime=9_000_000,
+                 config_overrides={"target": {"repo_id": "nlaast-fixture/target"}})
+        sel = common_data.select_runs()
+        assert sel["reference_run"] == "pilot"
+        assert "not the model this study is bound to" in sel["disqualified"]["tiny"]
+
+    def test_a_wrong_width_is_disqualified(self, runs):
+        make_run(runs, "pilot", ["p0"], mtime=1_000_000)
+        make_run(runs, "toy", ["t0"], mtime=9_000_000,
+                 config_overrides={"target": {"d_model": 64}})
+        sel = common_data.select_runs()
+        assert sel["reference_run"] == "pilot"
+        assert "d_model is 64" in sel["disqualified"]["toy"]
+
+    def test_requesting_a_disqualified_run_is_refused(self, runs):
+        make_run(runs, "pilot", ["p0"], mtime=1_000_000)
+        make_run(runs, "tiny", ["f0"], mtime=9_000_000, fixture_marker=True)
+        with pytest.raises(SystemExit, match="cannot be corpus data"):
+            common_data.select_runs(["tiny"])
+
+    def test_only_disqualified_runs_is_a_clear_error(self, runs):
+        make_run(runs, "tiny", ["f0"], fixture_marker=True)
+        with pytest.raises(SystemExit, match="no run under runs/ holds usable traces"):
+            common_data.select_runs()
+
+    def test_build_table_records_the_disqualifications(self, runs):
+        make_run(runs, "pilot", ["p0", "p1"], mtime=1_000_000)
+        make_run(runs, "tiny", ["f0"], mtime=9_000_000, fixture_marker=True)
+        df, prov = common_data.build_table()
+        assert prov["runs"] == ["pilot"]
+        assert len(df) == 2
+        assert "tiny" in prov["disqualified"]
 
 
 class TestComparability:
@@ -128,15 +190,19 @@ class TestComparability:
         assert sel["runs"] == ["pilot"]
         assert "generation.max_new_tokens" in sel["excluded"]["smoke"]["differs_on"]
 
-    def test_a_different_target_model_is_excluded(self, runs):
-        """The fixture run's case: a 64-wide random model is not the target."""
+    def test_a_different_target_model_is_kept_out_entirely(self, runs):
+        """The fixture run's case. A 64-wide random model is not merely
+        incomparable with the corpus, it is disqualified from being corpus
+        data at all - which is the only version of this check that survives
+        the fixture run being the newest. See TestDisqualification."""
         make_run(runs, "pilot", ["p0"], mtime=2_000_000)
         make_run(runs, "tiny", ["f0"], mtime=1_000_000,
                  config_overrides={"target": {"repo_id": "nlaast-fixture/target",
                                               "layer": 1, "precision": "bf16"}})
         sel = common_data.select_runs()
         assert sel["runs"] == ["pilot"]
-        assert "target.repo_id" in sel["excluded"]["tiny"]["differs_on"]
+        assert "tiny" not in sel["excluded"]
+        assert "tiny" in sel["disqualified"]
 
     def test_matching_settings_and_revision_do_pool(self, runs):
         make_run(runs, "mlcorpus", ["p1", "p2"], mtime=1_000_000, commit="a" * 40)
