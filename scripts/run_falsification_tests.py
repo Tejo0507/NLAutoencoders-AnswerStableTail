@@ -25,8 +25,10 @@ runs it alone, which is how the orchestrator sequences it.
 
 from __future__ import annotations
 
+import shutil
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -403,52 +405,84 @@ def f8_replay_sequence(prompt_ids, trace, meta, max_positions: int):
     return full, None
 
 
+#: Rough size of the truncated bf16 target, in GiB: ~6.0 B parameters at two
+#: bytes each (21 layers of 233 M, plus the embedding table and the unused
+#: lm_head). Used only to decide whether a disk offload is needed.
+_F8_WEIGHTS_GIB = 12.0
+
+
 def f8_placement(log, gpu_headroom_gib: float = 1.0,
-                 host_headroom_gib: float = 2.0) -> dict:
+                 host_headroom_gib: float = 1.0,
+                 offload_dir: Path | None = None) -> dict:
     """Where to put the bf16 weights, decided from free memory, not assumed.
 
-    Truncated to 21 layers the bf16 target is still around 11 GB. On this
-    machine neither the GPU (6.4 GB) nor the free host memory reliably holds
-    that alone, so the weights are split by what is actually free when F8 runs
-    - which is after ``acts`` and before ``nla``, with no other model resident.
+    Truncated to the 21 layers it needs the bf16 target is still around 12 GB.
+    On this machine neither the GPU (6.4 GB) nor the free host memory holds
+    that alone - and in practice the host has 2-3 GB free, so the two together
+    do not either. The weights are therefore split by what is actually free
+    when F8 runs (after ``acts``, before ``nla``, with no other model
+    resident), and whatever does not fit is offloaded to disk.
 
-    Falls back to CPU-only when there is no usable GPU, and records what it
-    chose so a failed or slow run can be read afterwards.
+    Disk offload is slow, and that is the right trade: F8 runs on a subsample
+    of a couple of dozen forward passes, and the alternative is not measuring
+    the quantisation deviation at all.
+
+    Records what it chose and the measurements behind it, so a slow or failed
+    run can be read afterwards instead of guessed at.
     """
     import psutil
     import torch
 
     from nlaast.models.loading import free_cuda
 
-    record: dict = {"strategy": "cpu"}
-    if not torch.cuda.is_available():
-        log.info("F8: no CUDA; loading bf16 weights on CPU")
-        return {"kwargs": {"device_map": "cpu"}, "record": record}
+    record: dict = {"strategy": "cpu", "weights_gib_estimate": _F8_WEIGHTS_GIB}
+    host_gib = max(0.0, psutil.virtual_memory().available / 2**30 - host_headroom_gib)
+    record["available_host_gib"] = round(
+        psutil.virtual_memory().available / 2**30, 2)
 
-    free_cuda()
-    free_gpu, total_gpu = torch.cuda.mem_get_info()
-    gpu_gib = int(max(0.0, free_gpu / 2**30 - gpu_headroom_gib))
-    host_gib = int(max(0.0, psutil.virtual_memory().available / 2**30
-                       - host_headroom_gib))
-    record.update(free_gpu_gib=round(free_gpu / 2**30, 2),
-                  total_gpu_gib=round(total_gpu / 2**30, 2),
-                  available_host_gib=round(psutil.virtual_memory().available / 2**30, 2),
-                  gpu_budget_gib=gpu_gib, host_budget_gib=host_gib)
+    gpu_gib = 0.0
+    if torch.cuda.is_available():
+        free_cuda()
+        free_gpu, total_gpu = torch.cuda.mem_get_info()
+        gpu_gib = max(0.0, free_gpu / 2**30 - gpu_headroom_gib)
+        record.update(free_gpu_gib=round(free_gpu / 2**30, 2),
+                      total_gpu_gib=round(total_gpu / 2**30, 2))
+    record["gpu_budget_gib"] = int(gpu_gib)
+    record["host_budget_gib"] = int(host_gib)
+
     if gpu_gib < 2:
-        log.warning("F8: only %.1f GB of VRAM free; loading bf16 weights on CPU",
-                    free_gpu / 2**30)
-        return {"kwargs": {"device_map": "cpu"}, "record": record}
+        log.warning("F8: %.1f GB of VRAM free is not a usable slice; "
+                    "loading bf16 weights on the host", gpu_gib)
+        if host_gib >= _F8_WEIGHTS_GIB or offload_dir is None:
+            return {"kwargs": {"device_map": "cpu"}, "record": record}
+        record["strategy"] = "cpu_plus_disk"
+        record["offload_dir"] = str(offload_dir)
+        offload_dir.mkdir(parents=True, exist_ok=True)
+        return {"kwargs": {"device_map": "auto",
+                           "max_memory": {"cpu": f"{max(1, int(host_gib))}GiB"},
+                           "offload_folder": str(offload_dir)},
+                "record": record}
 
-    record["strategy"] = "split_gpu_cpu"
-    log.info("F8: splitting bf16 weights across GPU (%d GiB) and host (%d GiB)",
-             gpu_gib, host_gib)
-    return {
-        "kwargs": {
-            "device_map": "auto",
-            "max_memory": {0: f"{gpu_gib}GiB", "cpu": f"{max(1, host_gib)}GiB"},
-        },
-        "record": record,
+    kwargs: dict = {
+        "device_map": "auto",
+        "max_memory": {0: f"{int(gpu_gib)}GiB",
+                       "cpu": f"{max(1, int(host_gib))}GiB"},
     }
+    if gpu_gib + host_gib < _F8_WEIGHTS_GIB and offload_dir is not None:
+        # Neither device holds the remainder, so give accelerate somewhere to
+        # put it rather than letting the load fail.
+        offload_dir.mkdir(parents=True, exist_ok=True)
+        kwargs["offload_folder"] = str(offload_dir)
+        record["strategy"] = "split_gpu_cpu_disk"
+        record["offload_dir"] = str(offload_dir)
+        log.info("F8: GPU %d GiB + host %d GiB is short of the ~%.0f GiB of "
+                 "weights; offloading the remainder to %s",
+                 int(gpu_gib), int(host_gib), _F8_WEIGHTS_GIB, offload_dir)
+    else:
+        record["strategy"] = "split_gpu_cpu"
+        log.info("F8: splitting bf16 weights across GPU (%d GiB) and host (%d GiB)",
+                 int(gpu_gib), int(host_gib))
+    return {"kwargs": kwargs, "record": record}
 
 
 def f8_quantisation(cfg, traces, log, subsample: int,
@@ -508,7 +542,11 @@ def f8_quantisation(cfg, traces, log, subsample: int,
     conf = AutoConfig.from_pretrained(src)
     conf.num_hidden_layers = layer + 1
     tok = AutoTokenizer.from_pretrained(src)
-    placement = f8_placement(log)
+    # Offload lands beside the run rather than on the model-cache volume,
+    # which is the one the autoencoder download needs free next. Cleared when
+    # F8 finishes either way.
+    offload_dir = cfg.stage_dir(STAGE) / "f8_offload"
+    placement = f8_placement(log, offload_dir=offload_dir)
     bf16 = None
     attempts: list[dict] = []
     for attempt in ([placement] if placement["record"]["strategy"] == "cpu"
@@ -591,11 +629,44 @@ def f8_quantisation(cfg, traces, log, subsample: int,
         handle.remove()
         del bf16
         free_cuda()
+        # The offload directory can hold several GB, and the volume it sits on
+        # is the one the next stage needs free.
+        if offload_dir.exists():
+            freed = sum(f.stat().st_size for f in offload_dir.rglob("*") if f.is_file())
+            shutil.rmtree(offload_dir, ignore_errors=True)
+            log.info("F8: cleared %.1f GB of weight offload", freed / 1e9)
 
     if not cosines:
         return {"status": "failed", "reason": "no comparable positions",
                 "skipped": skipped}
     c = np.asarray(cosines)
+    norm_ratio = float(np.mean(norm_ratios))
+    # A result near cos=0 with a wild norm ratio is not quantisation drift -
+    # it is the signature of a bf16 arm that is not the same model: weights
+    # left randomly initialised by a silent load failure, or positions read
+    # off a different sequence. Those two possibilities are indistinguishable
+    # in the raw number, and the wrong one would be reported as "4-bit
+    # destroys the activations the autoencoder needs". Flagged rather than
+    # returned as a measurement.
+    load_suspect = bool(abs(c.mean()) < 0.2 and not 0.5 < norm_ratio < 2.0)
+    if load_suspect:
+        log.error("F8: mean cosine %.4f with an nf4/bf16 norm ratio of %.3f. "
+                  "That is the signature of a bf16 arm that is not the same "
+                  "model, not of quantisation drift. Refusing to report it as "
+                  "a drift measurement.", c.mean(), norm_ratio)
+        return {
+            "status": "failed",
+            "reason": ("implausible result: mean cosine "
+                       f"{c.mean():.4f} with norm ratio {norm_ratio:.3f}"),
+            "mean_cosine": float(c.mean()),
+            "mean_norm_ratio_nf4_over_bf16": norm_ratio,
+            "n_vectors": int(c.size),
+            "placement": placement["record"],
+            "note": ("the bf16 arm did not behave like the target model - "
+                     "suspect a silent load failure or a position mismatch, "
+                     "not 4-bit quantisation. The quantisation deviation is "
+                     "unmeasured by this run."),
+        }
     return {
         "status": "ran",
         "n_problems": len(per_problem),
@@ -604,7 +675,7 @@ def f8_quantisation(cfg, traces, log, subsample: int,
         "median_cosine": float(np.median(c)),
         "p05_cosine": float(np.percentile(c, 5)),
         "min_cosine": float(c.min()),
-        "mean_norm_ratio_nf4_over_bf16": float(np.mean(norm_ratios)),
+        "mean_norm_ratio_nf4_over_bf16": norm_ratio,
         "per_problem": per_problem,
         "n_skipped": len(skipped),
         "skipped": skipped,
