@@ -22,7 +22,13 @@ from typing import Any
 from . import paths
 
 MANIFEST_NAME = "manifest.json"
-_STATUS = ("pending", "running", "complete", "failed", "skipped")
+#: ``partial`` is for a stage that finished what it was asked to do without
+#: finishing the stage. The ``nla`` stage is the case: the verbaliser and the
+#: reconstructor are each 7B-class and only one fits in VRAM, so it is run one
+#: phase at a time, and a phase that succeeds must not record the stage as
+#: complete - a later pass would skip the half that never ran. Only
+#: ``complete`` is skippable (see ``is_complete``), so ``partial`` re-runs.
+_STATUS = ("pending", "running", "complete", "partial", "failed", "skipped")
 
 
 def utcnow() -> str:

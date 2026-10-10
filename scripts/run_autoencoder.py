@@ -139,7 +139,34 @@ def main() -> int:
         metrics = run_reconstruct(cfg, store, layer, verb_path, recon_path, log)
         write_json(out_dir / "summary.json", metrics)
 
-    manifest.finish_stage(STAGE, status="complete", output=str(out_dir), metrics=metrics)
+    # The stage is complete only when *both* phases have left output behind.
+    #
+    # This matters because splitting the phases is the intended way to run
+    # this stage here, not an edge case: the verbaliser and the reconstructor
+    # are each 7B-class and only one fits in 6.44 GB. Marking the whole stage
+    # complete after `--phase verbalise` made the following
+    # `--phase reconstruct` skip itself, which cost nothing visible and left
+    # no reconstructions - so the NLA arm silently dropped off the stopping
+    # comparison, F10 had nothing to compare, and F3 lost its reconstruction
+    # contrast. Completeness is therefore read off the artefacts rather than
+    # assumed from having reached the end of the script.
+    phases_done = sorted(
+        name for name, path in (("verbalise", verb_path), ("reconstruct", recon_path))
+        if path.exists() and path.stat().st_size > 0
+    )
+    complete = len(phases_done) == 2
+    if metrics:
+        metrics = {**metrics, "phases_present": phases_done}
+    else:
+        metrics = {"phases_present": phases_done}
+    if not complete:
+        missing = {"verbalise", "reconstruct"} - set(phases_done)
+        log.warning("stage %r is partial: %s has not produced output yet. "
+                    "Run `--phase %s` to finish it; the stage is not marked "
+                    "complete, so a later pass will not skip it.",
+                    STAGE, ", ".join(sorted(missing)), sorted(missing)[0])
+    manifest.finish_stage(STAGE, status="complete" if complete else "partial",
+                          output=str(out_dir), metrics=metrics)
     return 0
 
 
