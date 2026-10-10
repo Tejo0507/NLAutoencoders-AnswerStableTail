@@ -205,9 +205,22 @@ def run_problem(model, cfg, ast_row, trace, direction, writer, log) -> None:
     baseline_answer = trace.get("final_answer")
     baseline_correct = bool(trace.get("final_correct"))
     baseline_markers = count_verification_markers(
-        trace["trace"][chunks[tail_start - 1].char_end :]
+        trace["trace"][chunks[tail_start].char_end :]
     )
-    prefix = prefix_text(chunks, tail_start - 1, trace["trace"])
+    # Stop *at* the tail start, keeping chunk `tail_start` itself.
+    #
+    # This is what PROJECT_PLAN.md §5 means by stopping at a boundary: "the
+    # answer forced from P_s", where P_s is the prefix through chunk s. And
+    # criterion 1 selected `tail_start` precisely because forcing from
+    # P[tail_start] reproduces the final answer - on this run, for all 10
+    # intervened problems.
+    #
+    # Truncating at `tail_start - 1` instead removed the chunk that makes the
+    # answer determinate, so the arm was guaranteed to lose the answer and
+    # tested nothing about redundancy: it reported 0.000 accuracy against a
+    # 0.800 baseline, which reads as "the tail is essential" when it is only
+    # "we cut one chunk too many".
+    prefix = prefix_text(chunks, tail_start, trace["trace"])
     prompt_tokens = len(model.tokenizer(model.build_prompt(question, prefix),
                                         add_special_tokens=False)["input_ids"])
     tail_tokens = max(1, int(ast_row.get("tail_tokens") or 1))
