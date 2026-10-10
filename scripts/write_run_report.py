@@ -251,6 +251,8 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
     else:
         A("_Stopping comparison did not run._")
         A("")
+    A(_o3_verdict(results))
+
     # How each comparison signal was produced. At these sample sizes this is
     # not a footnote: a baseline scored in-sample, or an arm that is absent
     # rather than merely weak, changes how the table above should be read.
@@ -349,6 +351,38 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A("")
         A(tables.markdown(tables.reconstruction_table(recon)))
         A("")
+        nla_sum_path = cfg.dir / "nla" / "summary.json"
+        nla_sum = read_json(nla_sum_path) if nla_sum_path.exists() else {}
+        emp = nla_sum.get("empirical_baseline") or {}
+        overall = nla_sum.get("overall") or {}
+        if emp.get("available"):
+            A("#### Which baseline the FVE is against")
+            A("")
+            A(f"An FVE needs a baseline, and the usual 2.0 assumes an "
+              f"uninformative prediction is *orthogonal* to the target. A "
+              f"random direction in {cfg.target.d_model} dimensions is — but a "
+              f"plausible guess is not, and layer-{cfg.target.layer} residual "
+              f"streams are strongly anisotropic. Two of this run's own "
+              f"activations, drawn at random, have a mean cosine of "
+              f"**{emp['mean_pairwise_cosine']:.3f}**, so simply guessing a "
+              f"typical layer-{cfg.target.layer} activation already achieves "
+              f"MSE {emp['baseline_mse']:.3f} rather than 2.0.")
+            A("")
+            A("| baseline | FVE |")
+            A("|---|---|")
+            A(f"| theoretical, orthogonal prediction (2.0) | "
+              f"**{_fmt(overall.get('fve'))}** |")
+            A(f"| empirical, this run's own activations "
+              f"({emp['baseline_mse']:.3f}) | "
+              f"**{_fmt(overall.get('fve_empirical_baseline'))}** |")
+            A("")
+            A(f"PROJECT_PLAN §5 asks for the empirical one, so that is the "
+              f"figure to read. The theoretical one is kept because the "
+              f"checkpoint card's {_fmt(nla_sum.get('reference_fve'))} is "
+              f"comparable only against whatever baseline *it* used, which is "
+              f"not stated — so neither of these should be read as beating or "
+              f"missing it.")
+            A("")
 
     # ---------------------------------------------------------------- RQ3
     A("## RQ3 - causal evidence")
@@ -434,6 +468,69 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
 def _clip(text: str, n: int = 380) -> str:
     text = " ".join((text or "").split())
     return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _o3_verdict(results: dict) -> str:
+    """State which way the primary comparison went, in words.
+
+    A reader scanning a table of q-values can take "significant" for "the
+    readout won". Here it means the opposite, so the direction is written out
+    next to every comparison, and the ones that could not be made at matched
+    budget are listed as such rather than left absent.
+    """
+    tests = [t for t in ((results.get("tests") or {}).get("tests") or [])
+             if t.get("name", "").startswith("O3:")]
+    if not tests:
+        return ""
+
+    ran = [t for t in tests if t.get("notes", {}).get("direction")]
+    unmatched = [t for t in tests if t.get("notes", {}).get("skipped")]
+
+    out = ["### Verdict on the primary question", ""]
+    if ran:
+        out += ["| compared against | NLA safe rate | its safe rate | budgets | "
+                "direction | q |", "|---|---|---|---|---|---|"]
+        for t in ran:
+            n = t["notes"]
+            other = next(k for k in n
+                         if k.startswith("mean_safe_rate_") and k != "mean_safe_rate_nla")
+            label = other.replace("mean_safe_rate_", "")
+            out.append(
+                f"| {label} | {n['mean_safe_rate_nla']:.3f} | {n[other]:.3f} | "
+                f"{n['n_budgets']} | **{n['direction']}** | "
+                f"{_fmt(t.get('q_value'), 4)} |")
+        out.append("")
+        worse = [t for t in ran if t["notes"]["direction"] == "nla_readout worse"]
+        better = [t for t in ran if t["notes"]["direction"] == "nla_readout better"]
+        if worse and not better:
+            out += [
+                "**The verbalised readout does not beat the cheap signals on "
+                "this corpus — it loses to them.** Where the comparison can be "
+                "made at genuinely matched budget, the readout's safe-stopping "
+                "rate is lower. A significant q here is evidence *against* the "
+                "readout's incremental value, not for it.", "",
+                "The review named this as an acceptable outcome in advance and "
+                "it is reported with the same weight a positive result would "
+                "have had.", ""]
+        elif better and not worse:
+            out += ["The readout's safe-stopping rate is higher wherever the "
+                    "comparison can be made at matched budget.", ""]
+
+    if unmatched:
+        out += ["Comparisons that **could not be made**:", ""]
+        for t in unmatched:
+            name = t["name"].split("minus ", 1)[-1].split(" at ")[0]
+            out.append(f"- against **{name}**: {t['notes']['skipped']}")
+        out += ["",
+                "These stay in the pre-registered test family as unevaluable "
+                "rather than being dropped from it. A rule's safety/saving "
+                "curve is a step function — it fires at a boundary or it does "
+                "not — and on a corpus of this size the steps are wide enough "
+                "that two curves need not have any operating point near a "
+                "shared budget. Comparing their nearest points anyway would "
+                "compare safety at different budgets, which is the one thing "
+                "the matched-budget design exists to prevent.", ""]
+    return "\n".join(out)
 
 
 def _rq2_sensitivity(rq2: dict) -> str:

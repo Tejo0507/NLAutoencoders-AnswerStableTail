@@ -36,7 +36,11 @@ from nlaast.analysis.stats import (
     summarise_tests,
     unpaired_test,
 )
-from nlaast.baselines.stopping import OperatingPoint, at_matched_budget
+from nlaast.baselines.stopping import (
+    MATCH_TOLERANCE,
+    OperatingPoint,
+    at_matched_budget,
+)
 from nlaast.logging_utils import read_json, read_jsonl, write_json
 
 STAGE = "analysis"
@@ -266,14 +270,59 @@ def main() -> int:
             for other in ("convergence", "probe", "semantic_entropy"):
                 if other not in comparison_curves:
                     continue
-                rows = []
+                # Only budgets where *both* rules have an operating point
+                # genuinely close to the target. A rule whose nearest
+                # achievable saving is far away cannot be compared there, and
+                # using its nearest point anyway compares safety at different
+                # budgets - the one thing the matched-budget design exists to
+                # prevent.
+                rows, discarded = [], 0
                 for b in h2h_budgets:
                     a = at_matched_budget(comparison_curves[NLA_RULE], b)
                     c = at_matched_budget(comparison_curves[other], b)
                     if a and c:
                         rows.append((b, a, c))
+                    else:
+                        discarded += 1
                 if not rows:
+                    log.warning(
+                        "O3: %s cannot be compared with %s at any budget - "
+                        "their curves have no operating point within %.2f of a "
+                        "shared target. On a corpus this size the curves are "
+                        "step functions with wide steps.",
+                        NLA_RULE, other, MATCH_TOLERANCE)
+                    results.setdefault("o3_unmatched", {})[other] = {
+                        "reason": "no budget where both rules are within tolerance",
+                        "tolerance": MATCH_TOLERANCE,
+                        "budgets_tried": len(h2h_budgets),
+                    }
+                    # The test stays in the pre-registered family as
+                    # unevaluable rather than disappearing from it (D16):
+                    # dropping it would shrink m and make the Benjamini-
+                    # Hochberg correction look kinder than it is, and would
+                    # hide that the comparison was planned and could not be
+                    # made.
+                    tests.append(TestResult(
+                        name=(f"O3: safe-stopping rate, {NLA_RULE} minus "
+                              f"{other} at matched budget"),
+                        statistic=float("nan"), p_value=float("nan"),
+                        effect=float("nan"), effect_name="cohens_d_paired",
+                        n=0,
+                        notes={"skipped": (
+                            f"no budget at which both rules have an operating "
+                            f"point within {MATCH_TOLERANCE} of the target; "
+                            f"their safety/saving curves do not overlap "
+                            f"closely enough on this corpus to compare at "
+                            f"matched budget"),
+                            "budgets_tried": len(h2h_budgets),
+                            "match_tolerance": MATCH_TOLERANCE,
+                            "comparison_basis": basis},
+                    ))
                     continue
+                if discarded:
+                    log.info("O3: %s vs %s compared at %d of %d budgets; %d "
+                             "discarded as not genuinely matched",
+                             NLA_RULE, other, len(rows), len(h2h_budgets), discarded)
                 t = paired_test(
                     f"O3: safe-stopping rate, {NLA_RULE} minus {other} at matched budget",
                     [r[1].safe_rate for r in rows],
@@ -283,6 +332,22 @@ def main() -> int:
                     cfg.analysis.seed,
                 )
                 t.notes["n_budgets"] = len(rows)
+                t.notes["n_budgets_discarded_unmatched"] = discarded
+                t.notes["match_tolerance"] = MATCH_TOLERANCE
+                t.notes["max_budget_gap"] = max(
+                    max(abs(a.mean_tokens_saved - b), abs(c.mean_tokens_saved - b))
+                    for b, a, c in rows)
+                # Which way the difference runs, in the outcome's own units,
+                # so a reader cannot take a significant q as a win.
+                t.notes["mean_safe_rate_nla"] = float(
+                    np.mean([a.safe_rate for _, a, _ in rows]))
+                t.notes[f"mean_safe_rate_{other}"] = float(
+                    np.mean([c.safe_rate for _, _, c in rows]))
+                t.notes["direction"] = (
+                    "nla_readout better" if t.notes["mean_safe_rate_nla"]
+                    > t.notes[f"mean_safe_rate_{other}"] else
+                    "nla_readout worse" if t.notes["mean_safe_rate_nla"]
+                    < t.notes[f"mean_safe_rate_{other}"] else "tied")
                 t.notes["comparison_basis"] = basis
                 t.notes["n_problems"] = nla_info.get("n_problems") if restricted else None
                 t.notes["caveat"] = (
