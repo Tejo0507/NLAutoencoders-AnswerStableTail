@@ -337,6 +337,7 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A("_Faithfulness audit did not run._")
         A("")
 
+    A(_verbaliser_integrity(cfg))
     A(_verbalisation_examples(cfg, n=2))
 
     if recon:
@@ -416,6 +417,62 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
 def _clip(text: str, n: int = 380) -> str:
     text = " ".join((text or "").split())
     return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _verbaliser_integrity(cfg) -> str:
+    """The integrity gate's pass rate, split by what drove the verbaliser.
+
+    Upstream documents a specific off-distribution failure: CJK text instead
+    of an English ``<explanation>``. The gate's rate on real activations is
+    therefore a check on the 4-bit deviation. Its rate on the matched-norm
+    Gaussian control is not something the study set out to measure, but it is
+    free and it is informative - a *lower* rate there says the real
+    activations are closer to what the verbaliser was trained on than
+    norm-matched noise is, at the level of basic output well-formedness and
+    independently of anything about content.
+
+    Recomputed from the persisted verbalisations rather than from the stage's
+    own counters, so it is reproducible without re-running the model.
+    """
+    rows = read_jsonl(cfg.dir / "nla" / "verbalisations.jsonl")
+    if not rows:
+        return ""
+
+    def rate(group: str) -> tuple[int, int, int]:
+        samples = [s for r in rows for s in r.get(group, [])]
+        ok = sum(1 for s in samples if s.get("ok"))
+        cjk = sum(1 for s in samples if s.get("cjk_chars"))
+        return ok, len(samples), cjk
+
+    a_ok, a_n, a_cjk = rate("samples")
+    n_ok, n_n, n_cjk = rate("noise_samples")
+    if not a_n:
+        return ""
+
+    out = ["### Verbaliser integrity", "",
+           "| driven by | well-formed English | samples with CJK characters |",
+           "|---|---|---|",
+           f"| the activation | {a_ok}/{a_n} ({a_ok / a_n:.3f}) | {a_cjk} |"]
+    if n_n:
+        out.append(f"| Gaussian noise at matched norm | {n_ok}/{n_n} "
+                   f"({n_ok / n_n:.3f}) | {n_cjk} |")
+    out.append("")
+    out.append("Upstream documents CJK output in place of an English "
+               "`<explanation>` as the signature of an off-distribution "
+               "injected vector, which is why this is gated on every sample: "
+               "the activations here come from a 4-bit target.")
+    out.append("")
+    if n_n and a_n and (a_ok / a_n) - (n_ok / n_n) > 0.05:
+        out.append(f"The control fails the gate markedly more often "
+                   f"({1 - n_ok / n_n:.1%} against {1 - a_ok / a_n:.1%}). That "
+                   f"was not a planned measurement, but it is a difference "
+                   f"between real activations and norm-matched noise that does "
+                   f"not depend on judging content: the real vectors are "
+                   f"closer to what the verbaliser was trained on. It says "
+                   f"nothing about whether the *claims* are faithful, which is "
+                   f"what the audit below is for.")
+        out.append("")
+    return "\n".join(out)
 
 
 def _verbalisation_examples(cfg, n: int = 2) -> str:
