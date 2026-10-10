@@ -282,6 +282,21 @@ class TestFaithfulness:
             assert "reconstruction_dependent" in c
             assert "reproduced_under_noise" in c
 
+    def test_both_headlines_carry_their_threshold_sensitivity(self, pipeline):
+        """Each RQ2 headline rests on a choice - the paraphrase null, which
+        does not control for how much text a deletion removes, and a Jaccard
+        cut-off with no principled basis. Neither is reportable without
+        showing what happens when the choice moves."""
+        run_dir, _ = pipeline
+        s = _read_json(run_dir / "faithfulness" / "summary.json")
+        ls = s["length_sensitivity"]
+        if ls.get("available"):
+            assert "dependent_fraction_length_adjusted" in ls
+            assert "dependent_fraction_as_registered" in ls
+            assert ls["effect_by_deleted_fraction_quintile"]
+        assert set(s["noise_reproduction_by_threshold"]) >= {"0.2", "0.5"}
+        assert s["noise_similarity_distribution"]["p99"] >= 0.0
+
     def test_summary_separates_dependence_from_prior_reproduction(self, pipeline):
         run_dir, _ = pipeline
         s = _read_json(run_dir / "faithfulness" / "summary.json")
