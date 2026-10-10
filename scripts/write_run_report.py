@@ -337,6 +337,8 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A("_Faithfulness audit did not run._")
         A("")
 
+    A(_verbalisation_examples(cfg, n=2))
+
     if recon:
         A("### Reconstruction fidelity by window")
         A("")
@@ -409,6 +411,57 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
             A(f"- `{Path(path).name}` - {name.replace('_', ' ')}")
     A("")
     return "\n".join(L)
+
+
+def _clip(text: str, n: int = 380) -> str:
+    text = " ".join((text or "").split())
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _verbalisation_examples(cfg, n: int = 2) -> str:
+    """A few verbalisations verbatim, each beside its own Gaussian control.
+
+    The aggregate faithfulness numbers say what fraction of claims survive the
+    controls. They do not let a reader see *what kind* of claim the verbaliser
+    makes, and on this corpus that is the most informative thing about it: the
+    descriptions identify the register and the discourse position of the window
+    accurately while inventing the specifics, and two samples of the same
+    activation invent different ones. Printing the text is the only way a
+    reader can check that characterisation rather than take it on trust.
+    """
+    path = cfg.dir / "nla" / "verbalisations.jsonl"
+    rows = read_jsonl(path)
+    if not rows:
+        return ""
+    traces = {t["problem_id"]: t for t in
+              read_jsonl(cfg.dir / "traces" / "traces.jsonl") if t.get("ok")}
+
+    picked = [r for r in rows if r.get("window_kind") == "tail" and r.get("n_ok")][:n]
+    if not picked:
+        return ""
+
+    out = ["### Sample verbalisations, with their controls", "",
+           "Verbatim, truncated. Each block is one activation window: the "
+           "verbaliser's own samples, then the same prompt driven by a "
+           "Gaussian vector at matched L2 norm (the Li et al. control). The "
+           "gold answer is given so the reader can check the specifics "
+           "against it.", ""]
+    for r in picked:
+        t = traces.get(r["problem_id"], {})
+        out.append(f"**`{r['problem_id']}`** — {r['window_kind']} window at "
+                   f"chunk {r['chunk_index']}, ‖activation‖ = "
+                   f"{r.get('activation_norm', float('nan')):.1f}, "
+                   f"gold answer `{t.get('gold')}`, trace's own answer "
+                   f"`{t.get('final_answer')}`")
+        out.append("")
+        for s in r.get("samples", []):
+            out.append(f"- *from the activation (sample {s['sample_index']}):* "
+                       f"{_clip(s.get('explanation') or s.get('text'))}")
+        for s in r.get("noise_samples", []):
+            out.append(f"- *from Gaussian noise at matched norm:* "
+                       f"{_clip(s.get('explanation') or s.get('text'))}")
+        out.append("")
+    return "\n".join(out)
 
 
 def _summarise_test(name: str, r: dict) -> str:
