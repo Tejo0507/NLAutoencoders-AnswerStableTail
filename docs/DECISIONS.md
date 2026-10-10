@@ -374,3 +374,57 @@ traces are never outvoted by a larger older one. A dirty working tree yields a
 revision unique to its run and so never pools automatically; `--runs` overrides
 when a human has checked. Every result carries a `provenance.json` naming the
 runs, the row count and the signature.
+
+---
+
+## D23. The reconstructor's backbone is placed directly on the GPU
+
+Upstream's `NLACritic` loads its backbone with no `device_map` and then calls
+`.to(device)`. That materialises the whole checkpoint in **host** memory first
+— for the released AR, 21 quantised layers plus a bf16 embedding table and an
+`lm_head` it discards on the next line, about 4.9 GB — and this machine
+routinely has 2–3 GB free. The load fails before any reconstruction happens.
+
+`src/nlaast/nla/reconstructor.py` therefore gives `from_pretrained` a
+`device_map` for the duration of the construction only, then restores the
+vendored module.
+
+**What this changes:** where the weights are put. **What it does not change:**
+the backbone, the final-LayerNorm removal, the trained value head, the
+read-at-last-token convention and the `MSE = 2(1 − cos)` metric are all still
+upstream's, untouched. The subsequent `.to(device)` becomes a no-op. It is a
+`setdefault`, so a future upstream that passes its own placement wins; on CPU,
+without CUDA, or against a vendored copy that imports differently, the original
+behaviour is used unchanged.
+
+Recorded here because it is a modification of upstream's behaviour, narrow as
+it is. `tests/test_reconstructor_loading.py` pins that the patch is scoped,
+reversible even when loading raises, and inert on CPU.
+
+---
+
+## D24. F8 offloads part of its bf16 arm to disk
+
+The truncated bf16 target is ~12 GB against 6.44 GB of VRAM and, in practice,
+2–3 GB of free host memory. The GPU/host split alone does not fit it, so
+whatever is left over is written to a disk offload inside the run directory —
+not onto the model-cache volume, which is the one the autoencoder download
+needs free next — and cleared when F8 finishes either way.
+
+Disk offload is slow. That is the right trade here: F8 runs a couple of dozen
+forward passes on a subsample, and the alternative is leaving the quantisation
+deviation unmeasured, which is the one thing the NLA arm's credibility rests
+on.
+
+**A guard comes with it.** A near-zero mean cosine is ambiguous: it is what
+4-bit destroying the activations would look like, and equally what a bf16 arm
+that is *not the same model* looks like after a silent load failure or a
+position mismatch. The two are indistinguishable in the number, and reporting
+the wrong one would condemn the NLA arm on a bug. F8 refuses to report a
+near-zero cosine combined with an implausible nf4/bf16 norm ratio as a drift
+measurement, and returns `failed` with the diagnosis instead.
+
+F8 is also the only test whose input the pipeline deliberately destroys, so
+when the bf16 weights are gone but an earlier pass succeeded, the earlier
+result is carried forward labelled `reused_from_earlier_run` rather than
+replaced by a `blocked` one.
