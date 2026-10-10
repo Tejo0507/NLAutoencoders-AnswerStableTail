@@ -4,9 +4,12 @@ What each stage does, what it reads, what it writes, and why it is ordered
 where it is. The scientific specification is `Project_Review_II.md`; the
 implementation plan is `PROJECT_PLAN.md`; this file is the operational manual.
 
-Every stage below is written and tested. Not every stage has **run**: the ones
-needing the autoencoder checkpoints (`nla`, `faithfulness`) have never
-executed. [`STATUS.md`](STATUS.md) says which.
+Every stage below is written, tested, and has **run** — at pilot scale, 24
+problems, including the three that need the released autoencoder.
+[`STATUS.md`](STATUS.md) reports what each one produced. The test suite also
+runs every stage script against tiny randomly initialised stand-ins
+(`configs/tiny.yaml`, `tests/test_end_to_end_tiny.py`), which is how the
+wiring is checked without 26 GB of checkpoints.
 
 ---
 
@@ -252,8 +255,11 @@ comes from the two `summary.json` files — and draws its verdicts from
 thresholds fixed in the script, so a result the author would have liked and one
 they would not are read the same way. **Writes** the path given by `--out`,
 `EXECUTION_REPORT_SUPERVISED.md` at the repository root by default. That file
-is not in the repository: the corpus is not yet large enough for it to say
-anything (see [`STATUS.md`](STATUS.md) §2).
+is not in the repository: these two stages refuse below 30 train / 20 eval
+rows, and the pilot has 24 problems, so they have nothing to report (see
+[`STATUS.md`](STATUS.md) §5). The root-level `regression.py` and
+`classification.py` do run at this size — `outputs/` holds their tables with a
+`provenance.json` naming the corpus.
 
 ```powershell
 .venv\Scripts\python.exe scripts\predict_tail_fraction.py    --config mlcorpus

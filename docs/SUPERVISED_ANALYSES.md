@@ -10,9 +10,16 @@ right ones for *this* project rather than two convenient columns, how leakage
 is prevented, and what the results do and do not license.
 
 **It contains no results.** `scripts/write_supervised_report.py` assembles
-`EXECUTION_REPORT_SUPERVISED.md` from whatever a run produced; the corpus is
-not yet large enough for that report to say anything, so it has not been
-generated. See [`STATUS.md`](STATUS.md) §2.
+`EXECUTION_REPORT_SUPERVISED.md` from whatever a run produced. Both stages
+refuse below 30 train / 20 eval rows, and the achieved corpus is 24 problems,
+so neither has anything to report and the file has not been generated. See
+[`STATUS.md`](STATUS.md) §5.
+
+The root-level `regression.py` and `classification.py` are the same two
+questions asked without a held-out split, by repeated cross-validation, and
+they do run at 24 problems. `outputs/` holds their tables, each with a
+`provenance.json` naming the runs, the row count and the comparability
+signature the corpus was selected on.
 
 ---
 
@@ -52,7 +59,8 @@ It qualifies on four counts:
    §5 and computed by the `ast` stage, which the stage DAG forbids from reading an
    activation. It was not chosen after seeing the data.
 2. **It is continuous and bounded** in `[0, 1]`, and genuinely varies — in the
-   corpus it spans roughly 0.14 to 0.63 with a mean near 0.34.
+   pilot corpus it spans 0.15 to 0.62 with a mean of 0.356 and a median of
+   0.308, over the 21 of 24 problems with a detected tail.
 3. **It is the quantity the practical payoff is denominated in.** `tokens_saved`
    in the O3 stopping comparison is a function of where the tail starts; a model
    of `tail_fraction` is a model of how much there is to save.
@@ -89,9 +97,13 @@ It qualifies on three counts:
   regression with a scale confound added.
 - `ast_status` as a multi-class target — the classes are an edge-case taxonomy
   (`unparseable`, `truncated_generation`), not a scientific contrast.
-- Reconstruction FVE, faithfulness scores, intervention effects — all of these
-  require the autoencoder, which at the time of writing has not been downloaded
-  (`STATUS.md` §P4). Targets that do not exist yet were not invented.
+- Reconstruction FVE, faithfulness scores, intervention effects — these require
+  the autoencoder. It had not been downloaded when these two analyses were
+  designed, so targets that did not exist were not invented. It has since run
+  (`STATUS.md` §1); predicting its outputs from cheap features would be a
+  worthwhile follow-up and is deliberately **not** retrofitted here, because
+  choosing a target after seeing the data is the thing the hash-fixed split and
+  the pre-registered feature blocks exist to prevent.
 
 ---
 
