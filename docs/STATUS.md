@@ -3,32 +3,38 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-10.
 
-**One-line status:** the pilot has run. All 24 configured problems produced
-traces, activations were extracted at three layers with exact alignment, the
-Answer-Stable Tail was detected, the baselines were scored, F8 measured the
-quantisation deviation, and **the released autoencoder has been downloaded,
-converted and run for the first time**. The results below are real and come
-from `runs/pilot/`; the sample is 24 problems, so every interval is wide and
-nothing here is a claim about language models in general.
+**One-line status:** the pilot has run **to completion** — all thirteen
+stages on all 24 configured problems, including the released autoencoder,
+with the full nine-test falsification battery. The results below are real and
+come from `runs/pilot/`, whose execution report is
+`runs/pilot/report/RESULTS.md`. The sample is 24 problems, so every interval
+is wide and nothing here is a claim about language models in general.
+
+**The headline is negative for the verbalised readout.** Where the stopping
+comparison can be made at genuinely matched budget, the readout is
+significantly *worse* than semantic entropy. The review named that as an
+acceptable outcome in advance and it is reported with the weight a positive
+result would have had.
 
 ---
 
-## 1. What has run, with its result
+## 1. What ran, with its result
 
 | stage | status | headline |
 |---|---|---|
-| `env` | complete | RTX 4050, 6.44 GB VRAM, 15.65 GB RAM; two disk checks failed as expected and were worked around |
+| `env` | complete | RTX 4050, 6.44 GB VRAM, 15.65 GB RAM; the bf16-staging disk check fails by design and is worked around by eviction |
 | `data` | complete | 24 problems: 14 GSM8K, 10 MATH; 11 train / 13 eval; gold recovery 1.000 |
 | `models` | complete | all three checkpoints converted to NF4; AV/AR/target sidecars mutually consistent; injection site verified at token 111 |
-| `traces` | complete | 24/24, no failures, 309 min; accuracy 0.792 (GSM8K 0.857, MATH 0.700); 3 traces hit the 512-token cap |
+| `traces` | complete | 24/24, no failures, 310 min; accuracy 0.792 (GSM8K 0.857, MATH 0.700); 3 traces hit the 512-token cap |
 | `acts` | complete | 72 blocks, 834 vectors at layers 14/20/24; **0 positions clamped, 0 re-tokenisation drift** |
 | `ast` | complete | tail on 21/24; mean tail fraction 0.356; see §2 |
 | `baselines` | complete | probe grouped-CV AUC 0.996 — but see §2 for what that number is |
-| `robustness:F8` | complete | **cos(nf4, bf16) = 0.987** (median 0.991, min 0.937) over 82 vectors |
-| `nla` | running at time of writing | verbaliser integrity **100%** well-formed English so far |
-
-The remaining stages (`faithfulness`, `causal`, `analysis`, `robustness`,
-`report`) run from the autoencoder's output and are sequenced after it.
+| `nla` | complete | 126 windows, 252 activation samples + 126 controls; integrity **0.976**; FVE **0.677** against the empirical baseline |
+| `faithfulness` | complete | 967 claims over 246 explanations; 0.759 reconstruction-dependent, 0.003 reproduced from noise |
+| `causal` | complete | truncating the tail changes **no answer on 10/10** problems; the direction claim is **untested**, not refuted |
+| `analysis` | complete | 9 tests in the family, 5 evaluable, 4 significant at q = 0.05 |
+| `robustness` | complete | all nine tests ran; F8 cos 0.987, F6 no leak, F7 layer 20 not special |
+| `report` | complete | `runs/pilot/report/RESULTS.md`, 5 figures, 7 tables |
 
 ---
 
@@ -104,20 +110,98 @@ be read as a positional rule with a small activation-derived increment, not as
 a correctness readout. This matters because the probe is one of the baselines
 the primary research question is measured against.
 
+### The primary question: the readout loses to the cheap signals
+
+Of the three planned head-to-head comparisons at matched token budget, **only
+one could be made**. A rule's safety/saving curve is a step function — it
+fires at a boundary or it does not — and on 21 problems the steps are wide
+enough that two curves need not have any operating point near a shared budget.
+Asking all four rules for a saving of 0.632 returned convergence at 0.407 and
+the probe at 0.855, a 45-point spread. Points more than 0.05 from the target
+are now refused rather than compared as though matched.
+
+| compared against | NLA safe rate | its safe rate | budgets | q |
+|---|---|---|---|---|
+| semantic entropy | **0.095** | **0.286** | 9 | 0.0065 |
+| convergence | — | — | 0 | not evaluable |
+| hidden-state probe | — | — | 0 | not evaluable |
+
+The one comparison that can be made goes against the readout. Both
+unevaluable tests stay in the pre-registered family rather than being dropped,
+so the Benjamini–Hochberg correction is not flattered by their absence.
+
+### RQ2: the claims are reconstruction-dependent and not noise
+
+967 claims across 246 explanations. **0.759** are reconstruction-dependent —
+deleting them degrades reconstruction more than the 95th percentile of the
+paraphrase null — and only **0.003** are reproduced by a matched-norm Gaussian
+vector, giving **0.756** dependent and not noise.
+
+Both numbers survive the thresholds they rest on:
+
+- The paraphrase null does not control for *how much text* a deletion removes,
+  and a deletion removes 24.6% of an explanation. The effect does rise with
+  deleted fraction (r = +0.31, monotone across quintiles) but that is only
+  9.6% of the variance; removing the trend gives a **length-adjusted 0.781**,
+  slightly higher than registered. Within one explanation, where deletions are
+  comparable in size, the spread of effects is 0.031 against a mean of 0.041.
+- The noise control's Jaccard cut-off of 0.5 is arbitrary, but the rate is flat
+  across it: 0.018 at 0.2 down to 0.001 at 0.6, against a similarity
+  distribution with median 0.059 and 99th percentile 0.222.
+
+**Reconstruction fidelity is not tail-specific**, though. Tail windows
+reconstruct at cosine 0.870, a matched pre-stabilisation window at 0.869, and
+a matched-length window elsewhere at 0.859 — F10's answer is that the readout
+describes a late mathematical-reasoning state about equally well wherever it
+is sampled. The Gaussian control at 0.391 is what shows it is doing anything
+at all.
+
+### RQ3: untested, not refuted
+
+**The behavioural readout never moved.** Not one of the twenty rechecking
+markers occurs in any of the 24 traces — this model writes clean step-by-step
+derivations with no "wait", "actually" or "let me check". With a constant
+outcome every comparison in the Zhang & Nanda gate fails trivially, so the
+gate now returns `supported: null` with the reason rather than `false`, and
+the two control comparisons as null. A constant outcome is no evidence either
+way.
+
+What the behavioural arms *do* show, after fixing an off-by-one that had them
+truncating one chunk too early: **stopping at the tail start changes no answer
+on 10 of 10 eval problems**, and replacing the tail with neutral filler of
+matched token length changes none either. Accuracy is 0.800 in both arms,
+identical to the unintervened baseline. The tail contributes nothing to the
+verified outcome.
+
 ### Also measured
 
 - **The cheap agreement rule fires earlier than the AST on 57.1% of problems**
   (mean gap 2.43 chunks), later on 38.1%. Mo et al.'s concern, quantified on
-  this run's own traces.
-- **F5**: over the settings that could be exercised, mean tail fraction moves
-  by 0.006. `k=5` could not be simulated — only 3 continuations per boundary
-  were generated — and is reported as not applicable rather than as stability.
-- **F4**: strict and permissive extractors agree on the final answer of every
-  trace (1.000) and disagree at no boundary; the alternative chunker yields
-  13.5 chunks against 9.6, which is a real sensitivity of the chunk-indexed
-  tail.
-- **F1**: correlation between trace length and tail *fraction* is −0.46, so the
+  this run's own traces. Sweeping the agreement window shows how much that
+  depends on its parameter: at window 1 it fires earlier on *every* problem by
+  6.43 chunks; at window 3 it fires on only 14 of 24 and later on 73%.
+- **F5**: perturbing the criteria themselves moves the mean tail fraction by
+  **0.004** — the construct is stable under its own parameters. `k = 5` could
+  not be simulated (only 3 continuations per boundary were generated) and is
+  reported as not applicable rather than as stability.
+- **F6**: no leakage. Real AUC 0.996 against 0.594 with labels permuted
+  between problems and 0.472 within them; both shuffles moved labels, so both
+  are real controls.
+- **F7**: layer 20 is **not special** for decodability — AUC 0.995 at layer 14,
+  0.996 at 20, 0.994 at 24. With the positional floor at 0.962, the probe's
+  near-perfect score is a property of the task and the position, not of the
+  layer the autoencoder happens to read.
+- **F4**: the alternative chunker yields 16.0 chunks against 11.6, a real
+  sensitivity of a chunk-indexed construct. Strict and permissive extractors
+  agree on the final answer of 0.875 of traces.
+- **F2**: no detectable difference in tail fraction by benchmark (GSM8K 0.369,
+  MATH 0.331, p = 0.50).
+- **F1**: correlation between trace length and tail *fraction* is −0.33, so the
   construct is not a length statistic in disguise.
+- **Verbaliser integrity**: 0.976 of activation-driven samples are well-formed
+  English against 0.786 of noise-driven ones, and the documented CJK failure
+  signature appears in 2.4% against 21.4%. Unplanned, and a difference between
+  real activations and matched-norm noise that needs no judgement of content.
 
 ---
 
@@ -175,6 +259,17 @@ itself forced.
   them automatically (D22).
 - **A second annotator** for O6 inter-rater reliability. Single-rater, as the
   review anticipated.
+- **A corpus large enough for the O3 comparison to resolve anything.** Two of
+  the three planned head-to-heads could not be made at matched budget at all,
+  and the one that could rests on nine operating points over 21 problems.
+  This is the single most valuable thing a larger run would buy.
+- **A behavioural readout for RQ3 that varies on this model.** The marker list
+  is empty on every trace, so the causal gate has no outcome to judge. Either
+  a model that verbalises its rechecking, or a different readout — the answer
+  distribution's entropy under intervention would be one — is needed before
+  RQ3 can be tested at all. The direction *is* fittable (38 tail / 32
+  pre-stabilisation vectors from 11 train problems); it is the dependent
+  variable that is missing.
 
 ---
 
@@ -216,15 +311,25 @@ Raise `generation.max_new_tokens` to 768 for MATH first — see §4.
 ## 7. What to watch on a larger run
 
 - **Verbaliser integrity.** The `nla` stage logs `ok=N/M well-formed English`.
-  It held at 100% here; below 50% it logs an error and the arm should be
+  It held at 0.976 here; below 50% it logs an error and the arm should be
   treated as compromised (cross-check F8).
-- **Reconstruction FVE** against the checkpoint card's 0.752. Below ~0.38 the
-  stage sets `fidelity_warning`.
+- **Reconstruction FVE.** Read `fve_empirical_baseline`, not `fve`. The
+  checkpoint card's 0.752 uses an unstated baseline and is not comparable to
+  either.
 - **`tail_rate` at 0 or 1.** Read `nontrivial_tail_rate` and
   `mean_tail_fraction` instead; §2 explains why.
 - **The probe's margin over its positional floor.** Under 0.05 the stage warns,
-  and the probe should not be described as a correctness readout.
+  and the probe should not be described as a correctness readout. It was 0.034
+  here.
 - **F6's shuffle arms.** `leak_suspected: null` means the shuffle moved no
   labels and tested nothing, not that the probe is clean.
 - **`total_clamped_positions`** in `acts/summary.json`. It was 0 here; anything
   else means an activation was read where its chunk boundary did not say.
+- **`matched` in the stopping comparison table, and `o3_unmatched` in
+  `analysis/results.json`.** A head-to-head that could not be matched is not a
+  null result; it is an absent one. On 21 problems two of three went this way.
+- **`verdict.supported: null` in `causal/summary.json`.** Means the readout
+  did not vary, so nothing was tested. Distinct from `false`.
+- **`phases_present` in `nla`'s metrics.** Both `verbalise` and `reconstruct`
+  must appear. A stage recorded as `partial` has one phase outstanding; only
+  `complete` is skipped on a later pass.
