@@ -164,19 +164,44 @@ def sweep_threshold(
     return points
 
 
+#: How far an operating point may sit from the requested budget and still be
+#: called matched, in mean fraction of tokens saved.
+#:
+#: Not a free parameter so much as the difference between a matched-budget
+#: comparison and a mislabelled one. A rule's curve is a step function - it
+#: fires at a boundary or it does not - and on a small corpus the steps are
+#: wide. On the pilot, asking all four rules for a budget of 0.632 returned
+#: convergence at 0.407 and the probe at 0.855: a 45-point spread in tokens
+#: saved, compared as though the budgets were equal. Five points is tight
+#: enough that the remaining difference is about safety, and loose enough to
+#: keep adjacent grid points.
+MATCH_TOLERANCE = 0.05
+
+
 def at_matched_budget(
-    curve: Sequence[OperatingPoint], target_saving: float
+    curve: Sequence[OperatingPoint],
+    target_saving: float,
+    tolerance: float | None = MATCH_TOLERANCE,
 ) -> OperatingPoint | None:
     """The operating point closest to a given mean token saving.
 
     This is what makes the O3 comparison fair: every rule is read off its own
     curve at the *same* budget, so the reported difference is a difference in
     safety rather than in how aggressively the rule happens to be tuned.
+
+    "Closest" is not the same as "close". A rule whose nearest achievable
+    saving is far from the target cannot be compared at that target at all,
+    and returning its nearest point anyway produces a table that looks matched
+    and is not. ``None`` is returned instead; pass ``tolerance=None`` to get
+    the old nearest-point behaviour for plotting a whole curve.
     """
     feasible = [p for p in curve if p.n > 0]
     if not feasible:
         return None
-    return min(feasible, key=lambda p: abs(p.mean_tokens_saved - target_saving))
+    best = min(feasible, key=lambda p: abs(p.mean_tokens_saved - target_saving))
+    if tolerance is not None and abs(best.mean_tokens_saved - target_saving) > tolerance:
+        return None
+    return best
 
 
 def budget_grid(curves: dict[str, Sequence[OperatingPoint]], n: int = 9) -> list[float]:

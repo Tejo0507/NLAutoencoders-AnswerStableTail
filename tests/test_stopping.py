@@ -14,6 +14,7 @@ from nlaast.baselines.semantic_entropy import (
     semantic_entropy,
 )
 from nlaast.baselines.stopping import (
+    OperatingPoint,
     at_matched_budget,
     budget_grid,
     evaluate_stop,
@@ -111,6 +112,48 @@ class TestMatchedBudget:
     def test_empty_curves(self):
         assert budget_grid({}) == []
         assert at_matched_budget([], 0.5) is None
+
+
+class TestMatchedMeansClose:
+    """"Closest" is not "close", and the difference decides whether a
+    matched-budget table is matched.
+
+    A rule's curve is a step function - it fires at a boundary or it does
+    not - and on a small corpus the steps are wide. Asking all four pilot
+    rules for a budget of 0.632 returned convergence at 0.407 tokens saved
+    and the probe at 0.855: a 45-point spread, compared as though the budgets
+    were equal.
+    """
+
+    @staticmethod
+    def _curve(savings):
+        return [OperatingPoint(threshold=float(i), n=10, safe_rate=0.5,
+                               accuracy=0.5, mean_tokens_saved=float(s),
+                               fire_rate=0.5)
+                for i, s in enumerate(savings)]
+
+    def test_a_point_within_tolerance_is_returned(self):
+        pt = at_matched_budget(self._curve([0.40, 0.62]), 0.63)
+        assert pt is not None
+        assert pt.mean_tokens_saved == pytest.approx(0.62)
+
+    def test_a_far_nearest_point_is_refused(self):
+        """The convergence case: nothing near the target, so no comparison."""
+        assert at_matched_budget(self._curve([0.40, 0.89]), 0.63) is None
+
+    def test_the_tolerance_can_be_waived_for_plotting_a_whole_curve(self):
+        pt = at_matched_budget(self._curve([0.40, 0.89]), 0.63, tolerance=None)
+        assert pt is not None
+        assert pt.mean_tokens_saved in (0.40, 0.89)
+
+    def test_an_exact_match_is_always_returned(self):
+        pt = at_matched_budget(self._curve([0.10, 0.63, 0.90]), 0.63)
+        assert pt.mean_tokens_saved == pytest.approx(0.63)
+
+    def test_the_default_tolerance_is_tight_enough_to_matter(self):
+        from nlaast.baselines.stopping import MATCH_TOLERANCE
+
+        assert 0 < MATCH_TOLERANCE <= 0.1
 
 
 class TestSemanticEntropy:
