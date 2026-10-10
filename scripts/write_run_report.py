@@ -95,12 +95,32 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
     A = L.append
     A(f"# Results - run `{cfg.run_id}`")
     A("")
-    A(f"Config hash `{cfg.hash()}` | commit "
-      f"`{(manifest.data.get('git') or {}).get('commit', 'unknown')}` | "
-      f"generated {manifest.data.get('updated')}")
+    A(f"Config hash `{cfg.hash()}` | generated {manifest.data.get('updated')}")
     A("")
     A("Produced entirely from saved stage outputs by `scripts/write_run_report.py`. "
       "Stages that did not run are listed as such rather than omitted.")
+    A("")
+    # One commit per run is wrong for a run that spans days: the manifest's
+    # run-level git block names the code the directory was created under. Each
+    # stage records its own, so the distinct set is what the results are
+    # attributable to.
+    per_stage = {s: (e.get("git") or {}).get("commit")
+                 for s, e in stages.items() if (e.get("git") or {}).get("commit")}
+    commits = sorted(set(per_stage.values()))
+    created = (manifest.data.get("git") or {}).get("commit")
+    n_total = len([s for s in stages if stages[s].get("status") != "pending"])
+    if commits:
+        A(f"{len(per_stage)} of {n_total} stages recorded the commit they ran "
+          f"under: " + ", ".join(f"`{c[:12]}`" for c in commits) + ".")
+        if len(per_stage) < n_total:
+            A("")
+            A(f"The rest ran before per-stage commits were recorded, so the "
+              f"code behind them is bounded only by the run's own history. The "
+              f"run directory was created under `{(created or '?')[:12]}`.")
+    elif created:
+        A(f"Run directory created under commit `{created[:12]}`. Per-stage "
+          f"commits were not recorded for this run, so individual results "
+          f"cannot be attributed to a specific revision.")
     A("")
 
     A("## Environment")
@@ -119,7 +139,13 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
     A("|---|---|---|")
     for s in cfg.stages:
         e = stages.get(s, {})
-        A(f"| {s} | {e.get('status', 'not run')} | {_fmt(e.get('elapsed_s'), 0)} |")
+        status = e.get("status", "not run")
+        # This stage is mid-flight by definition - it is the one writing this
+        # table - so reporting it as "running" states nothing and looks like an
+        # interrupted run.
+        if s == STAGE and status == "running":
+            status = "writing this report"
+        A(f"| {s} | {status} | {_fmt(e.get('elapsed_s'), 0)} |")
     A("")
 
     # ---------------------------------------------------------------- RQ1
