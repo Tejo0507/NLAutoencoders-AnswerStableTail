@@ -271,6 +271,25 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
               + (f"; train-split fit held out AUC {_fmt(tsf.get('eval_auc'))} on "
                  f"{tsf.get('n_eval')} boundaries." if tsf.get("available")
                  else "; no train-split fit was possible at this corpus size."))
+            floor = probe_meta.get("positional_floor") or {}
+            if floor.get("auc") is not None:
+                above = floor.get("probe_auc_above_floor")
+                A(f"- **what the probe is reading.** The same model family and "
+                  f"folds, fitted on activation-free positional features "
+                  f"(`{'`, `'.join(floor.get('features', []))}`), reach AUC "
+                  f"{_fmt(floor['auc'])}. The probe is "
+                  f"{_fmt(above)} AUC above that floor.")
+                if above is not None and above < 0.05:
+                    A("")
+                    A("  The probe's label — *the intermediate answer at this "
+                      "boundary is already correct* — becomes true once the "
+                      "trace has worked the answer out and stays true, so it "
+                      "is strongly ordered by position. At this margin the "
+                      "layer-20 probe is largely reading **where in the trace "
+                      "a boundary sits**, not whether the answer is correct. "
+                      "Read its row in the comparison above as a positional "
+                      "stopping rule with a small activation-derived "
+                      "increment, not as a correctness readout.")
         if "semantic_entropy_available" in bl:
             if bl["semantic_entropy_available"]:
                 A(f"- semantic entropy: scored on "
