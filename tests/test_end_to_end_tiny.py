@@ -411,6 +411,16 @@ class TestAnalysisAndReport:
         assert "grouped_cv_out_of_fold" in md
         assert "semantic entropy" in md
 
+    def test_the_report_gives_the_integrity_rate_per_driving_vector(self, pipeline):
+        """The gate's rate on real activations checks the 4-bit deviation; its
+        rate on the matched-norm control is a free comparison that needs no
+        judgement about content. Both belong in the report."""
+        run_dir, _ = pipeline
+        md = (run_dir / "report" / "RESULTS.md").read_text(encoding="utf-8")
+        assert "### Verbaliser integrity" in md
+        assert "well-formed English" in md
+        assert "Gaussian noise at matched norm" in md
+
     def test_the_report_shows_verbalisations_beside_their_controls(self, pipeline):
         """Aggregate faithfulness numbers do not let a reader see what kind of
         claim the verbaliser makes. On the real corpus it names the register
