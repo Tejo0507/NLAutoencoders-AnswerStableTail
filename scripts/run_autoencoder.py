@@ -36,7 +36,11 @@ from _stage import base_parser, setup, should_skip
 from nlaast.activations.store import ActivationStore
 from nlaast.logging_utils import JsonlWriter, read_jsonl, write_json, write_jsonl
 from nlaast.models import loading
-from nlaast.nla.reconstructor import ActivationReconstructor, fraction_variance_explained
+from nlaast.nla.reconstructor import (
+    ActivationReconstructor,
+    empirical_baseline_mse,
+    fraction_variance_explained,
+)
 from nlaast.nla.verbalizer import ActivationVerbalizer
 from nlaast.seeding import derive, rng
 
@@ -312,11 +316,32 @@ def run_reconstruct(cfg, store, layer, verb_path: Path, out_path: Path, log) -> 
 
     write_jsonl(out_path, out)
 
+    # PROJECT_PLAN.md §5 asks for FVE "against the empirical variance baseline
+    # of our own activation sample", and that is not 2.0. A baseline of 2.0
+    # assumes an uninformative prediction is orthogonal to the target, which a
+    # random direction in 3584 dimensions is - but a *plausible* guess is not,
+    # and layer-20 residual streams are strongly anisotropic. Measured on this
+    # run's own vectors they are nowhere near orthogonal to each other, so 2.0
+    # flatters the reconstruction substantially. Both are reported: the number
+    # is meaningless without the baseline it used, and the checkpoint card's
+    # 0.752 is only comparable against whatever baseline that used.
+    gold = np.stack([store.get(r["problem_id"], layer)[0][r["activation_row"]]
+                     for r in read_jsonl(verb_path)]) if out else np.empty((0, 1))
+    empirical = empirical_baseline_mse(gold)
+    base = empirical.get("baseline_mse") if empirical.get("available") else None
+
+    def both(mses: list[float]) -> dict:
+        d = fraction_variance_explained(mses)
+        if base is not None:
+            emp = fraction_variance_explained(mses, baseline_mse=base)
+            d["fve_empirical_baseline"] = emp["fve"]
+        return d
+
     by_kind: dict[str, dict] = {}
     for kind in sorted({r["window_kind"] for r in out}):
         sel = [r for r in out if r["window_kind"] == kind]
         by_kind[kind] = {
-            **fraction_variance_explained([r["mse"] for r in sel]),
+            **both([r["mse"] for r in sel]),
             "mean_cosine_direct": float(np.mean([r["cosine"] for r in sel])),
         }
 
@@ -324,16 +349,29 @@ def run_reconstruct(cfg, store, layer, verb_path: Path, out_path: Path, log) -> 
     metrics = {
         "n_reconstructions": len(out),
         "by_window_kind": by_kind,
-        "overall": fraction_variance_explained([r["mse"] for r in real]) if real else {},
+        "overall": both([r["mse"] for r in real]) if real else {},
+        "empirical_baseline": empirical,
         "reference_fve": cfg.nla.reference_fve,
+        "reference_fve_note": (
+            "the checkpoint card's in-distribution value. Comparable only "
+            "against whatever baseline it used; `fve` here uses the "
+            "theoretical orthogonal baseline of 2.0 and "
+            "`fve_empirical_baseline` uses this run's own activations"),
         "integrity_ok_rate": float(np.mean([r["integrity_ok"] for r in out])) if out else 0.0,
     }
     fve = metrics["overall"].get("fve", float("nan"))
-    log.info("reconstruction FVE %.3f against the %.3f in-distribution reference",
-             fve, cfg.nla.reference_fve)
+    log.info("reconstruction FVE %.3f against a theoretical orthogonal "
+             "baseline, %.3f against this sample's own empirical baseline "
+             "(MSE %.3f, mean pairwise cosine %.3f); the checkpoint card "
+             "reports %.3f in distribution",
+             fve, metrics["overall"].get("fve_empirical_baseline", float("nan")),
+             empirical.get("baseline_mse", float("nan")),
+             empirical.get("mean_pairwise_cosine", float("nan")),
+             cfg.nla.reference_fve)
     for k, v in by_kind.items():
-        log.info("  %-18s n=%-4d mean cosine %.3f  FVE %.3f",
-                 k, v["n"], v["mean_cosine_direct"], v["fve"])
+        log.info("  %-18s n=%-4d mean cosine %.3f  FVE %.3f (empirical %.3f)",
+                 k, v["n"], v["mean_cosine_direct"], v["fve"],
+                 v.get("fve_empirical_baseline", float("nan")))
     if np.isfinite(fve) and fve < 0.5 * cfg.nla.reference_fve:
         log.error("round-trip fidelity is far below the checkpoint's reported "
                   "in-distribution value. Treat the NLA arm as compromised "
