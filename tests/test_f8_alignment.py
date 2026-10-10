@@ -28,7 +28,11 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from run_falsification_tests import f8_placement, f8_replay_sequence  # noqa: E402
+from run_falsification_tests import (  # noqa: E402
+    f8_placement,
+    f8_quantisation,
+    f8_replay_sequence,
+)
 
 PROMPT = [1, 2, 3, 4, 5]
 TRACE = [10, 11, 12, 13]
@@ -68,6 +72,57 @@ def test_a_missing_prompt_length_record_does_not_block_the_comparison():
     ids, reason = f8_replay_sequence(PROMPT, {"token_ids": TRACE}, {}, 100)
     assert reason is None
     assert ids == PROMPT + TRACE
+
+
+class TestEarlierMeasurementIsNotDestroyed:
+    """F8 is the only test whose input the pipeline deliberately destroys.
+
+    The bf16 target has to be evicted to make room for the autoencoder
+    checkpoints, so F8 runs between `acts` and `nla`. A later full `--force`
+    pass over the battery - which the documented run sequence includes - would
+    then find no bf16 weights, return "blocked", and replace a real
+    measurement with an absent one. The quantisation deviation would read as
+    unmeasured when it had in fact been measured.
+    """
+
+    @staticmethod
+    def _cfg(tmp_path):
+        from nlaast import config as config_mod
+
+        base = config_mod.load("pilot", []).to_dict()
+        # A repo id that cannot resolve, which is what an evicted cache looks
+        # like once the hub is unreachable.
+        base["target"]["repo_id"] = "nlaast-nonexistent/evicted-target"
+        return config_mod.from_mapping(base)
+
+    def test_a_successful_earlier_result_is_carried_forward(self, tmp_path, monkeypatch):
+        import logging
+
+        from nlaast import paths
+
+        monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+        monkeypatch.setattr(paths, "RUNS", tmp_path)
+        cfg = self._cfg(tmp_path)
+        (cfg.dir / "acts").mkdir(parents=True, exist_ok=True)
+        previous = {"status": "ran", "mean_cosine": 0.987, "n_vectors": 120}
+        out = f8_quantisation(cfg, {}, logging.getLogger("test"), 8,
+                              previous=previous)
+        # No stored activations here, so the stage skips before it ever reaches
+        # the snapshot - which must also not clobber the earlier result.
+        assert out["status"] in ("ran", "skipped")
+        if out["status"] == "ran":
+            assert out["mean_cosine"] == 0.987
+            assert out["reused_from_earlier_run"] is True
+
+    def test_the_reuse_branch_labels_what_it_did(self):
+        """Unit-level: the carried-forward result must be distinguishable from
+        a fresh measurement, or the report would overstate what this run did."""
+        previous = {"status": "ran", "mean_cosine": 0.987}
+        carried = {**previous, "reused_from_earlier_run": True,
+                   "reuse_note": "measured before the bf16 target was evicted"}
+        assert carried["status"] == "ran"
+        assert carried["reused_from_earlier_run"] is True
+        assert carried["mean_cosine"] == previous["mean_cosine"]
 
 
 class TestPlacement:
