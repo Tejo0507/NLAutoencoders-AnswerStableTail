@@ -9,11 +9,14 @@ already settled — beyond what much cheaper signals already say?*
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-under%20development-orange)]()
 
-> **Under development.** The pipeline is written and tested end to end, but the
-> experiment has not been run to completion and **this repository contains no
-> scientific result.** Section [Current state](#current-state) says exactly
-> what has and has not run. Nothing in `runs/` is committed, because a partial
-> run's tables would read like findings.
+> **Pilot complete; main run not attempted.** The pipeline has been run end to
+> end at pilot scale — 24 problems, all 13 stages, including the released
+> autoencoder. The findings below are real and come from that run. **Twenty-four
+> problems is a pilot**: every interval is wide, and nothing here is a claim
+> about language models in general. Section [Current state](#current-state) says
+> what ran and what it found; [`docs/STATUS.md`](docs/STATUS.md) gives the
+> detail. `runs/` itself is untracked — it is reproducible from the committed
+> config — so the per-run tables live there rather than in the repository.
 
 ---
 
@@ -99,38 +102,37 @@ Methodology: [`docs/SUPERVISED_ANALYSES.md`](docs/SUPERVISED_ANALYSES.md).
 
 ## Current state
 
-**Complete and verified**
+The pilot ran to completion: 24 problems (14 GSM8K, 10 MATH), 24 traces with no
+failures, activations at layers 14/20/24 with **zero positional drift and zero
+clamped positions**, the Answer-Stable Tail detected, all three baselines
+scored, and all three Qwen-7B-class checkpoints downloaded, converted to 4-bit
+NF4 and run.
 
-- All 13 pipeline stages, the 3 supplementary analysis stages, the
-  orchestrator, and the library under `src/nlaast/`. `python -m pytest` passes,
-  including cases taken verbatim from live pilot output.
-- The real NLA interface, recovered from the released checkpoints rather than
-  guessed: injection token and its required neighbours, injection scale, MSE
-  scale, both prompt templates, the reconstructor's architecture, and the
-  layer-20 extraction convention. See [`docs/STATUS.md`](docs/STATUS.md).
-- The target model, downloaded and converted to 4-bit NF4. Measured: 5.56 GB
-  resident, 5.77 GB peak at batch 4, ~45 tok/s batched.
-- GSM8K and MATH (algebra, counting and probability) staged and validated; the
-  permissive parser recovers the gold answer from the gold solution on every
-  record.
+**What it found** — detail and the full tables in
+[`docs/STATUS.md`](docs/STATUS.md).
+
+| | |
+|---|---|
+| **The 4-bit deviation is small.** | Layer-20 activations from the NF4 target match the bf16 ones at cosine **0.987** (median 0.991, min 0.937). The verbaliser normalises its input, so only direction reaches it. Its integrity gate passed on essentially every sample. The threat [`DECISIONS.md`](docs/DECISIONS.md) D2 identified is measured and small. |
+| **`tail_rate` is near its ceiling by construction.** | A tail exists on 21/24 — and the *final* boundary qualifies on 21/24, which is why: at the last boundary the prefix is the whole trace, so both criteria are near-tautological. The informative quantity is the tail **fraction**: mean 0.356, and tail tokens are 31.7% of all generated tokens. |
+| **Determinacy is not statement.** | On every problem with a tail, the tail begins *before* the trace states the answer — mean 2.19 chunks earlier. Forcing elicits the answer from the prefix. Right for a stopping rule; wrong for reading the window as post-answer verification. |
+| **The measured tail is a lower bound.** | The 24-token forcing budget cut the forced answer off on 40.7% of evaluated boundaries, and on 24.1% that alone failed criterion 1 while every resampled continuation agreed. Relaxing it moves the tail fraction 0.356 → 0.486. |
+| **The hidden-state probe is largely reading position.** | Grouped-CV AUC **0.996** — but the same model on activation-free positional features alone reaches **0.962**. A 0.034 margin. Its label becomes true once the answer is worked out and stays true, so it is ordered by position. One of the baselines the primary question is scored against. |
+| **Cheap surface features do not explain the tail.** | Tail-fraction regression on question- and trace-surface features reaches R² ≈ 0.003 against a mean baseline of −0.415. The redundancy is not a surface-form phenomenon. |
 
 **Not done**
 
-- **The autoencoder checkpoints have never been run.** ~26 GB still to
-  download, and the bf16 target has to be evicted first to make room. This is
-  the largest remaining technical risk — see
-  [`docs/DECISIONS.md`](docs/DECISIONS.md) D2.
-- **No stage downstream of `ast` has completed even once.** The pilot's
-  trace generation was interrupted partway; several real bugs were found and
-  fixed during it, so its traces are stale and it needs re-running.
-- No faithfulness audit, no causal arm, no analysis, no execution report.
-- The supervised analyses have been exercised on the partial pilot corpus only.
-  At that size one split came out single-class and the held-out R² is negative:
-  that is a sample-size artefact, not a finding, and no number from it is
-  reportable.
-
-[`docs/STATUS.md`](docs/STATUS.md) holds the detail, including the bugs the
-pilot surfaced and the exact next command.
+- **The main configuration** (`configs/main.yaml`, 250 problems) has not been
+  attempted. At the pilot's measured throughput that is over 50 hours on this
+  machine.
+- **The two `scripts/predict_*.py` analyses refuse at this sample size** — they
+  require 30 train / 20 eval rows and the pilot has 24 problems. The
+  root-level `regression.py` / `classification.py` do run, and write a
+  `provenance.json` recording the corpus.
+- **`runs/mlcorpus`** holds 33 traces from before the chunker and parser fixes.
+  They are not poolable with the pilot's and are refused automatically.
+- **A second annotator** for inter-rater reliability, which the review already
+  anticipated.
 
 ---
 
@@ -193,21 +195,29 @@ $env:HF_HOME = "<volume>/hf_cache"      # bf16 download staging, ~22 GB free
 $env:NLAAST_QUANT_DIR = "<volume>/nf4"  # 4-bit checkpoints, ~15 GB
 ```
 
-## Running what currently works
+## Running it
 
 ```powershell
 .venv/Scripts/python.exe -m pytest                                  # no GPU needed
+.venv/Scripts/python.exe -m pytest -m slow                          # adds the 4-bit GPU paths
 .venv/Scripts/python.exe scripts/run_pipeline.py --config smoke     # 4 problems
 .venv/Scripts/python.exe scripts/run_pipeline.py --config pilot     # 24 problems
 ```
 
 `smoke` proves the pipeline runs end to end and nothing scientific. `pilot` is
-the smallest configuration meant to be read. `main` is the full run and has not
-been attempted.
+the smallest configuration meant to be read, and is the one that produced the
+findings above. `main` is the full run and has not been attempted.
 
-Everything up to and including `ast`, plus the two supervised analyses, runs
-today. Stages `nla`, `faithfulness` and `causal` need the autoencoder
-checkpoints and have never executed.
+The test suite includes a fixture-backed end-to-end check that runs every stage
+script — including the three that need the autoencoder — against tiny randomly
+initialised stand-ins, in about a minute on CPU. It is how the pipeline is
+exercised without 26 GB of checkpoints; it proves wiring, not science.
+
+**On this hardware the three checkpoints cannot coexist**, so a fresh run needs
+the preparation split either side of falsification test F8, which compares
+4-bit activations against bf16 ones and therefore has to run while the bf16
+target still exists. [`docs/STATUS.md`](docs/STATUS.md) §6 gives the exact
+sequence.
 
 Every stage is resumable and checkpoints per problem; interrupting loses at
 most the item in flight. Results land in `runs/<run_id>/` (untracked), with the
