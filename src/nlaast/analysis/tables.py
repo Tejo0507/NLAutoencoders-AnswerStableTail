@@ -128,7 +128,8 @@ def stopping_comparison_table(curves: dict[str, Sequence[Any]],
     return pd.DataFrame(rows)
 
 
-def reconstruction_table(nla_rows: Sequence[dict[str, Any]]) -> pd.DataFrame:
+def reconstruction_table(nla_rows: Sequence[dict[str, Any]],
+                         empirical_baseline_mse: float | None = None) -> pd.DataFrame:
     """Reconstruction fidelity by window kind - the F10 position control."""
     if not nla_rows:
         return pd.DataFrame()
@@ -148,7 +149,14 @@ def reconstruction_table(nla_rows: Sequence[dict[str, Any]]) -> pd.DataFrame:
     )
     # Same convention as the released checkpoints: MSE = 2(1 - cos), and FVE
     # against an orthogonal-prediction baseline of 2.0.
-    agg["fve"] = 1.0 - agg["mean_mse"] / 2.0
+    agg["fve_vs_orthogonal"] = 1.0 - agg["mean_mse"] / 2.0
+    # And against the baseline PROJECT_PLAN §5 actually asks for, when the
+    # caller knows it. Carried in the same table because the two differ by
+    # about 0.19 here, and a bare `fve` column invites the wrong one to be
+    # read as the headline - for the Gaussian control it is the difference
+    # between an apparent 0.39 and a true -0.47.
+    if empirical_baseline_mse:
+        agg["fve_vs_empirical"] = 1.0 - agg["mean_mse"] / empirical_baseline_mse
     return agg
 
 

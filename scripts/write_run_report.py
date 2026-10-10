@@ -375,12 +375,37 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A("Fidelity is **not** faithfulness; the two are reported separately "
           "throughout, and this table speaks only to the former.")
         A("")
-        A(tables.markdown(tables.reconstruction_table(recon)))
-        A("")
         nla_sum_path = cfg.dir / "nla" / "summary.json"
         nla_sum = read_json(nla_sum_path) if nla_sum_path.exists() else {}
         emp = nla_sum.get("empirical_baseline") or {}
         overall = nla_sum.get("overall") or {}
+        A(tables.markdown(tables.reconstruction_table(
+            recon, empirical_baseline_mse=emp.get("baseline_mse"))))
+        A("")
+        # The F10 question in one line, because the table above answers it and
+        # three near-identical numbers are easy to read past.
+        rt = tables.reconstruction_table(recon)
+        by_kind = {r["window_kind"]: r["mean_cosine"]
+                   for r in rt.to_dict(orient="records")}
+        if {"tail", "matched_position"} <= set(by_kind):
+            gap = by_kind["tail"] - by_kind["matched_position"]
+            A(f"**F10, in one line.** The tail reconstructs at cosine "
+              f"{by_kind['tail']:.3f} and a matched **pre-stabilisation** "
+              f"window at {by_kind['matched_position']:.3f}"
+              + (f", a matched-length window elsewhere in the same trace at "
+                 f"{by_kind['matched_length']:.3f}"
+                 if "matched_length" in by_kind else "")
+              + f". The tail is {'ahead by' if gap > 0 else 'behind by'} "
+                f"{abs(gap):.3f}. Reconstruction fidelity is therefore **not "
+                f"specific to the tail**: the readout describes a late "
+                f"mathematical-reasoning state about equally well wherever in "
+                f"the trace it is taken from, so a fidelity result on the tail "
+                f"is a result about reading this kind of trace, not about the "
+                f"tail. The Gaussian control is the contrast that shows the "
+                f"readout is doing something at all"
+              + (f" ({by_kind['gaussian_control']:.3f})."
+                 if "gaussian_control" in by_kind else "."))
+            A("")
         if emp.get("available"):
             A("#### Which baseline the FVE is against")
             A("")
