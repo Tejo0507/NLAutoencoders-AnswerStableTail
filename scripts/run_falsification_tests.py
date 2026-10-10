@@ -451,7 +451,8 @@ def f8_placement(log, gpu_headroom_gib: float = 1.0,
     }
 
 
-def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
+def f8_quantisation(cfg, traces, log, subsample: int,
+                    previous: dict | None = None) -> dict:
     """Does 4-bit quantisation move the activations the autoencoder sees?
 
     The released autoencoder was trained on bf16 activations. This study feeds
@@ -484,6 +485,19 @@ def f8_quantisation(cfg, traces, log, subsample: int) -> dict:
     try:
         src = snapshot(cfg.target.repo_id, cfg.target.revision)
     except Exception as exc:
+        # F8 is the only test whose input the pipeline deliberately destroys:
+        # the bf16 target has to be evicted to make room for the autoencoders.
+        # A later full `--force` pass over the battery would then replace a
+        # real measurement with a "blocked" one and the deviation would read as
+        # unmeasured. The earlier result is carried forward, labelled.
+        if previous and previous.get("status") == "ran":
+            log.info("F8: bf16 weights are gone; carrying forward the earlier "
+                     "measurement (mean cosine %s)", previous.get("mean_cosine"))
+            return {**previous, "reused_from_earlier_run": True,
+                    "reuse_note": ("measured before the bf16 target was evicted "
+                                   "to make room for the autoencoder "
+                                   "checkpoints; this run did not re-measure "
+                                   "and did not overwrite it")}
         return {"status": "blocked",
                 "reason": f"bf16 weights unavailable: {exc!r}",
                 "note": ("the bf16 source was evicted to make room for the "
@@ -667,8 +681,11 @@ def main() -> int:
         "F5_ast_sensitivity": lambda: f5_ast_sensitivity(cfg, log),
         "F6_probe_leakage": lambda: f6_probe_leakage(cfg, traces, log),
         "F7_layer_sweep": lambda: f7_layer_sweep(cfg, traces, log),
+        # ``previous`` lets F8 carry forward a measurement it can no longer
+        # repeat: its bf16 input is deliberately evicted later in the run.
         "F8_quantisation": lambda: f8_quantisation(
-            cfg, traces, log, cfg.robustness.quantisation_subsample),
+            cfg, traces, log, cfg.robustness.quantisation_subsample,
+            previous=results.get("F8_quantisation")),
         "F10_position": lambda: f10_position(cfg, log),
     }
 
