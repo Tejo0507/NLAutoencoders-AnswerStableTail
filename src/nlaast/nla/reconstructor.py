@@ -20,6 +20,7 @@ unsupported. Nothing in this module speaks to claim-level faithfulness; that is
 
 from __future__ import annotations
 
+import contextlib
 import gc
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -33,6 +34,52 @@ from ..models import loading
 from .meta import NLAMeta, load_meta, upstream
 
 log = get(__name__)
+
+
+@contextlib.contextmanager
+def _load_straight_to(up, device: str, log):
+    """Make the vendored loader place the backbone directly on ``device``.
+
+    ``NLACritic`` loads its backbone with no ``device_map`` and then calls
+    ``.to(device)``. That materialises the whole checkpoint in host memory
+    first - for the released AR, 21 quantised layers plus a bf16 embedding
+    table and an ``lm_head`` it immediately discards, about 4.9 GB - and this
+    machine routinely has 2-3 GB free. The load fails before any
+    reconstruction happens.
+
+    So ``from_pretrained`` is given ``device_map`` for the duration of the
+    construction only. This changes *where the weights are put*, not what is
+    computed: the backbone, the final-LayerNorm removal, the trained value
+    head and the MSE convention are all still upstream's, and the subsequent
+    ``.to(device)`` becomes a no-op. On CPU, or if the patch cannot be
+    applied, the original behaviour is used unchanged.
+
+    Recorded as a deviation in docs/DECISIONS.md (D23) because it is a
+    modification of upstream's behaviour, narrow as it is.
+    """
+    import torch
+
+    original = getattr(up, "AutoModelForCausalLM", None)
+    if original is None or device == "cpu" or not torch.cuda.is_available():
+        yield
+        return
+
+    class _Placed:
+        """Stands in for the vendored module's ``AutoModelForCausalLM``."""
+
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            kwargs.setdefault("device_map", {"": 0})
+            kwargs.setdefault("low_cpu_mem_usage", True)
+            return original.from_pretrained(*args, **kwargs)
+
+    up.AutoModelForCausalLM = _Placed
+    log.info("AR backbone will be placed directly on %s rather than staged in "
+             "host memory first", device)
+    try:
+        yield
+    finally:
+        up.AutoModelForCausalLM = original
 
 
 @dataclass
@@ -61,9 +108,10 @@ class ActivationReconstructor:
         self._up = upstream()
         self.device = cfg.nla.device if torch.cuda.is_available() else "cpu"
         log.info("loading AR from %s", self.checkpoint_dir)
-        self.critic = self._up.NLACritic(
-            self.checkpoint_dir, device=self.device, dtype=torch.bfloat16
-        )
+        with _load_straight_to(self._up, self.device, log):
+            self.critic = self._up.NLACritic(
+                self.checkpoint_dir, device=self.device, dtype=torch.bfloat16
+            )
         self.mse_scale = float(self.critic.mse_scale)
         self.d_model = self.critic.backbone.config.hidden_size
         log.info("AR ready: mse_scale=%.4f d_model=%d | %s",
