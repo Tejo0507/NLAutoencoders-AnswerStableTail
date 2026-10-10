@@ -97,14 +97,20 @@ def ast_status_table(ast_rows: Sequence[dict[str, Any]]) -> pd.DataFrame:
 def stopping_comparison_table(curves: dict[str, Sequence[Any]],
                               budgets: Sequence[float]) -> pd.DataFrame:
     """The O3 headline: every rule read off its own curve at matched budget."""
-    from ..baselines.stopping import at_matched_budget
+    from ..baselines.stopping import MATCH_TOLERANCE, at_matched_budget
 
     rows = []
     for budget in budgets:
         for rule, curve in curves.items():
-            pt = at_matched_budget(curve, budget)
+            # Nearest point regardless of distance, so the table shows every
+            # rule at every budget - but with the realised saving and whether
+            # it is close enough to count as matched, because a row that
+            # silently reports a rule at a 45-point-different budget reads as
+            # a like-for-like comparison and is not one.
+            pt = at_matched_budget(curve, budget, tolerance=None)
             if pt is None:
                 continue
+            gap = abs(pt.mean_tokens_saved - budget)
             rows.append(
                 {
                     "target_budget": budget,
@@ -112,6 +118,8 @@ def stopping_comparison_table(curves: dict[str, Sequence[Any]],
                     "threshold": pt.threshold,
                     "n": pt.n,
                     "achieved_tokens_saved": pt.mean_tokens_saved,
+                    "budget_gap": gap,
+                    "matched": bool(gap <= MATCH_TOLERANCE),
                     "safe_rate": pt.safe_rate,
                     "accuracy": pt.accuracy,
                     "fire_rate": pt.fire_rate,
