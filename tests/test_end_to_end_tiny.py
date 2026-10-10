@@ -411,6 +411,19 @@ class TestAnalysisAndReport:
         assert "grouped_cv_out_of_fold" in md
         assert "semantic entropy" in md
 
+    def test_the_report_shows_verbalisations_beside_their_controls(self, pipeline):
+        """Aggregate faithfulness numbers do not let a reader see what kind of
+        claim the verbaliser makes. On the real corpus it names the register
+        and discourse position accurately while inventing the specifics, and
+        that is only checkable if the text is printed next to the gold answer
+        and the matched-norm control."""
+        run_dir, _ = pipeline
+        md = (run_dir / "report" / "RESULTS.md").read_text(encoding="utf-8")
+        assert "Sample verbalisations, with their controls" in md
+        assert "from the activation" in md
+        assert "from Gaussian noise at matched norm" in md
+        assert "gold answer" in md
+
     def test_the_report_lists_stages_that_did_not_run(self, pipeline):
         """A stage that produced nothing must be visible as such, not omitted -
         otherwise the report reads as though the study were complete."""
