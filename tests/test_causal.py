@@ -286,9 +286,57 @@ class TestTheGate:
         assert v["answers_preserved"] is False
         assert v["supported"] is False
 
-    def test_no_evidence_at_all_is_unsupported_not_an_error(self):
+    def test_no_evidence_at_all_is_untested_not_refuted(self):
         v = direction_claim_supported([])
-        assert v["supported"] is False
-        assert all(v[k] is False for k in
-                   ("beats_random_direction", "beats_matched_position",
-                    "monotone_dose_response", "answers_preserved"))
+        assert v["supported"] is None
+        assert v["outcome_varies"] is False
+        assert v["untestable_reason"]
+
+
+class TestAConstantOutcomeIsNotAResult:
+    """The pilot's case, and the reason `supported` can be None.
+
+    The readout counts lexical rechecking markers, and on the pilot corpus it
+    is identically zero: not one of the twenty markers appears in any of the
+    24 traces, because this model writes clean derivations with no "wait",
+    "actually" or "let me check". With a constant outcome, |0| > |0| is false
+    and every comparison in the gate fails - so it returned "not supported",
+    which reads as evidence against a tail direction when there is none
+    either way.
+    """
+
+    @staticmethod
+    def _all_zero():
+        rows = []
+        for pid in range(6):
+            rows += [
+                result("ablate_dir", 0.0, markers=0, pid=f"p{pid}"),
+                result("ablate_dir", 1.0, markers=0, pid=f"p{pid}"),
+                result("ablate_dir", 2.0, markers=0, pid=f"p{pid}"),
+                result("random_dir", 1.0, markers=0, pid=f"p{pid}", did="random_0"),
+                result("matched_position", 1.0, markers=0, pid=f"p{pid}"),
+            ]
+        return rows
+
+    def test_a_constant_readout_yields_untested_not_unsupported(self):
+        v = direction_claim_supported(self._all_zero())
+        assert v["supported"] is None
+        assert v["outcome_varies"] is False
+        assert "no test of the direction claim either way" in v["untestable_reason"]
+
+    def test_the_control_comparisons_are_null_rather_than_false(self):
+        """False would assert the candidate failed to beat the controls. It
+        did not fail; nothing was measured."""
+        v = direction_claim_supported(self._all_zero())
+        assert v["beats_random_direction"] is None
+        assert v["beats_matched_position"] is None
+
+    def test_a_varying_readout_is_judged_normally(self):
+        v = direction_claim_supported(supported_evidence())
+        assert v["outcome_varies"] is True
+        assert v["untestable_reason"] is None
+        assert v["supported"] is True
+
+    def test_the_readout_is_named_in_the_verdict(self):
+        v = direction_claim_supported(self._all_zero())
+        assert "verification_markers" in v["outcome"]

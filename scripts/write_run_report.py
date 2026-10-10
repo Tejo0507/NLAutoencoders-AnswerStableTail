@@ -356,13 +356,29 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
     rq3 = results.get("rq3") or {}
     if rq3:
         v = rq3.get("verdict", {})
-        A(f"**Direction claim supported: {v.get('supported')}**")
-        A("")
+        if v.get("supported") is None:
+            A("**Direction claim: not tested.** The gate returns neither "
+              "support nor refutation, because the behavioural readout it "
+              "judges — the change in rechecking-marker count — did not vary "
+              "at all.")
+            A("")
+            A(f"> {v.get('untestable_reason')}")
+            A("")
+            A("Reporting this as *unsupported* would say the candidate "
+              "direction failed to beat its controls. It did not fail: "
+              "nothing was measured. The outcome variable has to move before "
+              "any of the four requirements below can mean anything.")
+            A("")
+        else:
+            A(f"**Direction claim supported: {v.get('supported')}**")
+            A("")
         A("| requirement | met |")
         A("|---|---|")
         for k in ("beats_random_direction", "beats_matched_position",
                   "monotone_dose_response", "answers_preserved"):
-            A(f"| {k.replace('_', ' ')} | {v.get(k)} |")
+            val = v.get(k)
+            A(f"| {k.replace('_', ' ')} | "
+              f"{'not testable' if val is None else val} |")
         A("")
         arms = rq3.get("arms") or {}
         if arms:
