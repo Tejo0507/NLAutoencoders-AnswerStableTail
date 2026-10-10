@@ -253,6 +253,24 @@ def direction_claim_supported(
     def _finite(x: float) -> bool:
         return bool(np.isfinite(x))
 
+    # Is there anything here to beat?
+    #
+    # The readout is a count of lexical rechecking markers, and on the pilot
+    # corpus it is identically zero: not one of the twenty markers appears in
+    # any of the 24 traces, because this model writes clean step-by-step
+    # derivations with no "wait", "actually" or "let me check". With a constant
+    # outcome, |0| > |0| is false and every comparison below fails - so the
+    # gate returned "not supported", which reads as evidence against a tail
+    # direction when there is no evidence either way.
+    #
+    # A constant outcome means the experiment had no power, and that is a
+    # different statement from a negative result. It is reported as one.
+    marker_values = [r.verification_markers - r.baseline_verification_markers
+                     for r in results
+                     if r.intervention in ("ablate_dir", "random_dir",
+                                           "matched_position")]
+    outcome_varies = bool(marker_values) and len(set(marker_values)) > 1
+
     beats_random = (
         _finite(ablate.marker_delta) and _finite(random_.marker_delta)
         and abs(ablate.marker_delta) > abs(random_.marker_delta)
@@ -268,12 +286,27 @@ def direction_claim_supported(
     # "Selectively": behaviour moves, the answer does not.
     answer_preserved = _finite(ablate.answer_change_rate) and ablate.answer_change_rate < 0.2
 
+    supported: bool | None = bool(
+        beats_random and beats_position and monotone and answer_preserved)
+    if not outcome_varies:
+        # Untested, not refuted.
+        supported = None
+
     return {
-        "beats_random_direction": beats_random,
-        "beats_matched_position": beats_position,
+        "beats_random_direction": beats_random if outcome_varies else None,
+        "beats_matched_position": beats_position if outcome_varies else None,
         "monotone_dose_response": monotone,
         "answers_preserved": answer_preserved,
-        "supported": bool(beats_random and beats_position and monotone and answer_preserved),
+        "supported": supported,
+        "outcome_varies": outcome_varies,
+        "outcome": "verification_markers - baseline_verification_markers",
+        "untestable_reason": (
+            None if outcome_varies else
+            "the behavioural readout is constant across every direction arm, "
+            "so the controls cannot be beaten or missed: this corpus provides "
+            "no test of the direction claim either way. On the pilot the "
+            "rechecking markers the readout counts do not occur in any trace."
+        ),
         "compared_at_coefficient": compare_at,
         "arms": {
             "ablate_dir": ablate.to_dict(),
