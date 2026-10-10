@@ -201,6 +201,56 @@ def threshold_grid(scores: dict, rule: str, n: int = 25) -> list[float]:
     return list(np.linspace(lo, hi, n))
 
 
+def positional_floor(base, index, y, groups, cfg, log) -> dict:
+    """How well the probe's label is predicted with **no activation at all**.
+
+    The hidden-state probe is the baseline the primary research question is
+    measured against, so what it is reading matters as much as how well it
+    scores. Its label - "the intermediate answer at this boundary is already
+    correct" - becomes true once the trace has worked the answer out and stays
+    true afterwards, so it is strongly ordered by position in the trace. A
+    probe that had learned nothing but "this boundary is late" would score
+    almost as well as one reading anything about correctness.
+
+    The same model family and the same grouped folds are therefore fitted on
+    three activation-free features: where the boundary sits in the trace,
+    absolutely and relatively, and how many tokens precede it. The gap between
+    that AUC and the probe's is the part of the probe's performance that needs
+    the residual stream to explain.
+
+    This is falsification test F1's logic - "does it add anything over a
+    trivial surface feature" - applied to the baseline rather than to the
+    verbalised readout.
+    """
+    rows = []
+    for pid, chunk_i in index:
+        n = max(1, base[pid]["n_chunks"])
+        tokens = base[pid]["boundary_tokens"]
+        rows.append([
+            float(chunk_i),
+            float(chunk_i) / n,
+            float(tokens[chunk_i]) if chunk_i < len(tokens) else float("nan"),
+        ])
+    Xp = np.asarray(rows, dtype=np.float64)
+    if not np.isfinite(Xp).all():
+        Xp = np.nan_to_num(Xp, nan=0.0)
+    report = cross_validate(Xp, np.asarray(y), groups, cfg.probe).to_dict()
+    log.info("activation-free positional floor: accuracy=%.3f auc=%.3f",
+             report["accuracy"], report["auc"])
+    return {
+        "features": ["chunk_index", "relative_position", "prefix_tokens"],
+        "accuracy": report["accuracy"],
+        "auc": report["auc"],
+        "brier": report["brier"],
+        "n": report["n_eval"],
+        "note": ("same model family and grouped folds as the probe, fitted on "
+                 "activation-free positional features only. The probe's AUC "
+                 "above this floor is the part that needs the residual stream "
+                 "to explain; a floor close to the probe means the probe is "
+                 "largely reading position in the trace."),
+    }
+
+
 def fit_probe(cfg, traces, base, log):
     """Train the correctness probe on the train split, score every boundary."""
     store = ActivationStore(cfg.dir / "acts")
@@ -287,11 +337,21 @@ def fit_probe(cfg, traces, base, log):
                     "out-of-fold scores.",
                     int(train_mask.sum()), len(np.unique(y[train_mask])))
 
+    floor = positional_floor(base, index, y, groups, cfg, log)
+    if np.isfinite(report.get("auc", float("nan"))) and np.isfinite(floor["auc"]):
+        floor["probe_auc_above_floor"] = float(report["auc"] - floor["auc"])
+        if floor["probe_auc_above_floor"] < 0.05:
+            log.warning("the probe beats an activation-free positional "
+                        "predictor by only %.3f AUC; at this corpus size it is "
+                        "largely reading position in the trace, not "
+                        "correctness", floor["probe_auc_above_floor"])
+
     info = {
         "n_examples": int(len(y)),
         "n_problems": len(set(groups)),
         "positive_rate": float(y.mean()),
         "probe_source": "grouped_cv_out_of_fold",
+        "positional_floor": floor,
         "n_boundaries_scored": n_scored,
         "n_boundaries_unscored": int(len(y) - n_scored),
         "layer": layer,
