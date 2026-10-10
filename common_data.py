@@ -30,6 +30,21 @@ import yaml
 
 RUNS = Path("runs")
 
+#: A run directory containing this file is synthetic and is never corpus data.
+#: `tests/test_end_to_end_tiny.py` writes a run whose traces come from a
+#: randomly initialised 64-dimensional model, and it writes it *last* - so a
+#: "newest run wins" rule picks it, and the supervised analyses silently fit
+#: on noise and write it to outputs/. That happened. Comparing settings is not
+#: enough protection on its own: the reference run is the thing being compared
+#: against, so it has to be disqualified before it can be chosen.
+FIXTURE_MARKER = "FIXTURE"
+
+#: The released autoencoder is bound to one model at one width, so a run whose
+#: target is not that model is not a run of this study. An independent second
+#: guard, in case a synthetic run ever reaches here without its marker.
+EXPECTED_TARGET_REPO = "Qwen/Qwen2.5-7B-Instruct"
+EXPECTED_D_MODEL = 3584
+
 #: Settings two runs must agree on for their traces to be rows of one corpus.
 #: Each one changes the trace, its chunking or the boundary evidence the AST
 #: criteria are applied to, so a disagreement makes the rows incomparable
@@ -120,6 +135,28 @@ def pooling_signature(run_dir: Path) -> dict:
     return out
 
 
+def disqualified(run_dir: Path) -> str | None:
+    """Why this run can never be corpus data, or ``None`` if it can.
+
+    Checked before anything else, and before a run can be chosen as the
+    reference. A run excluded only by *comparison* is compared against the
+    reference - so a synthetic run that happens to be the newest becomes the
+    reference and disqualifies everything real instead.
+    """
+    if (run_dir / FIXTURE_MARKER).exists():
+        return "marked as a synthetic fixture run"
+    cfg = _resolved_config(run_dir) or {}
+    target = cfg.get("target") or {}
+    repo = target.get("repo_id")
+    if repo is not None and repo != EXPECTED_TARGET_REPO:
+        return (f"target is {repo!r}, not the model this study is bound to "
+                f"({EXPECTED_TARGET_REPO!r})")
+    width = target.get("d_model")
+    if width is not None and int(width) != EXPECTED_D_MODEL:
+        return f"target d_model is {width}, not {EXPECTED_D_MODEL}"
+    return None
+
+
 def _n_traces(run_dir: Path) -> int:
     p = run_dir / "traces" / "traces.jsonl"
     if not p.exists():
@@ -146,15 +183,23 @@ def select_runs(run_ids: list[str] | None = None) -> dict:
     With ``run_ids`` the choice is the caller's, and a requested run that is
     not poolable is an error rather than a silent inclusion.
     """
-    available = sorted(d.name for d in RUNS.iterdir()
-                       if d.is_dir() and _n_traces(d) > 0) if RUNS.is_dir() else []
+    with_traces = sorted(d.name for d in RUNS.iterdir()
+                         if d.is_dir() and _n_traces(d) > 0) if RUNS.is_dir() else []
+    ineligible = {name: reason for name in with_traces
+                  if (reason := disqualified(RUNS / name))}
+    available = [n for n in with_traces if n not in ineligible]
     if not available:
         raise SystemExit(
-            "no run under runs/ has traces. Generate some first:\n"
+            "no run under runs/ holds usable traces"
+            + (f" (disqualified: {ineligible})" if ineligible else "")
+            + ".\nGenerate some first:\n"
             "  .venv/Scripts/python.exe scripts/generate_traces.py --config pilot"
         )
 
     if run_ids:
+        bad = {r: ineligible[r] for r in run_ids if r in ineligible}
+        if bad:
+            raise SystemExit(f"these runs cannot be corpus data: {bad}")
         missing = [r for r in run_ids if r not in available]
         if missing:
             raise SystemExit(
@@ -201,6 +246,7 @@ def select_runs(run_ids: list[str] | None = None) -> dict:
         "reference_run": reference,
         "pooling_signature": ref_sig,
         "excluded": excluded,
+        "disqualified": ineligible,
         "available": available,
         "explicit": bool(run_ids),
     }

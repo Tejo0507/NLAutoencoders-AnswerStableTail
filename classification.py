@@ -36,7 +36,9 @@ y = df["final_correct"].values
 
 print(f"corpus: {provenance['n_rows']} rows from runs {provenance['runs']}")
 if provenance["excluded"]:
-    print(f"excluded runs: {provenance['excluded']}")
+    print(f"excluded runs (not poolable): {sorted(provenance['excluded'])}")
+if provenance["disqualified"]:
+    print(f"disqualified runs (never corpus data): {provenance['disqualified']}")
 print(f"rows: {len(df)}  correct: {y.sum()}  incorrect: {(1 - y).sum()}")
 
 # Stratified k-fold needs at least `folds` members of the minority class, and
