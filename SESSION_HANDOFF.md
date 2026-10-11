@@ -15,7 +15,7 @@ against its own statistics found that **the study's one significant primary
 finding was an artefact of a default parameter**, and that three of five causal
 arms had never done anything. Both are fixed, with tests. The **main run is
 healthy and under way**: `env`, `data` and `models` are complete and `traces`
-has done **20 of 250** with 0 failures, ETA ~27 h, resumable per problem.
+has done **53 of 250** with 0 failures, ETA ~23.5 h, resumable per problem.
 
 **Leave it alone.** Do not run the test suite, the causal validation, or any
 other GPU work alongside it — doing so doubled a problem's wall time this
@@ -193,44 +193,51 @@ machine state, not a cost: the pilot generated the same traces *twice*,
 byte-identical, once at about 2 min/problem and once at 12.9, the slow pass
 with 1.3 GB of free RAM.
 
-### Verified progress — 20 of 250, as of 13:20 on 2026-10-11
+### Verified progress — 53 of 250, as of 17:25 on 2026-10-11
 
-Process PID 19728, GPU 63% at 71 °C, 5.8 GB VRAM. **20 completed, 0 failed.**
+Process PID 19728 (unchanged since launch), GPU 100% at 64 °C, 5.8 GB VRAM.
+**53 completed, 0 failed, 0 scan-capped.**
 
-| dataset | n | mean | median | min | max |
-|---|---|---|---|---|---|
-| GSM8K | 12 | **5.0 min** | 4.6 min | 105s | 601s |
-| MATH | 8 | **9.9 min** | 7.3 min | 254s | 1126s |
+| dataset | n | mean | median |
+|---|---|---|---|
+| GSM8K | 32 | **5.0 min** | 4.6 min |
+| MATH | 21 | **9.9 min** | 7.3 min |
 
-MATH is about 2x GSM8K, not the 3–4x first estimated from two problems. The
+MATH is about 2x GSM8K, not the 3–4x first estimated from two problems. The one
 601s GSM8K outlier was contended with a test run and is not representative.
 
-**Remaining: 138 GSM8K + 92 MATH ≈ 26.8 hours** at the current per-dataset
-means, which matches the stage's own ETA line (1610 min) to within a few
-minutes. This supersedes the earlier 45-hour figure, which was extrapolated
-from the first, slowest problems. Trust the ETA line.
+**Remaining ≈ 23.5 hours**, per the stage's own ETA line (1417 min). This
+supersedes the earlier 45-hour figure, extrapolated from the first and slowest
+problems. Trust the ETA line, not these means.
 
-### Verified truncation statistics
+### Verified truncation statistics — the cap question is now settled
 
-| dataset | n | truncated | rate | mean tokens | max |
-|---|---|---|---|---|---|
-| GSM8K | 12 | 0 | **0.000** | 233 | 427 |
-| MATH | 8 | 1 | **0.125** | 436 | 768 |
-| all | 20 | 1 | 0.050 | — | — |
+| dataset | n | truncated | rate | 95% exact CI | mean tokens | max |
+|---|---|---|---|---|---|---|
+| GSM8K | 32 | 0 | **0.000** | [0.000, 0.109] | 240 | 454 |
+| MATH | 21 | 1 | **0.048** | **[0.001, 0.238]** | 431 | 768 |
+| all | 53 | 1 | 0.019 | [0.000, 0.101] | — | — |
 
-Only `math-algebra-test-00002` has truncated, at exactly 768 tokens. Accuracy
-so far is 0.833 GSM8K and 0.875 MATH.
+Still only `math-algebra-test-00002`, at exactly 768 tokens.
 
-**The cap has not been raised and should not be yet.** The MATH rate of 1/8 has
-a 95% exact interval of **[0.003, 0.527]** — it cannot be distinguished from
-the pilot's 3/10 = 0.300 at 512 tokens, nor from zero. MATH mean token count is
-436 against a 768 cap, so most MATH traces are nowhere near it, which is the
-first real sign the cap is no longer the binding constraint it was at 512.
+**Leave the cap at 768. The reassessment target has been met early.** The
+MATH interval's upper bound of **0.238 now excludes the pilot's 3/10 = 0.300**
+at 512 tokens, so the cap change demonstrably worked. This arrived at 21 MATH
+problems rather than the ~40 projected, because the observed rate (0.048) came
+in below the 0.125 that projection assumed. MATH's mean token count of 431
+against a 768 cap confirms the cap is no longer the binding constraint it was.
 
-**When to decide:** roughly **40 MATH problems** are needed before the interval
-excludes the pilot's 0.300, which arrives at about problem 100 of the
-interleaved order — some 12 hours in. Read `truncated_rate` from the stage
-metrics then. Two options, both defensible, neither yet taken:
+**Accuracy corroborates it**, and this is the stronger evidence: a truncated
+trace has no settled answer, so truncation shows up as error.
+
+| dataset | pilot (512 cap) | main so far (768 cap) |
+|---|---|---|
+| GSM8K | 0.857 | **0.938** (n=32) |
+| MATH | **0.700** | **0.905** (n=21) |
+
+A 20-point gain in MATH accuracy is what fixing the cap bought. Keep watching
+`truncated_rate`, but no further decision is pending. Two options remain on the
+table only if the rate climbs unexpectedly as harder MATH levels arrive:
 
 - accept it and **report the achieved truncation rate** as a limit, which is
   what the pilot did at 512; or
@@ -327,13 +334,39 @@ one value of φ that is neither optimistic nor pessimistic.** That is cheap.
 Against it: φ is estimated from 4 discordant problems, so all three columns are
 soft, and the arm has ~219 tailed problems available so 120 is reachable.
 
-Apply it at the point of use, not now — editing `configs/main.yaml` mid-run
-changes the config hash and records a provenance hazard against the traces
-already generated:
+**The rationale was re-checked at 53 problems and still holds — in fact it
+strengthened.** The main run's accuracy is far above the pilot's (MATH 0.905
+against 0.700). Safety is defined as *the correctness of the answer you walk
+away with equals the correctness of the answer you would have got*, so the
+higher the accuracy, the less room there is for stopping to change an outcome,
+and **the discordance rate may well fall below the pilot's 0.190**. That makes
+the power table above optimistic and argues for the larger arm, not the
+smaller: 120 is the hedge against a corpus on which disagreements are rarer
+than the pilot led us to expect.
+
+Recompute it rather than trusting the table, once `baselines` and `nla` have
+run on the main corpus:
+
+```powershell
+.venv\Scripts\python.exe scripts\size_o3_corpus.py --run runs\main
+```
+
+**Override syntax, verified this session** (config resolution only, no GPU):
+`--set` is `action="append"`, repeatable, and its value goes through the YAML
+scalar parser, so `120` arrives as an `int`. Confirmed that it changes
+`nla.max_problems` from 80 to 120 and leaves every other `nla` field and both
+generation caps untouched.
 
 ```powershell
 .venv\Scripts\python.exe scripts\run_autoencoder.py --config main --set nla.max_problems=120
 ```
+
+Apply it that way at the point of use. **Do not edit `configs/main.yaml`**:
+`--set` already shifts the resolved config hash from `ea82fa845911b70f` to
+`0bb33cf4c468a3f6`, which the manifest records as a hash change against a run
+whose traces were generated under the original. That record is correct and
+expected — `nla.max_problems` cannot affect an already-generated trace — but
+editing the file would make the same change permanent and silent.
 
 ### 2. Validate the causal fix on a GPU — the one thing this session could not
 
