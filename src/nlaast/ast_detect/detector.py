@@ -154,15 +154,54 @@ def agreement_run_length(parsed: Sequence[str | None]) -> list[float]:
     fires. Scoring the run length puts ``w`` back on the sweep axis, where each
     operating point is the Liu & Wang rule at one ``w``.
 
-    **What it does not do.** It does not make the comparison evaluable. On the
-    pilot the achievable mean savings go from three values to eight, and they
-    remain clustered - 0.407 at ``w = 2`` against 0.855 at ``w = 1``, with the
-    shared budget window of 0.632-0.675 in the gap between them. ``w`` is an
-    integer and a threshold of 1.5 means the same as 2, so nothing lies between
-    those two points for any corpus size. The improvement is in resolution and
-    in faithfulness to the pre-registered rule; the unevaluability is a property
-    of where this rule fires, which is a finding about the baseline rather than
-    a limitation of the sweep.
+    **What it does not do.** It did not make the comparison evaluable on the
+    corpora measured so far. The achievable mean savings go from three values
+    to eight, but they stay clustered either side of the shared budget window:
+
+    Mean tokens saved at the two operating points either side of the window,
+    over all usable traces:
+
+    ========================  ==========  ==========  =====
+    corpus                    ``w = 2``   ``w = 1``   gap
+    ========================  ==========  ==========  =====
+    pilot, 24 traces              0.464       0.861    0.398
+    main, first 86 traces         0.395       0.886    0.491
+    main, first 100 traces        0.419       0.882    0.464
+    ========================  ==========  ==========  =====
+
+    The gap is wider on the main run than on the pilot at both checkpoints,
+    but it is **not** moving monotonically - 0.398, then 0.491, then 0.464 -
+    so these are three observations of a noisy quantity and not a trend.
+
+    The O3 head-to-head is matched on the problems the NLA arm covers, so its
+    window is narrower than the baselines-only one: on the pilot it was
+    0.632-0.675, which falls in the gap above. Neither point is within
+    ``MATCH_TOLERANCE`` of it, so the comparison is reported as unevaluable.
+    ``w`` is an integer and a threshold of 1.5 selects the same rule as 2, so
+    no operating point lies *between* these two at any corpus size.
+
+    **That is not the same as the comparison being unevaluable at any corpus
+    size, and this docstring previously said it was.** Two things that move
+    with the data decide it, and neither is pinned down yet:
+
+    - The two savings are *means over problems*, so they move as the corpus
+      changes. On the main run so far they sit further apart than on the
+      pilot, which is intelligible - the first parsed answer arrives
+      relatively earlier in a longer trace while the first *repeated* answer
+      arrives relatively later - but the gap is not moving in one direction,
+      and 100 traces is not 250.
+    - The window itself is the intersection of every rule's reachable savings
+      (``budget_grid``), and on the pilot it was pinned by the NLA arm, whose
+      reachable band is narrow because it is scored only at sampled windows.
+      Where that band lands on the main corpus is unknown until the ``nla``
+      stage runs.
+
+    So the honest statement is: unevaluable on the corpora measured, for a
+    reason that is a property of where this rule fires rather than of the
+    threshold grid - ``complete_threshold_grid`` makes the sweep exhaustive,
+    so no point is being missed - and with the full-corpus outcome still open.
+    The improvement here is in resolution and in faithfulness to the
+    pre-registered rule, which calls ``w`` configurable.
     """
     out: list[float] = []
     for i, a in enumerate(parsed):

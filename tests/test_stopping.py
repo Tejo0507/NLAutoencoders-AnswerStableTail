@@ -235,22 +235,55 @@ class TestCompleteThresholdGrid:
 
 
 class TestGranularityBound:
-    """Which unmatched comparisons a larger corpus would unblock.
+    """How much of the budget axis a rule can reach, given the scores observed.
 
     A score taking d distinct values admits at most d + 1 thresholds that
-    behave differently, so adding problems cannot add operating points. The
-    agreement rule's score is 1.0 once the last `window` answers agree and 0.0
-    otherwise, so its curve has three points on 21 problems and three on
-    21,000 - which is why its head-to-head is not waiting for more data.
+    behave differently, so on *this* corpus the curve cannot have more points
+    than that. What the bound does across corpus sizes depends on the score:
+
+    - A score bounded by construction - the agreement rule's original binary
+      indicator, 1.0 once the last `window` answers agree and 0.0 otherwise -
+      has d = 2 on 21 problems and d = 2 on 21,000, so three operating points
+      either way. More data genuinely cannot help.
+    - A score whose range grows with the data - the agreement run length that
+      replaced it (D36) - has a bound that grows too.
+
+    Conflating the two is what made D31 claim no corpus size could make the
+    convergence head-to-head evaluable; see D37b.
     """
 
     def test_a_binary_score_is_bounded_at_three(self):
         assert granularity_bound([0.0, 1.0, 1.0, 0.0, 1.0]) == 3
 
-    def test_the_bound_does_not_move_with_more_problems(self):
+    def test_a_bounded_score_does_not_gain_points_from_more_problems(self):
         few = granularity_bound([0.0, 1.0] * 10)
         many = granularity_bound([0.0, 1.0] * 10_000)
         assert few == many == 3
+
+    def test_an_unbounded_score_gains_points_as_its_range_widens(self):
+        """The corrected contract, and the reason D31 was withdrawn.
+
+        Agreement run lengths from short traces reach 3; longer traces reach
+        further, and each new run length is another achievable `w` and so
+        another operating point. The bound is read off the scores present, not
+        fixed for all N.
+        """
+        short_traces = granularity_bound([0.0, 1.0, 2.0, 3.0])
+        longer_traces = granularity_bound([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+        assert short_traces == 5
+        assert longer_traces == 7
+        assert longer_traces > short_traces
+
+    def test_more_problems_at_the_same_trace_length_add_nothing(self):
+        """It is the score's *range* that matters, not the number of problems.
+
+        Ten problems and ten thousand reach the same bound when they contain
+        the same run lengths - which is why "a larger corpus may help" is a
+        claim about trace length and answer behaviour, not about N alone.
+        """
+        assert (granularity_bound([0.0, 1.0, 2.0] * 10)
+                == granularity_bound([0.0, 1.0, 2.0] * 10_000)
+                == 4)
 
     def test_the_bound_is_honoured_by_an_exhaustive_sweep(self):
         scores = [0.0, 1.0]

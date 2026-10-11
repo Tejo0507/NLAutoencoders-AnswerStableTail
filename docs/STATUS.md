@@ -147,19 +147,31 @@ than nothing to see. Read with the positional-floor finding above, a readout
 that matches a predictor largely reading position is not obviously reading
 more than position either.
 
-The convergence comparison is **not** a sample-size limit. Its score is 1.0
-once the last `window` answers agree and 0.0 otherwise, so its curve has three
-operating points at any corpus size, and its two savings of 0.407 and 0.885
-straddle the shared budget window without entering it. No amount of data fixes
-that; a graded score would. See [`DECISIONS.md`](DECISIONS.md) D31.
+The convergence comparison is **unevaluable on this corpus**: its operating
+points straddle the shared budget window without entering it. Swept over its
+own window `w` as the pre-registration leaves free (D36), the rule reaches
+eight distinct savings on the pilot, of which the two bracketing the window of
+0.632–0.675 are 0.407 at `w = 2` and 0.855 at `w = 1`. `w` is an integer, so
+nothing is reachable between them.
+
+Whether a **larger** corpus would make the comparison evaluable is an open
+question, not a settled no. The earlier claim that no corpus size could help
+was argued from a binary score that D36 replaced; `granularity_limited` is now
+`false`. Both quantities that decide it move with the data: the achieved
+savings are means over problems, and the window is the intersection of every
+rule's reachable range, pinned on the pilot by the NLA arm. See
+[`DECISIONS.md`](DECISIONS.md) D31 (superseded in part), D36 and D37.
 
 Both of the previously "unevaluable" comparisons were partly an artefact of
 sweeping 25 evenly spaced thresholds, which samples the score axis rather than
 the rule. The probe's scores saturate, so the linear grid found 5 operating
 points; swept at the observed values the same problems give 86 and match at
-every budget (D30). The unevaluable test stays in the pre-registered family
-rather than being dropped, so the Benjamini–Hochberg correction is not
-flattered by its absence.
+every budget (D30). The unevaluable test stays in the **report** rather than
+being dropped, so a comparison that was planned and could not be made stays
+visible. It produces no p-value, so it does not enter the Benjamini–Hochberg
+denominator: that correction is over the five evaluable tests, not the nine
+pre-registered ones, and the pre-registration does not settle which of the two
+it should be (D37).
 
 ### RQ2: the claims are reconstruction-dependent and not noise
 
