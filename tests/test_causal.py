@@ -28,6 +28,7 @@ from nlaast.causal.interventions import (  # noqa: E402
     filler_text,
     projection_editor,
     random_direction,
+    screen_outcomes,
     summarise_arm,
 )
 
@@ -96,6 +97,70 @@ class TestProjectionEditor:
         edit(h)
         assert torch.allclose(h, before)
 
+    def test_the_span_is_absolute_across_a_cached_decode(self):
+        """The defect that made every direction arm a no-op.
+
+        Cached decoding calls the hook once with the whole prompt and then once
+        per new token with a sequence length of 1. The causal stage edits the
+        *generated* continuation, so its span starts at the prompt length. Read
+        as an index into each tensor, that span never intersects anything: the
+        prompt call is clipped at its own end and every decode call is one
+        position wide. The pilot's sweep returned identical answers and token
+        counts at doses 0.0, 1.0 and 2.0 on all ten problems as a result.
+        """
+        d = torch.from_numpy(unit(3))
+        prompt_len, n_new = 5, 4
+        edit = projection_editor(unit(3), 1.0, span=(prompt_len, prompt_len + n_new))
+
+        prompt = torch.randn(1, prompt_len, D)
+        out_prompt = edit(prompt)
+        assert torch.allclose(out_prompt, prompt), "the prompt must be untouched"
+
+        for _ in range(n_new):
+            step = torch.zeros(1, 1, D)
+            step[0, 0, 3] = 2.0
+            out = edit(step)
+            assert float(out @ d) == pytest.approx(0.0, abs=1e-5)
+        assert edit.n_positions_edited == n_new
+
+    def test_the_edit_stops_at_the_end_of_the_span(self):
+        edit = projection_editor(unit(3), 1.0, span=(2, 4))
+        edit(torch.randn(1, 2, D))                 # positions 0-1, before
+        for _ in range(2):                         # positions 2-3, inside
+            step = torch.zeros(1, 1, D)
+            step[0, 0, 3] = 1.0
+            assert float(edit(step) @ torch.from_numpy(unit(3))) == pytest.approx(0.0)
+        step = torch.zeros(1, 1, D)                # position 4, past the end
+        step[0, 0, 3] = 1.0
+        assert float(edit(step) @ torch.from_numpy(unit(3))) == pytest.approx(1.0)
+        assert edit.n_positions_edited == 2
+
+    def test_a_no_op_arm_is_detectable(self):
+        """What the stage asserts on. An intervention that edits nothing
+        reproduces the baseline exactly, which reads as 'the direction does
+        nothing' rather than as 'the edit never happened'."""
+        edit = projection_editor(unit(3), 1.0, span=(100, 200))
+        edit(torch.randn(1, 6, D))
+        assert edit.n_positions_edited == 0
+
+    def test_reset_restarts_the_position_count(self):
+        edit = projection_editor(unit(3), 1.0, span=(0, 2))
+        edit(torch.randn(1, 4, D))
+        assert edit.n_positions_edited == 2
+        edit.reset()
+        assert edit.n_positions_edited == 0
+        edit(torch.randn(1, 4, D))
+        assert edit.n_positions_edited == 2
+
+    def test_a_whole_sequence_edit_still_follows_the_stream(self):
+        edit = projection_editor(unit(3), 1.0, span=None)
+        d = torch.from_numpy(unit(3))
+        for width in (5, 1, 1):
+            h = torch.zeros(1, width, D)
+            h[0, :, 3] = 3.0
+            assert float(edit(h).abs().max()) == pytest.approx(0.0, abs=1e-5)
+            assert torch.allclose(edit(h) @ d, torch.zeros(1, width), atol=1e-5)
+
     def test_a_zero_direction_is_refused(self):
         with pytest.raises(ValueError, match="non-zero"):
             projection_editor(np.zeros(D), 1.0, span=None)
@@ -160,14 +225,15 @@ class TestMarkers:
 
 
 def result(arm, coeff, *, markers, baseline_markers=0, changed=False,
-           correct=True, pid="p0", did=None):
+           correct=True, pid="p0", did=None, tokens=10, edited=None):
     return InterventionResult(
         problem_id=pid, intervention=arm, coefficient=coeff, answer="1",
         baseline_answer="1", gold="1", answer_changed=changed, correct=correct,
-        baseline_correct=True, tokens_generated=10,
+        baseline_correct=True, tokens_generated=tokens,
         verification_markers=markers,
         baseline_verification_markers=baseline_markers,
         direction_id=did,
+        notes={} if edited is None else {"n_positions_edited": edited},
     )
 
 
@@ -340,3 +406,87 @@ class TestAConstantOutcomeIsNotAResult:
     def test_the_readout_is_named_in_the_verdict(self):
         v = direction_claim_supported(self._all_zero())
         assert "verification_markers" in v["outcome"]
+
+
+class TestOutcomeScreen:
+    """Which readouts could test anything, reported beside the verdict.
+
+    RQ3's pre-registered readout is identically zero on this model, so the gate
+    has no power. Replacing it by whichever alternative gives the nicest answer
+    would be choosing the hypothesis after seeing the data, so every candidate
+    is screened for the one property a dependent variable needs first - that it
+    varies between the candidate arm and its controls.
+    """
+
+    @staticmethod
+    def _rows(tokens_by_arm, edited=5):
+        out = []
+        for arm, toks in tokens_by_arm.items():
+            for i, t in enumerate(toks):
+                out.append(result(arm, 1.0, markers=0, tokens=t,
+                                  pid=f"p{i}", edited=edited))
+        return out
+
+    def test_a_constant_readout_is_not_usable(self):
+        s = screen_outcomes(self._rows({
+            "ablate_dir": [10, 10], "random_dir": [10, 10],
+            "matched_position": [10, 10]}))
+        assert s["outcomes"]["continuation_tokens"]["varies"] is False
+        assert "continuation_tokens" not in s["usable_outcomes"]
+        assert s["outcomes"]["marker_delta"]["varies"] is False
+
+    def test_a_readout_that_separates_the_arms_is_usable(self):
+        s = screen_outcomes(self._rows({
+            "ablate_dir": [40, 50], "random_dir": [10, 12],
+            "matched_position": [11, 13]}))
+        entry = s["outcomes"]["continuation_tokens"]
+        assert entry["varies"] and entry["separates_arms"]
+        assert "continuation_tokens" in s["usable_outcomes"]
+        assert entry["by_arm"]["ablate_dir"]["mean"] == pytest.approx(45.0)
+
+    def test_variation_without_arm_separation_is_not_usable(self):
+        """Noise inside every arm is not a signal between them."""
+        s = screen_outcomes(self._rows({
+            "ablate_dir": [10, 30], "random_dir": [30, 10],
+            "matched_position": [20, 20]}))
+        entry = s["outcomes"]["continuation_tokens"]
+        assert entry["varies"] is True
+        assert entry["separates_arms"] is False
+        assert "continuation_tokens" not in s["usable_outcomes"]
+
+    def test_a_broken_intervention_is_named_as_such(self):
+        """The defect the screen exists to surface: if no arm edited anything,
+        the arms equal the baseline by construction and no readout can
+        distinguish them. That is not a negative result."""
+        s = screen_outcomes(self._rows({
+            "ablate_dir": [10, 10], "random_dir": [10, 10],
+            "matched_position": [10, 10]}, edited=0))
+        assert s["interventions_were_no_ops"] is True
+        assert "broken independent variable" in s["warning"]
+        assert s["arms_that_edited_nothing"] == 6
+
+    def test_a_working_intervention_is_not_flagged(self):
+        s = screen_outcomes(self._rows({
+            "ablate_dir": [40, 50], "random_dir": [10, 12],
+            "matched_position": [11, 13]}, edited=7))
+        assert "interventions_were_no_ops" not in s
+        assert s["arms_that_edited_nothing"] == 0
+
+    def test_the_pre_registered_readout_is_marked(self):
+        s = screen_outcomes(self._rows({"ablate_dir": [10], "random_dir": [10],
+                                        "matched_position": [10]}))
+        flagged = [n for n, e in s["outcomes"].items() if e["pre_registered"]]
+        assert flagged == ["marker_delta"]
+
+    def test_the_screen_rides_along_with_the_verdict(self):
+        rows = self._rows({"ablate_dir": [40], "random_dir": [10],
+                           "matched_position": [11]})
+        v = direction_claim_supported(rows)
+        assert "outcome_screen" in v
+        assert v["supported"] is None          # marker readout still constant
+        assert "continuation_tokens" in v["outcome_screen"]["usable_outcomes"]
+
+    def test_no_results_at_all(self):
+        s = screen_outcomes([])
+        assert s["n_direction_results"] == 0
+        assert s["usable_outcomes"] == []

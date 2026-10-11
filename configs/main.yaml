@@ -9,7 +9,19 @@
 #
 # Every stage is resumable and checkpoints per problem, so the achieved N is
 # whatever completed - and the achieved N, not the configured N, is what the
-# execution report states.
+# execution report states. The problem order is interleaved by dataset, so a
+# run stopped partway is still a proportional sample of both benchmarks rather
+# than all of GSM8K and none of MATH.
+#
+# Sizing against the primary question. The O3 head-to-head is a McNemar test
+# over problems, so its power comes from *discordant* problems - those where
+# one rule preserved the verified outcome and the other did not. On the pilot
+# that rate was 4/21 = 0.190, and eight discordant problems are needed to
+# clear q = 0.05 in a family of five evaluable tests, which is about 42
+# problems in the NLA arm. `scripts/size_o3_corpus.py` recomputes this from
+# whatever run it is pointed at; at 80 problems the simulated power is 0.99 if
+# discordances keep falling the pilot's way and 0.71 if one in ten favours the
+# readout.
 
 run_id: main
 description: "Main experiment - GSM8K + MATH, full stage coverage."
@@ -19,8 +31,22 @@ data:
   n_math: 100
 
 generation:
-  max_new_tokens: 640
+  # 768 rather than 640. The pilot ran at 512 and three of ten MATH traces hit
+  # the cap - and those three were exactly the three with no detectable tail,
+  # because a truncated trace has no final answer for the criteria to be
+  # stable about. The cap was showing up as a result, and biasing the corpus
+  # towards problems the model could finish in the budget.
+  max_new_tokens: 768
   batch_size: 4
+  # 24 tokens cut the forced completion off mid-derivation on 40.7% of
+  # evaluated boundaries in the pilot, and on 24.1% the cut was *blocking*:
+  # criterion 1 failed while every resampled continuation from the same prefix
+  # reached the final answer. That makes the measured tail a floor rather than
+  # an estimate - counting those boundaries as satisfying criterion 1 moved
+  # the mean tail fraction from 0.356 to 0.486. Forcing is one completion per
+  # boundary against K=5 continuations of 200 tokens, so this is a ~2% cost
+  # increase to remove a 24% false-negative rate on the stage's own criterion.
+  force_answer_max_new_tokens: 48
 
 ast:
   k_continuations: 5

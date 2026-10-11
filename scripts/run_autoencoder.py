@@ -34,6 +34,7 @@ import numpy as np
 from _stage import base_parser, setup, should_skip
 
 from nlaast.activations.store import ActivationStore
+from nlaast.data import datasets
 from nlaast.logging_utils import JsonlWriter, read_jsonl, write_json, write_jsonl
 from nlaast.models import loading
 from nlaast.nla.reconstructor import (
@@ -95,11 +96,22 @@ def main() -> int:
     log.info("%d/%d problems have a detected tail", len(with_tail), len(ast_rows))
     cap = args.limit or (cfg.nla.max_problems or None)
     if cap and len(with_tail) > cap:
-        # Deterministic prefix by problem id, so a resumed or extended run
-        # keeps the same NLA subset rather than drifting to new problems.
-        with_tail = sorted(with_tail, key=lambda r: r["problem_id"])[:cap]
-        log.info("NLA arm capped at %d problems (nla.max_problems); the "
-                 "behavioural arms keep the full set", len(with_tail))
+        # Proportional by dataset, with a deterministic prefix inside each, so
+        # a resumed or extended run keeps the same NLA subset rather than
+        # drifting to new problems. A plain prefix of the sorted ids would
+        # take every GSM8K problem before any MATH one, and the primary O3
+        # comparison is computed on whatever this arm covers.
+        before = {r.get("dataset") for r in with_tail}
+        with_tail = datasets.stratified_cap(with_tail, cap)
+        after: dict[str, int] = {}
+        for r in with_tail:
+            after[r.get("dataset")] = after.get(r.get("dataset"), 0) + 1
+        log.info("NLA arm capped at %d problems (nla.max_problems), "
+                 "proportional by dataset: %s; the behavioural arms keep the "
+                 "full set", len(with_tail), after)
+        if before - set(after):
+            log.warning("the NLA cap dropped these datasets entirely: %s",
+                        sorted(before - set(after)))
     if not with_tail:
         manifest.finish_stage(STAGE, status="skipped",
                               metrics={"reason": "no problem has a detected tail"})

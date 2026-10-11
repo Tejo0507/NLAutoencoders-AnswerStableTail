@@ -230,6 +230,41 @@ def rate_difference_ci(
     )
 
 
+def paired_rate_difference_ci(
+    b_only: int, c_only: int, n: int, confidence: float = 0.95
+) -> Interval:
+    """Interval for a difference of two *paired* proportions.
+
+    ``rate_difference_ci`` assumes the two proportions are independent, which
+    is exactly what a matched comparison is not: both rules are scored on the
+    same problems, and ignoring that pairing misstates the uncertainty.
+
+    Only the discordant problems carry information. Writing ``d`` for their
+    count, the difference in rates is ``(b - c) / n = (d / n) * (2 * phi - 1)``
+    with ``phi = b / d``, which is monotone in ``phi``. A Clopper-Pearson
+    interval for ``phi`` therefore maps straight onto one for the difference,
+    and conditions on ``d`` just as McNemar's exact test does.
+    """
+    from scipy import stats
+
+    if n == 0:
+        return Interval(float("nan"), float("nan"), float("nan"), confidence, 0)
+    d = b_only + c_only
+    est = (b_only - c_only) / n
+    if d == 0:
+        # No problem was handled differently, so the difference is exactly 0.
+        return Interval(0.0, 0.0, 0.0, confidence, n, method="conditional_exact")
+    ci = stats.binomtest(b_only, d, 0.5).proportion_ci(
+        confidence_level=confidence, method="exact")
+    scale = d / n
+    return Interval(
+        estimate=est,
+        low=float(scale * (2 * ci.low - 1)),
+        high=float(scale * (2 * ci.high - 1)),
+        confidence=confidence, n=n, method="conditional_exact",
+    )
+
+
 # --- Tests ---
 
 
@@ -274,6 +309,73 @@ def paired_test(
         interval=paired_difference(arr_a, arr_b, n_iterations, confidence, seed),
         n=int(arr_a.size),
         notes={"test": "wilcoxon_signed_rank", "cliffs_delta": cliffs_delta(arr_a, arr_b)},
+    )
+
+
+def paired_binary_test(
+    name: str,
+    a: Sequence[bool],
+    b: Sequence[bool],
+    confidence: float = 0.95,
+) -> TestResult:
+    """McNemar's exact test on two binary outcomes measured on the same units.
+
+    The matched-budget comparison needs this because its outcome is per
+    problem and binary - stopping there either preserved the verified outcome
+    or it did not - and the unit of analysis has to be the problem.
+
+    Pairing over *budget levels* instead is what this replaces, and it does
+    not merely lose power, it manufactures it. Each rule's curve is a step
+    function, so a span of requested budgets resolves to a handful of distinct
+    operating points, and asking for more budgets copies the same comparison
+    rather than adding evidence. On the pilot all nine budgets landed on one
+    operating-point pair, safe rates 0.095 against 0.286, and the signed-rank
+    test over nine identical differences returned p = 2^-8 = 0.0039. The same
+    data with five budgets gives 0.0625 and with twenty-five gives 1e-6: the
+    p-value was a function of the grid size.
+
+    Only the discordant problems carry information, so the exact binomial form
+    is used rather than the chi-square approximation, which is unreliable when
+    that count is small - and on 21 problems it is.
+    """
+    from scipy import stats
+
+    pairs = [(bool(x), bool(y)) for x, y in zip(a, b)]
+    if not pairs:
+        return TestResult(name, float("nan"), float("nan"), float("nan"),
+                          "odds_ratio_discordant", n=0,
+                          notes={"skipped": "no paired observations"})
+    b_only = sum(1 for x, y in pairs if x and not y)   # a safe, b not
+    c_only = sum(1 for x, y in pairs if y and not x)   # b safe, a not
+    n_disc = b_only + c_only
+    rate_a = sum(1 for x, _ in pairs if x) / len(pairs)
+    rate_b = sum(1 for _, y in pairs if y) / len(pairs)
+    notes = {
+        "test": "mcnemar_exact",
+        "n_problems": len(pairs),
+        "n_discordant": n_disc,
+        "a_safe_b_not": b_only,
+        "b_safe_a_not": c_only,
+        "safe_rate_a": rate_a,
+        "safe_rate_b": rate_b,
+        "unit_of_analysis": "problem",
+    }
+    if n_disc == 0:
+        notes["skipped"] = (
+            "no discordant problems: the two rules preserved the outcome on "
+            "exactly the same problems, so there is nothing to test")
+        return TestResult(name, float("nan"), float("nan"), float("nan"),
+                          "odds_ratio_discordant", n=len(pairs), notes=notes,
+                          interval=paired_rate_difference_ci(
+                              b_only, c_only, len(pairs), confidence))
+    p = float(stats.binomtest(b_only, n_disc, 0.5).pvalue)
+    # Reported on the discordant pairs, which are the only ones that differ.
+    effect = float("inf") if c_only == 0 else b_only / c_only
+    return TestResult(
+        name=name, statistic=float(b_only), p_value=p,
+        effect=effect, effect_name="odds_ratio_discordant",
+        interval=paired_rate_difference_ci(b_only, c_only, len(pairs), confidence),
+        n=len(pairs), notes=notes,
     )
 
 
