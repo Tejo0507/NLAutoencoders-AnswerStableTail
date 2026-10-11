@@ -535,34 +535,70 @@ def _o3_verdict(results: dict) -> str:
         return ""
 
     ran = [t for t in tests if t.get("notes", {}).get("direction")]
-    unmatched = [t for t in tests if t.get("notes", {}).get("skipped")]
+    unmatched = [t for t in tests
+                 if t.get("notes", {}).get("skipped") and not
+                 t.get("notes", {}).get("direction")]
 
     out = ["### Verdict on the primary question", ""]
     if ran:
-        out += ["| compared against | NLA safe rate | its safe rate | budgets | "
-                "direction | q |", "|---|---|---|---|---|---|"]
+        # Discordant problems, not total ones, are the comparison's effective
+        # sample size: safety is binary per problem and the rules are scored
+        # on the same problems, so only the problems they disagree about carry
+        # any information.
+        out += ["| compared against | NLA safe rate | its safe rate | problems | "
+                "discordant | direction | q |",
+                "|---|---|---|---|---|---|---|"]
         for t in ran:
             n = t["notes"]
-            other = next(k for k in n
-                         if k.startswith("mean_safe_rate_") and k != "mean_safe_rate_nla")
-            label = other.replace("mean_safe_rate_", "")
+            other = next((k for k in n
+                          if k.startswith("safe_rate_") and k != "safe_rate_nla"),
+                         None)
+            if other is None:
+                continue
+            label = other.replace("safe_rate_", "")
+            disc = n.get("n_discordant")
+            disc_txt = "—" if disc is None else str(disc)
+            if disc:
+                disc_txt += f" ({n.get('b_safe_a_not', 0)} favour {label})"
             out.append(
-                f"| {label} | {n['mean_safe_rate_nla']:.3f} | {n[other]:.3f} | "
-                f"{n['n_budgets']} | **{n['direction']}** | "
+                f"| {label} | {_fmt(n.get('safe_rate_nla'), 3)} | "
+                f"{_fmt(n.get(other), 3)} | {n.get('n_problems', '—')} | "
+                f"{disc_txt} | **{n['direction']}** | "
                 f"{_fmt(t.get('q_value'), 4)} |")
         out.append("")
+        tied = [t for t in ran if t["notes"].get("n_discordant") == 0]
+        if tied:
+            for t in tied:
+                name = t["name"].split("minus ", 1)[-1].split(" at ")[0]
+                out += [
+                    f"Against **{name}** the two rules are not merely close, "
+                    f"they are identical: zero discordant problems, so they "
+                    f"preserved the verified outcome on exactly the same "
+                    f"problems. There is nothing to test rather than nothing "
+                    f"to see.", ""]
         worse = [t for t in ran if t["notes"]["direction"] == "nla_readout worse"]
         better = [t for t in ran if t["notes"]["direction"] == "nla_readout better"]
+        sig = [t for t in ran if t.get("significant")]
         if worse and not better:
             out += [
                 "**The verbalised readout does not beat the cheap signals on "
-                "this corpus — it loses to them.** Where the comparison can be "
-                "made at genuinely matched budget, the readout's safe-stopping "
-                "rate is lower. A significant q here is evidence *against* the "
-                "readout's incremental value, not for it.", "",
-                "The review named this as an acceptable outcome in advance and "
-                "it is reported with the same weight a positive result would "
-                "have had.", ""]
+                "this corpus.** Where the comparison can be made at genuinely "
+                "matched budget, the readout's safe-stopping rate is no higher "
+                "and is sometimes lower. A significant q here would be "
+                "evidence *against* the readout's incremental value, not for "
+                "it.", ""]
+            if not sig:
+                out += [
+                    "None of these differences is significant after "
+                    "correction. The direction is consistent and the corpus "
+                    "is too small to establish it: the comparison's effective "
+                    "sample size is its discordant problems, and "
+                    "`scripts/size_o3_corpus.py` reports how many would be "
+                    "needed.", ""]
+            out += [
+                "The review named a negative result as an acceptable outcome "
+                "in advance and it is reported with the same weight a positive "
+                "result would have had.", ""]
         elif better and not worse:
             out += ["The readout's safe-stopping rate is higher wherever the "
                     "comparison can be made at matched budget.", ""]
@@ -574,13 +610,23 @@ def _o3_verdict(results: dict) -> str:
             out.append(f"- against **{name}**: {t['notes']['skipped']}")
         out += ["",
                 "These stay in the pre-registered test family as unevaluable "
-                "rather than being dropped from it. A rule's safety/saving "
-                "curve is a step function — it fires at a boundary or it does "
-                "not — and on a corpus of this size the steps are wide enough "
-                "that two curves need not have any operating point near a "
-                "shared budget. Comparing their nearest points anyway would "
-                "compare safety at different budgets, which is the one thing "
-                "the matched-budget design exists to prevent.", ""]
+                "rather than being dropped from it. Comparing their nearest "
+                "points anyway would compare safety at different budgets, "
+                "which is the one thing the matched-budget design exists to "
+                "prevent.", ""]
+        limited = [t for t in unmatched
+                   if (results.get("o3_unmatched") or {}).get(
+                       t["name"].split("minus ", 1)[-1].split(" at ")[0], {}
+                   ).get("granularity_limited")]
+        if limited:
+            out += [
+                "A larger corpus would **not** make these evaluable. The "
+                "thresholds are exhausted — the sweep enumerates every "
+                "operating point a curve can have — and the rule's score is "
+                "too coarse to put one in the shared budget window. A score "
+                "taking *d* distinct values admits at most *d* + 1 operating "
+                "points at any corpus size, so what is needed is a graded "
+                "score, not more problems.", ""]
     return "\n".join(out)
 
 

@@ -510,3 +510,173 @@ predated the code behind nearly every number in it.
 `start_stage` now records the commit each stage ran under, and the report lists
 the distinct ones — including, honestly, how many stages have no such record
 because they predate the change.
+
+---
+
+## D29. The matched-budget comparison is tested over problems
+
+The pilot's one significant primary finding was an artefact of a default.
+
+O3 reads each rule off its curve at a shared budget and compared the two safe
+rates with a Wilcoxon signed-rank test over the **nine requested budgets**.
+All nine resolved to a single pair of operating points — safe rates 0.095 and
+0.286 at every one of them — so the test saw nine copies of one comparison.
+Its p-value was therefore a function of how many budgets were asked for:
+
+| budgets | 3 | 5 | **9** | 15 | 25 |
+|---|---|---|---|---|---|
+| Wilcoxon p | 0.250 | 0.0625 | **0.0039** | 0.000108 | 0.000001 |
+
+Nine is `budget_grid`'s default, and 0.0039 was reported as q = 0.0065.
+
+Safety is a per-problem binary outcome and both rules are scored on the same
+problems, so the unit of analysis is the **problem**. `paired_binary_test`
+runs McNemar's exact test over problems and `paired_rate_difference_ci` gives
+the matching conditional-exact interval — `rate_difference_ci` assumes the two
+proportions are independent, which is precisely what a matched comparison is
+not. Repeated operating points are also collapsed before testing.
+
+On the same data the comparison against semantic entropy is 4 discordant
+problems of 21, all four favouring semantic entropy: **p = 0.125, q = 0.156**.
+The direction survives and the significance does not. The study's headline is
+now that the readout is directionally worse than semantic entropy on a corpus
+too small to establish it.
+
+---
+
+## D30. The threshold sweep enumerates the curve instead of sampling it
+
+Two of three head-to-heads were reported unevaluable for the wrong reason.
+
+Every rule was swept on 25 evenly spaced thresholds between its minimum and
+maximum score. That samples the *score axis*, so the result depends on how the
+scores happen to be distributed. The hidden-state probe's are logistic and
+saturate near 0 and 1, so 25 linear thresholds found 5 operating points and
+none within tolerance of a shared budget — and the comparison was recorded as
+"not evaluable on this corpus", implying a sample-size limit.
+
+A curve can only change at a threshold that crosses an observed score, so
+`complete_threshold_grid` sweeps the observed values and enumerates every
+achievable operating point exactly. The same 21 problems then give the probe
+**86** operating points and a match at all nine budgets, where it turns out to
+be *exactly tied* with the readout: zero discordant problems, identical safe
+rates, the two rules preserving the outcome on the same problems.
+
+`budget_grid` now also excludes operating points that save nothing. Every
+complete curve has one — the threshold above which the rule never fires — and
+matching two rules there compares nothing, since neither stops and both are
+trivially safe.
+
+---
+
+## D31. An unmatched comparison says whether more data would help
+
+With the thresholds exhausted, a comparison that still cannot be matched is
+informative, and the two reasons it can happen call for opposite responses.
+
+`granularity_bound` reports the most operating points a rule's curve can ever
+have: a score taking `d` distinct values admits at most `d + 1` thresholds
+that behave differently, **at any corpus size**. The agreement rule's score is
+1.0 once the last `window` answers agree and 0.0 otherwise, so `d = 2` and its
+curve has three points on 21 problems and three on 21,000. Its two savings,
+0.407 and 0.885, straddle the budget window without entering it.
+
+That comparison is therefore not waiting for more data; it needs a graded
+score. The `baselines` stage records the bound per rule and warns when a score
+is this coarse, and O3 reports it as the reason rather than as a shortage of
+problems — which is what the pilot's resume notes had concluded.
+
+---
+
+## D32. The corpus is sized by discordant problems, not by configured N
+
+Because O3 is now a McNemar test, its power comes from **discordant**
+problems — those where one rule preserved the verified outcome and the other
+did not. Concordant problems contribute nothing however many there are, so
+sizing a run by its total N sizes it by the wrong quantity.
+
+`scripts/size_o3_corpus.py` computes this from a completed run. Eight
+discordant problems are the fewest that can clear q = 0.05 in a family of five
+evaluable tests, and at the pilot's observed rate of 4/21 = 0.190 that is
+about **42 problems in the NLA arm**. Simulated power at 80 problems is 0.99
+if discordances keep falling the pilot's way and 0.71 if one in ten favours
+the readout.
+
+This is why `main.yaml` keeps 250 problems rather than being cut: the arms are
+resumable and the order is now interleaved (D33), so the run can be stopped
+once the primary comparison has the discordant problems it needs, and the
+achieved N is a valid sample at whatever point that is.
+
+---
+
+## D33. Any prefix of a run is a proportional sample
+
+`main.yaml` states that the achieved N, not the configured N, is what the
+report states — which is only sound if stopping early leaves a usable corpus.
+It did not. `load_problems` concatenated the datasets, so all 150 GSM8K
+problems preceded all 100 MATH ones and a run halted at 120 would have held no
+MATH at all: F2 would have had one arm, every pooled quantity would have been
+biased towards the easier benchmark, and the output would have reported only
+the achieved N, not that the whole shortfall fell on one dataset.
+
+`interleave_by_dataset` spreads each dataset across the order in proportion,
+so a prefix of 24 holds 14 GSM8K and 10 MATH and a prefix of 120 holds 72 and
+48. The order depends only on the group sizes, so a resumed run keeps it.
+
+The NLA arm's cap had the same defect and worse consequences. It took its
+subset as a prefix of the sorted problem ids, and ids sort `gsm8k-...` before
+`math-...`, so `nla.max_problems: 80` on 250 problems would have selected 80
+GSM8K problems and no MATH — and the primary O3 head-to-head is computed on
+whatever that arm covers. `stratified_cap` gives each dataset its proportional
+share, filled with a deterministic prefix within the dataset so the subset
+stays stable as the corpus grows.
+
+---
+
+## D34. The direction interventions are verified to have happened
+
+Three of the five causal arms were no-ops, and nothing said so.
+
+`projection_editor` restricted its edit to `[start, end)` **absolute token
+positions**, but applied the span as an index into whatever tensor the forward
+hook received. The arms edit the generated continuation, so the span starts at
+the prompt length; cached decoding calls the hook once with the whole prompt
+and then once per new token with a sequence length of one, and the span never
+intersected either. The prompt call ends where the span begins and each decode
+call is one position wide.
+
+The pilot's own output is unambiguous once read for it: on all ten problems
+`ablate_dir` returned identical answers and identical token counts at
+coefficients 0.0, 1.0 and 2.0, and dose 0.0 is a no-op by definition.
+
+The editor now carries a position counter, and — the part that matters more —
+counts the positions it actually modified. The stage records that per result
+and warns when a non-zero dose edits nothing, and the outcome screen reports
+the arm set as a broken independent variable rather than as a negative result.
+The defect survived a completed run because nothing asserted that the
+intervention had occurred.
+
+This revises what RQ3's failure consisted of. It was recorded as a missing
+dependent variable, with the direction fittable and the marker readout empty.
+Both were true; the independent variable was also not being applied.
+
+---
+
+## D35. A replacement readout for RQ3 is screened, not chosen
+
+The pre-registered RQ3 readout is the change in rechecking-marker count and it
+is identically zero on this model (D27). Swapping in whichever alternative
+produces the nicest answer would be choosing the hypothesis after seeing the
+data.
+
+`screen_outcomes` instead reports every candidate readout against the one
+property a dependent variable needs before it can test anything: that it
+varies, and that it separates the candidate arm from its controls. The verdict
+is still computed from the pre-registered readout. The screen says which
+readout a *later* pre-registration could use.
+
+`continuation_tokens` is the leading candidate — already recorded, continuous,
+and a question about how much further the model writes rather than about what
+the text means, which section 2.1.6 of `Project_Review_II.md` rules out.
+Whether it separates the arms cannot be known until the arms do something,
+which needs D34's fix and a GPU pass.

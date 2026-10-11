@@ -15,7 +15,7 @@ import hashlib
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Iterable, Literal, Sequence
 
 from .. import paths
 from ..config import DataConfig
@@ -121,14 +121,89 @@ def _take_stratified(problems: list[Problem], n: int, salt: int) -> list[Problem
     return sorted(ordered[:n], key=lambda p: p.id)
 
 
-def load_problems(cfg: DataConfig) -> list[Problem]:
-    """The study's problem set: validated, subsampled, deterministically split."""
-    out: list[Problem] = []
-    if "gsm8k" in cfg.datasets:
-        out += _take_stratified(load_gsm8k(cfg), cfg.n_gsm8k, cfg.seed)
-    if "math" in cfg.datasets:
-        out += _take_stratified(load_math(cfg), cfg.n_math, cfg.seed)
+def interleave_by_dataset(groups: Sequence[Sequence[Problem]]) -> list[Problem]:
+    """Order the problem set so that every prefix of it is representative.
+
+    Every stage checkpoints per problem and resumes, so the achieved N is
+    whatever completed - which is only a usable sample if stopping early
+    leaves a balanced corpus. Concatenating the datasets does not: it puts all
+    150 GSM8K problems before all 100 MATH ones, so a run halted at 120 has no
+    MATH at all. That silently rules out F2, which compares tail fraction
+    between benchmarks, and biases every pooled quantity towards the easier
+    dataset.
+
+    Each group is therefore spread evenly across the whole order by largest
+    remainder on its own position, which keeps each prefix close to the
+    configured proportions. The order is a deterministic function of the
+    group sizes, so it does not depend on the seed and a resumed run keeps
+    the order it started with.
+    """
+    present = [list(g) for g in groups if g]
+    if len(present) <= 1:
+        return [p for g in present for p in g]
+    total = sum(len(g) for g in present)
+    # Position each item at (its index + 0.5) / group size, so groups of
+    # different sizes interleave in proportion rather than in blocks.
+    keyed = [
+        ((i + 0.5) / len(g), gi, i, p)
+        for gi, g in enumerate(present)
+        for i, p in enumerate(g)
+    ]
+    keyed.sort(key=lambda t: (t[0], t[1], t[2]))
+    assert len(keyed) == total
+    return [t[3] for t in keyed]
+
+
+def stratified_cap(rows: Sequence[dict], cap: int, key: str = "dataset") -> list[dict]:
+    """Take ``cap`` rows while keeping each stratum's share of the whole.
+
+    An arm that can only afford a subset still has to be a subset *of this
+    corpus*. Taking a prefix of the ids does not qualify: problem ids sort as
+    ``gsm8k-...`` before ``math-...``, so capping 220 problems at 80 by sorted
+    id yields 80 GSM8K problems and no MATH. The NLA arm is capped this way and
+    the primary O3 head-to-head is computed on the problems it covers, so that
+    prefix would have made the study's central comparison a GSM8K-only result
+    reported as a corpus-wide one.
+
+    Each stratum therefore gets its proportional share by largest remainder,
+    filled with a deterministic prefix of its own sorted ids so that a resumed
+    or extended run keeps the same subset instead of drifting onto new
+    problems.
+    """
+    rows = list(rows)
+    if cap <= 0 or len(rows) <= cap:
+        return rows
+    strata: dict[str, list[dict]] = {}
+    for r in rows:
+        strata.setdefault(str(r.get(key)), []).append(r)
+    names = sorted(strata)
+    exact = {s: cap * len(strata[s]) / len(rows) for s in names}
+    take = {s: min(len(strata[s]), int(exact[s])) for s in names}
+    # Largest remainder, then by stratum name, so the result is deterministic.
+    while sum(take.values()) < cap:
+        candidates = [s for s in names if take[s] < len(strata[s])]
+        if not candidates:
+            break
+        s = max(candidates, key=lambda s: (exact[s] - take[s], -names.index(s)))
+        take[s] += 1
+    out: list[dict] = []
+    for s in names:
+        out += sorted(strata[s], key=lambda r: str(r.get("problem_id", "")))[:take[s]]
     return out
+
+
+def load_problems(cfg: DataConfig) -> list[Problem]:
+    """The study's problem set: validated, subsampled, deterministically split.
+
+    Returned interleaved by dataset; see ``interleave_by_dataset`` for why the
+    order is part of the design rather than an accident of concatenation.
+    """
+    groups: list[list[Problem]] = []
+    if "gsm8k" in cfg.datasets:
+        groups.append(_take_stratified(load_gsm8k(cfg), cfg.n_gsm8k, cfg.seed))
+    if "math" in cfg.datasets:
+        groups.append(_take_stratified(load_math(cfg), cfg.n_math, cfg.seed))
+    return interleave_by_dataset(groups)
 
 
 def validate(problems: Iterable[Problem]) -> dict:

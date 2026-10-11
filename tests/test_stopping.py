@@ -17,7 +17,9 @@ from nlaast.baselines.stopping import (
     OperatingPoint,
     at_matched_budget,
     budget_grid,
+    complete_threshold_grid,
     evaluate_stop,
+    granularity_bound,
     sweep_threshold,
 )
 
@@ -113,6 +115,25 @@ class TestMatchedBudget:
         assert budget_grid({}) == []
         assert at_matched_budget([], 0.5) is None
 
+    def test_a_budget_of_no_saving_is_not_offered(self):
+        """Every complete curve contains a never-fires point. Matching two
+        rules there compares nothing: neither stops, both are trivially safe,
+        and the difference is identically zero."""
+        rows = [_problem("p1", [0.1, 0.5, 0.9], ["1", "2", "42"]),
+                _problem("p2", [0.2, 0.6, 0.8], ["1", "2", "42"])]
+        curve = sweep_threshold(rows, complete_threshold_grid(
+            [0.1, 0.5, 0.9, 0.2, 0.6, 0.8]))
+        assert any(p.mean_tokens_saved == 0.0 for p in curve)
+        assert all(g > 0 for g in budget_grid({"a": curve, "b": curve}))
+
+    def test_a_rule_that_only_ever_saves_nothing_drops_out(self):
+        never = [OperatingPoint(threshold=0.0, n=5, safe_rate=1.0, accuracy=0.5,
+                                mean_tokens_saved=0.0, fire_rate=0.0)]
+        real = sweep_threshold(
+            [_problem("p", [0.1, 0.5, 0.9], ["1", "2", "42"])],
+            complete_threshold_grid([0.1, 0.5, 0.9]))
+        assert all(g > 0 for g in budget_grid({"never": never, "real": real}))
+
 
 class TestMatchedMeansClose:
     """"Closest" is not "close", and the difference decides whether a
@@ -154,6 +175,96 @@ class TestMatchedMeansClose:
         from nlaast.baselines.stopping import MATCH_TOLERANCE
 
         assert 0 < MATCH_TOLERANCE <= 0.1
+
+
+class TestCompleteThresholdGrid:
+    """The sweep must enumerate the curve, not sample it.
+
+    A fixed linear grid depends on how the scores happen to be distributed.
+    On the pilot that cost a primary comparison: the probe's logistic scores
+    saturate near 0 and 1, so 25 evenly spaced thresholds found 5 operating
+    points and none within tolerance of a shared budget, and the head-to-head
+    was reported unevaluable. Swept at the observed values the same problems
+    give 86 points and match at every budget.
+    """
+
+    def test_every_observed_score_yields_an_operating_point(self):
+        rows = [_problem("p1", [0.1, 0.5, 0.9], ["1", "2", "42"])]
+        grid = complete_threshold_grid([0.1, 0.5, 0.9])
+        curve = sweep_threshold(rows, grid)
+        # Four distinct behaviours: fire at each of the three boundaries, or
+        # never. Two of them save the same - stopping at the final boundary
+        # saves nothing, exactly as not stopping does - so the behaviours are
+        # counted, not the savings.
+        assert len({(p.fire_rate, round(p.mean_tokens_saved, 9))
+                    for p in curve}) == 4
+
+    def test_it_finds_points_a_linear_grid_of_the_same_size_misses(self):
+        # Scores clustered at the extremes: a linear grid spends its points
+        # in the empty middle, where no problem changes its firing boundary.
+        scores = [0.001, 0.002, 0.003, 0.997, 0.998, 0.999]
+        rows = [_problem("p1", scores, ["1", "2", "3", "4", "5", "42"])]
+        linear = sweep_threshold(rows, list(np.linspace(0.001, 0.999, 7)))
+        complete = sweep_threshold(rows, complete_threshold_grid(scores))
+        n_linear = len({round(p.mean_tokens_saved, 9) for p in linear})
+        n_complete = len({round(p.mean_tokens_saved, 9) for p in complete})
+        assert n_complete > n_linear
+
+    def test_a_finer_grid_adds_nothing_once_the_values_are_swept(self):
+        """Exhaustive means exhaustive: no threshold between two adjacent
+        observed scores can produce a new operating point."""
+        scores = [0.2, 0.4, 0.6, 0.8]
+        rows = [_problem("p1", scores, ["1", "2", "3", "42"]),
+                _problem("p2", [0.3, 0.5, 0.7, 0.9], ["1", "2", "3", "42"])]
+        all_scores = scores + [0.3, 0.5, 0.7, 0.9]
+        exhaustive = sweep_threshold(rows, complete_threshold_grid(all_scores))
+        dense = sweep_threshold(rows, list(np.linspace(0.0, 1.0, 20001)))
+        assert ({round(p.mean_tokens_saved, 9) for p in exhaustive}
+                == {round(p.mean_tokens_saved, 9) for p in dense})
+
+    def test_no_finite_scores(self):
+        assert complete_threshold_grid([]) == []
+        assert complete_threshold_grid([None, float("nan")]) == []
+
+    def test_a_constant_score_still_has_both_ends(self):
+        curve = sweep_threshold(
+            [_problem("p", [0.5, 0.5, 0.5], ["42"] * 3)],
+            complete_threshold_grid([0.5, 0.5]))
+        assert max(p.fire_rate for p in curve) == 1.0
+        assert min(p.fire_rate for p in curve) == 0.0
+
+
+class TestGranularityBound:
+    """Which unmatched comparisons a larger corpus would unblock.
+
+    A score taking d distinct values admits at most d + 1 thresholds that
+    behave differently, so adding problems cannot add operating points. The
+    agreement rule's score is 1.0 once the last `window` answers agree and 0.0
+    otherwise, so its curve has three points on 21 problems and three on
+    21,000 - which is why its head-to-head is not waiting for more data.
+    """
+
+    def test_a_binary_score_is_bounded_at_three(self):
+        assert granularity_bound([0.0, 1.0, 1.0, 0.0, 1.0]) == 3
+
+    def test_the_bound_does_not_move_with_more_problems(self):
+        few = granularity_bound([0.0, 1.0] * 10)
+        many = granularity_bound([0.0, 1.0] * 10_000)
+        assert few == many == 3
+
+    def test_the_bound_is_honoured_by_an_exhaustive_sweep(self):
+        scores = [0.0, 1.0]
+        rows = [_problem(f"p{i}", [0.0, 1.0, 1.0], ["1", "42", "42"])
+                for i in range(50)]
+        curve = sweep_threshold(rows, complete_threshold_grid(scores))
+        assert (len({round(p.mean_tokens_saved, 9) for p in curve})
+                <= granularity_bound(scores))
+
+    def test_a_continuous_score_is_not_bounded_low(self):
+        assert granularity_bound(list(np.linspace(0, 1, 272))) == 273
+
+    def test_non_finite_scores_do_not_count(self):
+        assert granularity_bound([0.0, 1.0, None, float("nan")]) == 3
 
 
 class TestSemanticEntropy:

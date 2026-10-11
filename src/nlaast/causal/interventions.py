@@ -97,6 +97,23 @@ def projection_editor(
     ``[start, end)`` absolute token positions, leaving the rest of the sequence
     untouched - without that, the "tail" intervention would be a whole-sequence
     intervention and could not distinguish the tail from anything else.
+
+    **Absolute means absolute across the whole generation, not an index into
+    whatever tensor this call happens to receive.** Cached decoding calls the
+    hook once with the whole prompt and then once per new token with a
+    sequence length of 1, so a span taken as an index into ``hidden`` is
+    clipped away to nothing: the causal stage edits the *generated*
+    continuation, whose positions all lie at or beyond the prompt length, and
+    every arm silently became a no-op. The pilot's dose sweep returned
+    byte-identical answers and token counts at coefficients 0.0, 1.0 and 2.0
+    on all ten problems, which is what a no-op looks like when nothing checks.
+
+    The editor therefore tracks how many positions it has been shown and maps
+    the span onto each call. This assumes one contiguous left-to-right pass
+    per ``reset()`` - true of greedy and sampled decoding, false of beam
+    search, which is not used here. ``edit.n_positions_edited`` counts the
+    positions actually modified so a caller can assert the intervention
+    happened rather than trusting that it did.
     """
     import torch
 
@@ -106,25 +123,39 @@ def projection_editor(
         raise ValueError("direction must be non-zero")
     d = d / n
     d_t = torch.from_numpy(d)
+    state = {"seen": 0, "edited": 0}
 
     def edit(hidden):
         nonlocal d_t
         if d_t.device != hidden.device or d_t.dtype != hidden.dtype:
             d_t = d_t.to(hidden.device, hidden.dtype)
+        width = hidden.shape[1]
+        offset = state["seen"]
+        state["seen"] = offset + width
         if span is None:
-            lo, hi = 0, hidden.shape[1]
+            lo, hi = 0, width
         else:
-            lo, hi = span
-            lo = max(0, min(lo, hidden.shape[1]))
-            hi = max(lo, min(hi, hidden.shape[1]))
+            # Intersect the absolute span with the absolute window this call
+            # covers, then express it relative to the tensor.
+            lo = max(span[0] - offset, 0)
+            hi = min(span[1] - offset, width)
         if hi <= lo:
             return hidden
         out = hidden.clone()
         seg = out[:, lo:hi, :]
         proj = (seg @ d_t).unsqueeze(-1) * d_t
         out[:, lo:hi, :] = seg - coefficient * proj
+        state["edited"] += hi - lo
+        edit.n_positions_edited = state["edited"]
         return out
 
+    def reset() -> None:
+        state["seen"] = 0
+        state["edited"] = 0
+        edit.n_positions_edited = 0
+
+    edit.n_positions_edited = 0
+    edit.reset = reset
     return edit
 
 
@@ -229,6 +260,111 @@ def dose_response(results: Sequence[InterventionResult], arm: str) -> list[dict[
     return out
 
 
+#: Candidate behavioural readouts for RQ3, each a per-result scalar.
+#:
+#: The pre-registered one is the marker delta, and it stays the one the verdict
+#: is computed from. It is also identically zero on this model, which writes
+#: clean step-by-step derivations containing none of the twenty rechecking
+#: markers, so it has no power here and the gate correctly declines to answer.
+#:
+#: Choosing a replacement by looking at which one gives the nicest answer would
+#: be choosing the hypothesis after seeing the data. So every candidate is
+#: screened on the same run for the one property a dependent variable must have
+#: before it can test anything - that it varies - and the screen is reported
+#: beside the verdict as exploratory. The next run's screen says which readout
+#: a pre-registered test could use; it does not itself test the direction.
+#:
+#: ``continuation_tokens`` is the leading candidate because it is already
+#: recorded, is continuous, and asks how much further the model writes before
+#: concluding - a behavioural question that needs no judgement about what the
+#: text means. Project_Review_II section 2.1.6 rules out reading surface text
+#: as a log of the computation, and a token count does not.
+OUTCOMES: dict[str, Callable[[InterventionResult], float]] = {
+    "marker_delta": lambda r: float(
+        r.verification_markers - r.baseline_verification_markers),
+    "continuation_tokens": lambda r: float(r.tokens_generated),
+    "answer_changed": lambda r: float(r.answer_changed),
+    "correct": lambda r: float(r.correct),
+}
+
+#: Arms the screen looks at: the candidate direction and its two controls.
+_DIRECTION_ARMS = ("ablate_dir", "random_dir", "matched_position")
+
+
+def screen_outcomes(
+    results: Sequence[InterventionResult], compare_at: float = 1.0
+) -> dict[str, Any]:
+    """Which candidate readouts vary enough to be able to test anything.
+
+    A readout that is constant across the direction arms provides no test, and
+    that is a statement about power rather than about the hypothesis. This
+    reports, per candidate: whether it varies at all, its spread, and its mean
+    in each arm, so a reader can see which readouts were available and which
+    were empty rather than being shown only the one that was chosen.
+
+    It also reports whether the edit reached the computation. Three of the five
+    arms are direction edits, and if their spans never intersected the forward
+    pass they reproduce the baseline exactly - which looks like a readout with
+    no effect instead of an intervention that did not happen.
+    """
+    rows = [r for r in results if r.intervention in _DIRECTION_ARMS]
+    edited = [int((r.notes or {}).get("n_positions_edited", -1)) for r in rows]
+    known = [e for e in edited if e >= 0]
+    out: dict[str, Any] = {
+        "n_direction_results": len(rows),
+        "edit_positions_recorded": len(known),
+        "arms_that_edited_nothing": sum(
+            1 for r, e in zip(rows, edited)
+            if e == 0 and abs(r.coefficient) > 1e-9),
+        "outcomes": {},
+    }
+    if known and all(e == 0 for e in known):
+        out["interventions_were_no_ops"] = True
+        out["warning"] = (
+            "every direction arm edited zero positions, so the arms are "
+            "identical to the unintervened baseline by construction and no "
+            "readout can distinguish them; this is a broken independent "
+            "variable, not a negative result")
+    for name, fn in OUTCOMES.items():
+        vals = [fn(r) for r in rows]
+        finite = [v for v in vals if np.isfinite(v)]
+        entry: dict[str, Any] = {
+            "varies": len(set(finite)) > 1,
+            "n": len(finite),
+            "n_distinct": len(set(finite)),
+            "mean": float(np.mean(finite)) if finite else float("nan"),
+            "sd": float(np.std(finite)) if len(finite) > 1 else 0.0,
+            "by_arm": {},
+        }
+        for arm in _DIRECTION_ARMS:
+            sel = [fn(r) for r in rows
+                   if r.intervention == arm
+                   and abs(r.coefficient - compare_at) < 1e-9]
+            sel = [v for v in sel if np.isfinite(v)]
+            entry["by_arm"][arm] = {
+                "n": len(sel),
+                "mean": float(np.mean(sel)) if sel else float("nan"),
+            }
+        # Varying overall is necessary but not sufficient: the readout also has
+        # to differ between the candidate and its controls to carry a test.
+        means = [entry["by_arm"][a]["mean"] for a in _DIRECTION_ARMS]
+        finite_means = [m for m in means if np.isfinite(m)]
+        entry["separates_arms"] = (
+            len(finite_means) >= 2
+            and float(np.max(finite_means) - np.min(finite_means)) > 0.0)
+        entry["pre_registered"] = name == "marker_delta"
+        out["outcomes"][name] = entry
+    usable = [n for n, e in out["outcomes"].items()
+              if e["varies"] and e["separates_arms"]]
+    out["usable_outcomes"] = usable
+    out["note"] = (
+        "exploratory. The verdict is computed from the pre-registered "
+        "marker_delta; these are reported so that a readout with power can be "
+        "pre-registered for a later run, not so that one can be chosen now "
+        "because it gave the preferred answer.")
+    return out
+
+
 def direction_claim_supported(
     results: Sequence[InterventionResult], compare_at: float = 1.0
 ) -> dict[str, Any]:
@@ -317,6 +453,7 @@ def direction_claim_supported(
             "ablate_dir": summarise_arm(results, "ablate_dir").to_dict(),
         },
         "dose_response": curve,
+        "outcome_screen": screen_outcomes(results, compare_at),
         "note": ("the three arms above are read at the same projection "
                  "coefficient; ablate_dir's full sweep is dose_response"),
     }

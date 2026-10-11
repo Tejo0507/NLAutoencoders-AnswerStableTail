@@ -9,12 +9,12 @@ already settled — beyond what much cheaper signals already say?*
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-under%20development-orange)]()
 
-> **Pilot complete; main run not attempted.** The pipeline has been run end to
-> end at pilot scale — 24 problems, all 13 stages, the released autoencoder,
-> and the full nine-test falsification battery. The findings below are real and
-> come from that run. **Twenty-four problems is a pilot**: every interval is
-> wide, two of the three planned head-to-head comparisons could not be made at
-> all, and nothing here is a claim about language models in general. Section
+> **Pilot complete; the main run is in progress.** The pipeline has been run
+> end to end at pilot scale — 24 problems, all 13 stages, the released
+> autoencoder, and the full nine-test falsification battery. The findings below
+> are real and come from that run. **Twenty-four problems is a pilot**: every
+> interval is wide, no primary comparison reaches significance, and nothing
+> here is a claim about language models in general. Section
 > [Current state](#current-state) says what ran and what it found;
 > [`docs/STATUS.md`](docs/STATUS.md) gives the detail and
 > `runs/pilot/report/RESULTS.md` is the execution report. `runs/` itself is
@@ -121,11 +121,11 @@ NF4 and run.
 
 | | |
 |---|---|
-| **The answer to the primary question is no.** | Of three planned head-to-head comparisons at matched token budget, only one could be made on 21 problems — and it goes **against** the readout: safe-stopping rate **0.095** versus semantic entropy's **0.286** (q = 0.0065). The other two have no operating point near a shared budget and stay in the family as unevaluable. The review named this as an acceptable outcome in advance. |
+| **The answer to the primary question is no, and the corpus is too small to say it firmly.** | Two of three head-to-head comparisons at matched token budget can be made on 21 problems, and neither favours the readout. Against semantic entropy its safe-stopping rate is **0.095** against **0.286**, but that rests on **4 discordant problems of 21** — all four falling the same way — which is q = 0.156, not significant. Against the hidden-state probe it is **exactly tied**: zero discordant problems, the same outcome preserved on the same problems. The third, against the agreement rule, is unevaluable **at any corpus size**, because that rule's score is binary and its curve has three operating points however many problems are added. The review named a negative result as an acceptable outcome in advance. |
 | **But the claims it makes are reconstruction-dependent.** | 967 claims over 246 explanations: **0.759** degrade reconstruction more when deleted than a meaning-preserving paraphrase does, only **0.003** are reproduced from matched-norm noise, giving **0.756** dependent-and-not-noise. Length-adjusted the rate is 0.781, and the noise rate is flat across thresholds. |
 | **Fidelity is not tail-specific.** | Tail windows reconstruct at cosine **0.870**, a matched *pre-stabilisation* window at **0.869**, a matched-length window elsewhere at 0.859. F10's answer: the readout describes a late mathematical-reasoning state about equally well wherever it is sampled. The Gaussian control at 0.391 is what shows it is doing anything. |
 | **Removing the tail changes no answer.** | Truncating at the tail start, and replacing the tail with matched-length filler, both leave accuracy at **0.800** — identical to the unintervened baseline — on 10 of 10 eval problems. |
-| **RQ3 is untested, not refuted.** | The causal gate's readout, a rechecking-marker count, is **identically zero across all 24 traces**: this model writes clean derivations with no "wait" or "let me check". With a constant outcome nothing can be beaten or missed, so the gate reports `null`, not `false`. |
+| **RQ3 is untested, not refuted — twice over.** | The causal gate's readout, a rechecking-marker count, is **identically zero across all 24 traces**: this model writes clean derivations with no "wait" or "let me check". With a constant outcome nothing can be beaten or missed, so the gate reports `null`, not `false`. And the independent variable was not being applied either: all three direction arms were **no-ops**, editing token positions that the forward pass never contained, which is why dose 0.0, 1.0 and 2.0 returned byte-identical answers on all ten problems. Fixed and unit-tested; not yet re-run. |
 | **The 4-bit deviation is small.** | Layer-20 activations from the NF4 target match the bf16 ones at cosine **0.987** (median 0.991, min 0.937). The verbaliser normalises its input, so only direction reaches it; its integrity gate passed on 0.976 of samples against 0.786 for noise. The threat [`DECISIONS.md`](docs/DECISIONS.md) D2 identified is measured and small. |
 | **`tail_rate` is near its ceiling by construction.** | A tail exists on 21/24 — and the *final* boundary qualifies on 21/24, which is why: at the last boundary the prefix is the whole trace, so both criteria are near-tautological. The informative quantity is the tail **fraction**: mean 0.356, and tail tokens are 31.7% of all generated tokens. |
 | **Determinacy is not statement.** | On every problem with a tail, the tail begins *before* the trace states the answer — mean 2.19 chunks earlier. Forcing elicits the answer from the prefix. Right for a stopping rule; wrong for reading the window as post-answer verification. |

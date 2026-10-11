@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -31,8 +32,8 @@ from nlaast.analysis import tables
 from nlaast.analysis.stats import (
     TestResult,
     benjamini_hochberg,
+    paired_binary_test,
     paired_test,
-    rate_difference_ci,
     summarise_tests,
     unpaired_test,
 )
@@ -40,6 +41,9 @@ from nlaast.baselines.stopping import (
     MATCH_TOLERANCE,
     OperatingPoint,
     at_matched_budget,
+    complete_threshold_grid,
+    decisions_at,
+    granularity_bound,
 )
 from nlaast.logging_utils import read_json, read_jsonl, write_json
 
@@ -47,16 +51,17 @@ STAGE = "analysis"
 NLA_RULE = "nla_readout"
 
 
-def load_curves(cfg) -> tuple[dict, list[float]]:
+def load_curves(cfg) -> tuple[dict, list[float], dict]:
     path = cfg.dir / "baselines" / "curves.json"
     if not path.exists():
-        return {}, []
+        return {}, [], {}
     raw = read_json(path)
     curves = {
         rule: [OperatingPoint(**p) for p in pts]
         for rule, pts in raw.get("curves", {}).items()
     }
-    return curves, raw.get("matched_budgets", [])
+    return (curves, raw.get("matched_budgets", []),
+            raw.get("curve_resolution", {}))
 
 
 def nla_stopping_curve(cfg, log):
@@ -75,7 +80,7 @@ def nla_stopping_curve(cfg, log):
 
     recon = read_jsonl(cfg.dir / "nla" / "reconstructions.jsonl")
     if not recon:
-        return None, {"available": False, "reason": "no reconstructions"}
+        return None, {"available": False, "reason": "no reconstructions"}, []
 
     by_problem: dict[str, dict[int, list[float]]] = {}
     for r in recon:
@@ -84,7 +89,7 @@ def nla_stopping_curve(cfg, log):
         by_problem.setdefault(r["problem_id"], {}).setdefault(
             int(r["chunk_index"]), []).append(float(r["cosine"]))
     if not by_problem:
-        return None, {"available": False, "reason": "no usable reconstructions"}
+        return None, {"available": False, "reason": "no usable reconstructions"}, []
 
     traces = {t["problem_id"]: t for t in read_jsonl(cfg.dir / "traces" / "traces.jsonl")
               if t.get("ok")}
@@ -127,17 +132,23 @@ def nla_stopping_curve(cfg, log):
     vals = [s for row in per_problem for s in row["scores"]
             if s is not None and np.isfinite(s)]
     if not vals:
-        return None, {"available": False, "reason": "no finite NLA scores"}
-    thresholds = list(np.linspace(min(vals), max(vals), 25))
-    curve = sweep_threshold(per_problem, thresholds, higher_fires=True)
+        return None, {"available": False, "reason": "no finite NLA scores"}, []
+    curve = sweep_threshold(per_problem, complete_threshold_grid(vals),
+                            higher_fires=True)
     info = {"available": True, "n_problems": len(per_problem),
             "problem_ids": sorted(row["problem_id"] for row in per_problem),
-            "score": "mean reconstruction cosine at the boundary, carried forward"}
+            "score": "mean reconstruction cosine at the boundary, carried forward",
+            "curve_resolution": {
+                "n_distinct_scores": len({float(v) for v in vals}),
+                "max_operating_points_at_any_n": granularity_bound(vals),
+                "operating_points": len({round(p.mean_tokens_saved, 9)
+                                         for p in curve}),
+            }}
     log.info("NLA stopping curve built from %d problems", len(per_problem))
-    return curve, info
+    return curve, info, per_problem
 
 
-def baseline_curves_on(cfg, problem_ids, log) -> dict:
+def baseline_curves_on(cfg, problem_ids, log) -> tuple[dict, dict]:
     """Re-sweep the cheap rules over one problem set.
 
     The NLA arm runs on fewer problems than the behavioural arms - it is an
@@ -157,7 +168,7 @@ def baseline_curves_on(cfg, problem_ids, log) -> dict:
     scores_path = cfg.dir / "baselines" / "boundary_scores.json"
     traces_path = cfg.dir / "traces" / "traces.jsonl"
     if not scores_path.exists() or not traces_path.exists():
-        return {}
+        return {}, {}
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from score_baselines import build_rows, threshold_grid
@@ -166,13 +177,13 @@ def baseline_curves_on(cfg, problem_ids, log) -> dict:
     traces = [t for t in read_jsonl(traces_path)
               if t.get("ok") and t["problem_id"] in wanted]
     if not traces:
-        return {}
+        return {}, {}
     base = build_rows(traces)
     scores = {pid: s for pid, s in read_json(scores_path).items() if pid in wanted}
     if not scores:
-        return {}
+        return {}, {}
 
-    out = {}
+    out, rows_by_rule = {}, {}
     for rule in ("convergence", "semantic_entropy", "probe"):
         per_problem = [
             {**base[pid], "scores": scores[pid][rule]}
@@ -185,9 +196,10 @@ def baseline_curves_on(cfg, problem_ids, log) -> dict:
         if not grid:
             continue
         out[rule] = sweep_threshold(per_problem, grid, higher_fires=True)
+        rows_by_rule[rule] = per_problem
     log.info("re-swept %d baseline rules over the %d problems the NLA arm covers",
              len(out), len(traces))
-    return out
+    return out, rows_by_rule
 
 
 def main() -> int:
@@ -223,8 +235,8 @@ def main() -> int:
             ))
 
     # -------------------------------------------------------- primary RQ
-    curves, budgets = load_curves(cfg)
-    nla_curve, nla_info = nla_stopping_curve(cfg, log)
+    curves, budgets, curve_resolution = load_curves(cfg)
+    nla_curve, nla_info, nla_rows = nla_stopping_curve(cfg, log)
     if nla_curve:
         curves[NLA_RULE] = nla_curve
     results["nla_stopping"] = nla_info
@@ -242,7 +254,8 @@ def main() -> int:
             # On the problems the NLA arm actually covers. It runs on fewer
             # problems than the behavioural arms, and comparing curves built
             # from different problem sets confounds the rule with the problems.
-            restricted = baseline_curves_on(cfg, nla_info.get("problem_ids") or [], log)
+            restricted, restricted_rows = baseline_curves_on(
+                cfg, nla_info.get("problem_ids") or [], log)
             comparison_curves = dict(curves)
             if restricted:
                 comparison_curves.update(restricted)
@@ -251,6 +264,10 @@ def main() -> int:
             else:
                 h2h_budgets = budgets
                 basis = "full_corpus"
+            results["o3_curve_resolution"] = {
+                **curve_resolution,
+                NLA_RULE: nla_info.get("curve_resolution", {}),
+            }
             results["o3_comparison_basis"] = {
                 "basis": basis,
                 "n_problems_nla": nla_info.get("n_problems"),
@@ -285,14 +302,35 @@ def main() -> int:
                     else:
                         discarded += 1
                 if not rows:
+                    # Why it could not be matched decides what to do about it.
+                    # The thresholds are now exhaustive, so the curve is not
+                    # being failed by the sweep. Either the rule's score is
+                    # too coarse to put an operating point in the window - in
+                    # which case no corpus size will help and the rule needs a
+                    # graded score - or the curves genuinely do not overlap,
+                    # which more problems can change.
+                    res = (curve_resolution or {}).get(other, {})
+                    bound = res.get("max_operating_points_at_any_n")
+                    n_points = len({round(p.mean_tokens_saved, 9)
+                                    for p in comparison_curves[other]})
+                    limited = bool(res.get("granularity_limited")) or n_points <= 3
+                    reason = (
+                        "the rule's score is too coarse to have an operating "
+                        "point in the shared budget window; its curve has the "
+                        "same few points at any corpus size, so a larger "
+                        "corpus would not make this comparison evaluable"
+                        if limited else
+                        "no budget where both rules have an operating point "
+                        "within tolerance, with the thresholds exhausted")
                     log.warning(
-                        "O3: %s cannot be compared with %s at any budget - "
-                        "their curves have no operating point within %.2f of a "
-                        "shared target. On a corpus this size the curves are "
-                        "step functions with wide steps.",
-                        NLA_RULE, other, MATCH_TOLERANCE)
+                        "O3: %s cannot be compared with %s at any budget - %s",
+                        NLA_RULE, other, reason)
                     results.setdefault("o3_unmatched", {})[other] = {
-                        "reason": "no budget where both rules are within tolerance",
+                        "reason": reason,
+                        "granularity_limited": limited,
+                        "operating_points": n_points,
+                        "max_operating_points_at_any_n": bound,
+                        "thresholds_exhaustive": True,
                         "tolerance": MATCH_TOLERANCE,
                         "budgets_tried": len(h2h_budgets),
                     }
@@ -310,10 +348,11 @@ def main() -> int:
                         n=0,
                         notes={"skipped": (
                             f"no budget at which both rules have an operating "
-                            f"point within {MATCH_TOLERANCE} of the target; "
-                            f"their safety/saving curves do not overlap "
-                            f"closely enough on this corpus to compare at "
-                            f"matched budget"),
+                            f"point within {MATCH_TOLERANCE} of the target - "
+                            f"{reason}"),
+                            "granularity_limited": limited,
+                            "operating_points": n_points,
+                            "max_operating_points_at_any_n": bound,
                             "budgets_tried": len(h2h_budgets),
                             "match_tolerance": MATCH_TOLERANCE,
                             "comparison_basis": basis},
@@ -323,47 +362,67 @@ def main() -> int:
                     log.info("O3: %s vs %s compared at %d of %d budgets; %d "
                              "discarded as not genuinely matched",
                              NLA_RULE, other, len(rows), len(h2h_budgets), discarded)
-                t = paired_test(
+
+                # Distinct operating-point pairs, not requested budgets. A
+                # curve is a step function, so a span of budgets resolves to a
+                # few points and the rest are repeats. Testing over the
+                # repeats sets the p-value by the size of the budget grid: on
+                # this pilot all nine budgets reach one pair, and a signed-rank
+                # test over nine identical differences gives p = 2^-8, against
+                # 0.0625 for five budgets and 1e-6 for twenty-five.
+                by_point: dict[tuple[float, float], tuple[float, Any, Any]] = {}
+                for b, a, c in rows:
+                    by_point.setdefault((a.threshold, c.threshold), (b, a, c))
+                distinct = list(by_point.values())
+                if len(distinct) < len(rows):
+                    log.info("O3: %s vs %s - %d budgets resolve to %d distinct "
+                             "operating points; the comparison is made once per "
+                             "point, over problems",
+                             NLA_RULE, other, len(rows), len(distinct))
+
+                # The comparison is made at the closest-matched point, and the
+                # unit of analysis is the problem: safety is a per-problem
+                # binary outcome, and both rules are scored on the same
+                # problems.
+                b_at, a_pt, c_pt = min(
+                    distinct,
+                    key=lambda r: abs(r[1].mean_tokens_saved - r[2].mean_tokens_saved))
+                nla_dec = decisions_at(nla_rows, a_pt.threshold, True)
+                other_dec = decisions_at(
+                    restricted_rows.get(other, []) or nla_rows, c_pt.threshold, True)
+                shared = sorted(
+                    {d.problem_id for d in nla_dec} & {d.problem_id for d in other_dec})
+                nla_safe = {d.problem_id: d.safe for d in nla_dec}
+                other_safe = {d.problem_id: d.safe for d in other_dec}
+
+                t = paired_binary_test(
                     f"O3: safe-stopping rate, {NLA_RULE} minus {other} at matched budget",
-                    [r[1].safe_rate for r in rows],
-                    [r[2].safe_rate for r in rows],
-                    cfg.analysis.bootstrap_iterations,
+                    [nla_safe[p] for p in shared],
+                    [other_safe[p] for p in shared],
                     cfg.analysis.confidence,
-                    cfg.analysis.seed,
                 )
-                t.notes["n_budgets"] = len(rows)
+                t.notes["n_budgets_requested"] = len(rows)
+                t.notes["n_distinct_operating_points"] = len(distinct)
                 t.notes["n_budgets_discarded_unmatched"] = discarded
                 t.notes["match_tolerance"] = MATCH_TOLERANCE
-                t.notes["max_budget_gap"] = max(
-                    max(abs(a.mean_tokens_saved - b), abs(c.mean_tokens_saved - b))
-                    for b, a, c in rows)
+                t.notes["budget_nla"] = a_pt.mean_tokens_saved
+                t.notes[f"budget_{other}"] = c_pt.mean_tokens_saved
+                t.notes["budget_gap"] = abs(
+                    a_pt.mean_tokens_saved - c_pt.mean_tokens_saved)
                 # Which way the difference runs, in the outcome's own units,
                 # so a reader cannot take a significant q as a win.
-                t.notes["mean_safe_rate_nla"] = float(
-                    np.mean([a.safe_rate for _, a, _ in rows]))
-                t.notes[f"mean_safe_rate_{other}"] = float(
-                    np.mean([c.safe_rate for _, _, c in rows]))
+                t.notes["safe_rate_nla"] = t.notes.pop("safe_rate_a", None)
+                t.notes[f"safe_rate_{other}"] = t.notes.pop("safe_rate_b", None)
                 t.notes["direction"] = (
-                    "nla_readout better" if t.notes["mean_safe_rate_nla"]
-                    > t.notes[f"mean_safe_rate_{other}"] else
-                    "nla_readout worse" if t.notes["mean_safe_rate_nla"]
-                    < t.notes[f"mean_safe_rate_{other}"] else "tied")
+                    "nla_readout better" if (t.notes["safe_rate_nla"] or 0)
+                    > (t.notes[f"safe_rate_{other}"] or 0) else
+                    "nla_readout worse" if (t.notes["safe_rate_nla"] or 0)
+                    < (t.notes[f"safe_rate_{other}"] or 0) else "tied")
                 t.notes["comparison_basis"] = basis
-                t.notes["n_problems"] = nla_info.get("n_problems") if restricted else None
-                t.notes["caveat"] = (
-                    "paired over matched-budget operating points, not over "
-                    "problems: the unit of analysis is the budget level"
-                )
                 tests.append(t)
 
-                best_a = max(rows, key=lambda r: r[1].safe_rate)[1]
-                best_c = max(rows, key=lambda r: r[2].safe_rate)[2]
-                ci = rate_difference_ci(
-                    int(round(best_a.safe_rate * best_a.n)), best_a.n,
-                    int(round(best_c.safe_rate * best_c.n)), best_c.n,
-                    cfg.analysis.confidence,
-                )
-                results.setdefault("o3_rate_differences", {})[other] = ci.to_dict()
+                results.setdefault("o3_rate_differences", {})[other] = (
+                    t.interval.to_dict() if t.interval else None)
 
     # ---------------------------------------------------------------- RQ2
     faith_path = cfg.dir / "faithfulness" / "summary.json"
