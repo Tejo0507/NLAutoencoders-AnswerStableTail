@@ -499,9 +499,28 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A("")
         A(f"{t['n_tests']} tests in the pre-registered family, {t['n_evaluated']} "
           f"evaluable, {t['n_significant']} significant after Benjamini-Hochberg at "
-          f"q = {results.get('fdr_q')}. Tests that could not be evaluated remain in "
-          f"the family; removing them would make the correction look kinder than "
-          f"it is.")
+          f"q = {results.get('fdr_q')}. The correction is taken over the "
+          f"**{t.get('bh_family_size', t['n_evaluated'])} evaluable** tests: a test "
+          f"that produced no p-value has no rejection region, so it is excluded "
+          f"from the denominator. Such tests are still listed below rather than "
+          f"dropped, because a comparison that was planned and could not be made "
+          f"is a result. Every exclusion is for a reason independent of the "
+          f"direction and size of the effect under test, which is what makes "
+          f"this denominator legitimate rather than chosen (DECISIONS.md D38).")
+        sens = t.get("q_values_at_planned_family_size")
+        if sens:
+            robust = t.get("verdict_is_robust_to_family_convention")
+            A("")
+            A(f"**Sensitivity to the family convention.** Correcting the same "
+              f"p-values over all {sens['family_size']} pre-registered tests "
+              f"instead of the {t.get('bh_family_size', t['n_evaluated'])} "
+              f"evaluable ones gives {sens['n_significant']} significant "
+              f"rather than {t['n_significant']}. "
+              + ("The verdict does not depend on the convention."
+                 if robust else
+                 "**The verdict depends on the convention**, so the primary "
+                 "reading is stated explicitly: the correction is over the "
+                 "evaluable tests, and the stricter count is reported here."))
         A("")
         A(tables.markdown(tables.tests_table(
             [type("T", (), {"to_dict": lambda s, d=d: d})() for d in t["tests"]])))
@@ -609,24 +628,41 @@ def _o3_verdict(results: dict) -> str:
             name = t["name"].split("minus ", 1)[-1].split(" at ")[0]
             out.append(f"- against **{name}**: {t['notes']['skipped']}")
         out += ["",
-                "These stay in the pre-registered test family as unevaluable "
-                "rather than being dropped from it. Comparing their nearest "
-                "points anyway would compare safety at different budgets, "
-                "which is the one thing the matched-budget design exists to "
-                "prevent.", ""]
-        limited = [t for t in unmatched
-                   if (results.get("o3_unmatched") or {}).get(
-                       t["name"].split("minus ", 1)[-1].split(" at ")[0], {}
-                   ).get("granularity_limited")]
+                "These are reported as planned-and-not-made rather than "
+                "dropped: a comparison that was pre-registered and could not "
+                "be made is itself a result. Comparing their nearest points "
+                "anyway would compare safety at different budgets, which is "
+                "the one thing the matched-budget design exists to prevent. "
+                "**No claim is made about the relative safety of these "
+                "rules.** They produce no p-value and so do not enter the "
+                "Benjamini-Hochberg denominator.", ""]
+        def _res(t):
+            key = t["name"].split("minus ", 1)[-1].split(" at ")[0]
+            return (results.get("o3_unmatched") or {}).get(key, {})
+
+        limited = [t for t in unmatched if _res(t).get("granularity_limited")]
+        overlap = [t for t in unmatched if not _res(t).get("granularity_limited")]
         if limited:
             out += [
-                "A larger corpus would **not** make these evaluable. The "
-                "thresholds are exhausted — the sweep enumerates every "
+                "For these the sweep is exhausted — it enumerates every "
                 "operating point a curve can have — and the rule's score is "
                 "too coarse to put one in the shared budget window. A score "
                 "taking *d* distinct values admits at most *d* + 1 operating "
-                "points at any corpus size, so what is needed is a graded "
-                "score, not more problems.", ""]
+                "points, so what is needed is a finer score rather than more "
+                "problems, **unless** a larger corpus widens the score's own "
+                "range, which for an unbounded score it can.", ""]
+        if overlap:
+            out += [
+                "For these the sweep is exhausted and the score is not the "
+                "limit: the two curves simply do not come within tolerance of "
+                "a shared budget **on this corpus**. The operating points are "
+                "exhaustive and real, and they fall either side of the window "
+                "rather than in it. Whether a larger corpus would close the "
+                "gap is not determined by this run: each achieved saving is a "
+                "mean over problems and moves with the corpus, and the window "
+                "itself is the intersection of every rule's reachable range. "
+                "The gap observed here is reported above; it is an "
+                "observation, not a projection.", ""]
     return "\n".join(out)
 
 

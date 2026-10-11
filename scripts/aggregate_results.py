@@ -306,19 +306,27 @@ def main() -> int:
                     # The thresholds are now exhaustive, so the curve is not
                     # being failed by the sweep. Either the rule's score is
                     # too coarse to put an operating point in the window - in
-                    # which case no corpus size will help and the rule needs a
-                    # graded score - or the curves genuinely do not overlap,
-                    # which more problems can change.
+                    # which case the rule needs a graded score - or the curves
+                    # simply do not overlap on this corpus.
+                    #
+                    # Neither verdict licenses a claim about *all* corpus
+                    # sizes. The resolution bound is computed from the scores
+                    # observed here, so a score whose range grows with the
+                    # data has a bound that grows too (granularity_bound).
                     res = (curve_resolution or {}).get(other, {})
-                    bound = res.get("max_operating_points_at_any_n")
+                    bound = (res.get("max_operating_points_at_observed_scores")
+                             or res.get("max_operating_points_at_any_n"))
                     n_points = len({round(p.mean_tokens_saved, 9)
                                     for p in comparison_curves[other]})
                     limited = bool(res.get("granularity_limited")) or n_points <= 3
                     reason = (
-                        "the rule's score is too coarse to have an operating "
-                        "point in the shared budget window; its curve has the "
-                        "same few points at any corpus size, so a larger "
-                        "corpus would not make this comparison evaluable"
+                        f"the rule's score is too coarse to have an operating "
+                        f"point in the shared budget window: it takes "
+                        f"{res.get('n_distinct_scores', 'few')} distinct values "
+                        f"on this corpus, bounding its curve at {bound} points. "
+                        f"A larger corpus helps only if it widens the score's "
+                        f"range; if the score is bounded by construction it "
+                        f"cannot, and the rule needs a graded score"
                         if limited else
                         f"the thresholds are exhausted, so the two curves do "
                         f"not come within tolerance of a shared budget on "
@@ -337,12 +345,16 @@ def main() -> int:
                         "tolerance": MATCH_TOLERANCE,
                         "budgets_tried": len(h2h_budgets),
                     }
-                    # The test stays in the pre-registered family as
-                    # unevaluable rather than disappearing from it (D16):
-                    # dropping it would shrink m and make the Benjamini-
-                    # Hochberg correction look kinder than it is, and would
-                    # hide that the comparison was planned and could not be
-                    # made.
+                    # The test stays in the *report* as unevaluable rather
+                    # than disappearing from it (D16): dropping it would hide
+                    # that the comparison was planned and could not be made,
+                    # which is the finding here.
+                    #
+                    # It does not stay in the Benjamini-Hochberg denominator.
+                    # A nan p-value is excluded from m by `benjamini_hochberg`,
+                    # so the correction is over evaluable tests only - see that
+                    # function for why, and for the pre-registration gap that
+                    # leaves the choice of m open (D37).
                     tests.append(TestResult(
                         name=(f"O3: safe-stopping rate, {NLA_RULE} minus "
                               f"{other} at matched budget"),
@@ -494,7 +506,7 @@ def main() -> int:
     tests = benjamini_hochberg(tests, cfg.analysis.fdr_q)
     tbl = tables.tests_table(tests)
     tables.write_table(tbl, tbl_dir, "hypothesis_tests")
-    results["tests"] = summarise_tests(tests)
+    results["tests"] = summarise_tests(tests, cfg.analysis.fdr_q)
     results["fdr_q"] = cfg.analysis.fdr_q
 
     write_json(out_dir / "results.json", results)
