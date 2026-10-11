@@ -284,6 +284,7 @@ def run_problem(model, cfg, ast_row, trace, direction, writer, log) -> None:
         if writer.has(key):
             continue
         edit = projection_editor(vec, coeff, sp)
+        edit.reset()
         with model.patch_layer(edit):
             gen = model.generate(
                 [model.build_prompt(question, prefix)],
@@ -291,8 +292,20 @@ def run_problem(model, cfg, ast_row, trace, direction, writer, log) -> None:
                 temperature=0.0, top_p=1.0, do_sample=False,
                 seed=derive(cfg.seed, name, pid, did), batch_size=1,
             )[0]
+        # How many positions the edit actually touched. A dose sweep whose
+        # arms are all no-ops reproduces the baseline exactly and reads as
+        # "the direction does nothing", which is why this is recorded rather
+        # than assumed: the span is in absolute positions and the generated
+        # continuation is what it is meant to cover.
+        edited = int(getattr(edit, "n_positions_edited", 0))
+        if coeff != 0.0 and edited == 0:
+            log.warning(
+                "%s at coefficient %s edited no positions - span %s never "
+                "intersected the forward pass, so this arm is a no-op and "
+                "must not be read as evidence about the direction",
+                name, coeff, list(sp))
         record(name, coeff, gen.text, gen.n_tokens, direction_id=did,
-               notes={"span": list(sp)})
+               notes={"span": list(sp), "n_positions_edited": edited})
 
 
 if __name__ == "__main__":
