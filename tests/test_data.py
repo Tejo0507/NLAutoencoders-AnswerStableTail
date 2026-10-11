@@ -183,3 +183,43 @@ class TestStratifiedCap:
         out = datasets.stratified_cap(self._rows(95, 5), 50)
         assert len(out) == 50
         assert sum(1 for r in out if r["dataset"] == "math") <= 5
+
+    def test_rows_without_the_key_collapse_to_one_stratum(self):
+        """The trap the callers depend on avoiding, stated so it is not silent.
+
+        Strata are keyed on ``r.get(key)``, so rows missing that key all land
+        in a single stratum named ``"None"`` - and a single stratum is exactly
+        the sorted-id prefix this function exists to replace. The guarantee is
+        therefore conditional on the upstream rows carrying ``dataset``.
+
+        Both callers do: the NLA arm caps problem rows, and the causal arm caps
+        rows read from ``ast.jsonl``, where ``dataset`` is written for every
+        row. This test fails loudly if a future caller forgets, instead of
+        quietly returning a one-dataset subset.
+        """
+        rows = [{"problem_id": f"gsm8k-test-{i:05}"} for i in range(60)]
+        rows += [{"problem_id": f"math-algebra-test-{i:05}"} for i in range(40)]
+        out = datasets.stratified_cap(rows, 50)
+        assert len(out) == 50
+        # Degenerate: a prefix of the sorted ids, so one dataset only.
+        assert all(r["problem_id"].startswith("gsm8k-") for r in out)
+
+    def test_the_causal_arms_rows_are_capped_proportionally(self):
+        """`run_interventions` caps rows shaped like ``ast.jsonl``'s.
+
+        The NLA cap is tested above on problem rows; the causal arm caps a
+        different shape - tail-bearing eval-split AST rows - through the same
+        function, which is only correct because those rows carry ``dataset``
+        too. Asserted on the field set the stage actually filters on.
+        """
+        rows = [{"problem_id": f"gsm8k-test-{i:05}", "dataset": "gsm8k",
+                 "tail_start": 2, "windows": [{}], "split": "eval"}
+                for i in range(90)]
+        rows += [{"problem_id": f"math-algebra-test-{i:05}", "dataset": "math",
+                  "tail_start": 2, "windows": [{}], "split": "eval"}
+                 for i in range(60)]
+        out = datasets.stratified_cap(rows, 60)
+        assert len(out) == 60
+        counts = {d: sum(1 for r in out if r["dataset"] == d)
+                  for d in ("gsm8k", "math")}
+        assert counts == {"gsm8k": 36, "math": 24}
