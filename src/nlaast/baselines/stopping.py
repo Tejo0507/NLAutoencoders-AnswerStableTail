@@ -214,18 +214,30 @@ def complete_threshold_grid(values: Sequence[float]) -> list[float]:
 
 
 def granularity_bound(values: Sequence[float]) -> int:
-    """Most operating points a rule's curve can ever have, at any corpus size.
+    """Most operating points a rule's curve can have, given the scores observed.
 
     A score taking ``d`` distinct values admits at most ``d + 1`` thresholds
-    that behave differently, so the curve has at most ``d + 1`` points however
-    many problems are added. This separates a comparison that a larger corpus
-    would unblock from one no corpus size can.
+    that behave differently, so the curve has at most ``d + 1`` points **on
+    this corpus**. That separates a comparison blocked by the resolution of
+    the score from one blocked by where the rule's points happen to fall.
 
-    The agreement rule is the case in point: its score is 1.0 once the last
-    ``window`` answers agree and 0.0 otherwise, so ``d = 2`` and its curve has
-    three points at any N. On the pilot those are savings of 0.407 and 0.885,
-    which straddle the matched-budget window without landing in it. That is a
-    property of a binary score, not of 21 problems.
+    **The bound is not fixed across corpus sizes unless the score's range is.**
+    It is ``d + 1`` for the ``d`` values *observed*, so a score whose range
+    grows with the data has a bound that grows too. The agreement rule is the
+    case in point, and it has been both things:
+
+    - As originally implemented its score was 1.0 once the last ``window``
+      answers agree and 0.0 otherwise. ``d = 2`` at every N, so three
+      operating points at every N - a genuine ceiling.
+    - As the agreement run length (D36, ``agreement_run_length``) the score is
+      an unbounded count, so ``d`` is the number of distinct run lengths the
+      corpus contains. On the pilot's 24 traces that is 7, giving a bound of
+      8; on the first 86 traces of the main run it is 9, giving 10. The
+      ceiling moved because longer traces admit longer agreement runs.
+
+    So a ``granularity_limited`` verdict is a statement about the score as
+    observed here, not a proof about all corpus sizes. Use it to rule out "the
+    sweep missed a point"; do not read it as "more data cannot help".
     """
     return len({float(v) for v in values if v is not None and np.isfinite(v)}) + 1
 
