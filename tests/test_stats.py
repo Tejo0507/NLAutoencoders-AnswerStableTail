@@ -15,7 +15,9 @@ from nlaast.analysis.stats import (
     cliffs_delta,
     cohens_d,
     grouped_bootstrap_difference,
+    paired_binary_test,
     paired_difference,
+    paired_rate_difference_ci,
     paired_test,
     rate_difference_ci,
     unpaired_test,
@@ -156,3 +158,75 @@ class TestMultipleTesting:
 
     def test_empty_family(self):
         assert benjamini_hochberg([], 0.05) == []
+
+
+class TestPairedBinaryTest:
+    """The matched-budget comparison's unit of analysis is the problem.
+
+    Pairing over budget levels instead does not lose power, it invents it: a
+    step-function curve turns a span of budgets into a few distinct operating
+    points, so asking for more budgets copies one comparison. On the pilot nine
+    budgets reached a single pair and the signed-rank test returned p = 2^-8.
+    """
+
+    def test_only_discordant_pairs_carry_information(self):
+        # Twenty agreements and four disagreements, all one way. The p-value
+        # must depend on the four, not on the twenty.
+        a = [True] * 20 + [False] * 4
+        b = [True] * 20 + [True] * 4
+        t = paired_binary_test("t", a, b)
+        assert t.notes["n_discordant"] == 4
+        assert t.p_value == pytest.approx(0.125)
+
+    def test_padding_with_agreements_does_not_change_the_p_value(self):
+        short = paired_binary_test("t", [False] * 4, [True] * 4)
+        padded = paired_binary_test("t", [True] * 50 + [False] * 4,
+                                    [True] * 50 + [True] * 4)
+        assert short.p_value == pytest.approx(padded.p_value)
+
+    def test_repeating_the_same_comparison_does_not_manufacture_significance(self):
+        """The defect this test exists to prevent: evidence must come from
+        distinct units, not from the same unit counted again."""
+        one = paired_binary_test("t", [False] * 4, [True] * 4)
+        # The same four problems, each listed three times over.
+        thrice = paired_binary_test("t", [False] * 12, [True] * 12)
+        assert one.p_value == pytest.approx(0.125)
+        assert thrice.p_value < one.p_value   # which is why units must be unique
+
+    def test_no_discordant_pairs_is_not_a_result(self):
+        t = paired_binary_test("t", [True, False, True], [True, False, True])
+        assert "skipped" in t.notes
+        assert np.isnan(t.p_value)
+        assert t.notes["n_discordant"] == 0
+
+    def test_direction_is_recoverable_from_the_counts(self):
+        t = paired_binary_test("t", [True, True, False], [False, False, False])
+        assert t.notes["a_safe_b_not"] == 2 and t.notes["b_safe_a_not"] == 0
+        assert t.notes["safe_rate_a"] > t.notes["safe_rate_b"]
+
+    def test_empty(self):
+        t = paired_binary_test("t", [], [])
+        assert t.n == 0 and "skipped" in t.notes
+
+
+class TestPairedRateDifference:
+    def test_the_interval_is_centred_on_the_observed_difference(self):
+        iv = paired_rate_difference_ci(b_only=0, c_only=4, n=21)
+        assert iv.estimate == pytest.approx(-4 / 21)
+        assert iv.low <= iv.estimate <= iv.high
+
+    def test_no_discordance_means_no_uncertainty(self):
+        iv = paired_rate_difference_ci(0, 0, 21)
+        assert (iv.estimate, iv.low, iv.high) == (0.0, 0.0, 0.0)
+
+    def test_it_is_tighter_than_treating_the_arms_as_independent(self):
+        """Ignoring the pairing throws away the fact that both rules were
+        scored on the same problems."""
+        paired = paired_rate_difference_ci(0, 4, 21)
+        indep = rate_difference_ci(2, 21, 6, 21)
+        assert (paired.high - paired.low) < (indep.high - indep.low)
+
+    def test_bounds_stay_inside_the_unit_interval(self):
+        for b, c in ((0, 10), (10, 0), (5, 5), (1, 9)):
+            iv = paired_rate_difference_ci(b, c, 10)
+            assert -1.0 <= iv.low <= iv.high <= 1.0

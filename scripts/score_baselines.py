@@ -31,7 +31,12 @@ from _stage import base_parser, setup, should_skip
 from nlaast.activations.store import ActivationStore
 from nlaast.baselines.probe import CorrectnessProbe, cross_validate
 from nlaast.baselines.semantic_entropy import confidence_score, semantic_entropy
-from nlaast.baselines.stopping import budget_grid, sweep_threshold
+from nlaast.baselines.stopping import (
+    budget_grid,
+    complete_threshold_grid,
+    granularity_bound,
+    sweep_threshold,
+)
 from nlaast.data.answers import PERMISSIVE, equivalent, extract_answer
 from nlaast.logging_utils import read_jsonl, write_json, write_jsonl
 from nlaast.trace.chunking import Chunk, prefix_text
@@ -149,6 +154,7 @@ def main() -> int:
 
     # -- sweeps at matched budget ----------------------------------------
     curves = {}
+    resolution = {}
     for rule in ("convergence", "semantic_entropy", "probe"):
         per_problem = [
             {**base[pid], "scores": scores[pid][rule]}
@@ -160,11 +166,32 @@ def main() -> int:
             continue
         thresholds = threshold_grid(scores, rule)
         curves[rule] = sweep_threshold(per_problem, thresholds, higher_fires=True)
+        # How much of the budget axis this rule can ever reach. A score with
+        # few distinct values has few operating points at *any* corpus size,
+        # so a comparison it cannot be matched at is not waiting for more
+        # problems. Recorded here so the O3 stage can say which it is.
+        vals = [s for p in scores.values() for s in p[rule]
+                if s is not None and np.isfinite(s)]
+        bound = granularity_bound(vals)
+        resolution[rule] = {
+            "n_distinct_scores": len({float(v) for v in vals}),
+            "max_operating_points_at_any_n": bound,
+            "operating_points": len({round(p.mean_tokens_saved, 9)
+                                     for p in curves[rule]}),
+            "granularity_limited": bound <= 4,
+        }
+        if resolution[rule]["granularity_limited"]:
+            log.warning(
+                "rule %s has only %d distinct scores, so its curve has at most "
+                "%d operating points however many problems are added; a budget "
+                "it cannot be matched at is a property of the score, not of N",
+                rule, resolution[rule]["n_distinct_scores"], bound)
 
     budgets = budget_grid(curves)
     write_json(out_dir / "curves.json", {
         "curves": {k: [p.to_dict() for p in v] for k, v in curves.items()},
         "matched_budgets": budgets,
+        "curve_resolution": resolution,
     })
 
     metrics = {
@@ -182,23 +209,23 @@ def main() -> int:
         "n_problems_with_entropy_score": n_entropy_scored,
         "semantic_entropy_available": bool(n_entropy_scored),
         "matched_budgets": budgets,
+        "curve_resolution": resolution,
     }
     log.info("baselines: %s", metrics)
     manifest.finish_stage(STAGE, status="complete", output=str(out_dir), metrics=metrics)
     return 0
 
 
-def threshold_grid(scores: dict, rule: str, n: int = 25) -> list[float]:
+def threshold_grid(scores: dict, rule: str) -> list[float]:
+    """The complete set of thresholds for this rule, not a fixed-size grid.
+
+    See ``complete_threshold_grid``: sweeping the observed scores enumerates
+    every achievable operating point, so the curve no longer depends on how
+    many grid points someone chose or on how the scores are distributed.
+    """
     vals = [s for p in scores.values() for s in p[rule]
             if s is not None and np.isfinite(s)]
-    if not vals:
-        return []
-    lo, hi = float(np.min(vals)), float(np.max(vals))
-    if hi <= lo:
-        # A constant score still needs two points so the curve has a
-        # "never fires" end and an "always fires" end.
-        return [lo - 1e-6, lo + 1e-6]
-    return list(np.linspace(lo, hi, n))
+    return complete_threshold_grid(vals)
 
 
 def positional_floor(base, index, y, groups, cfg, log) -> dict:
