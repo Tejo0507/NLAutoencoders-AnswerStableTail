@@ -348,10 +348,11 @@ def main() -> int:
                         n=0,
                         notes={"skipped": (
                             f"no budget at which both rules have an operating "
-                            f"point within {MATCH_TOLERANCE} of the target; "
-                            f"their safety/saving curves do not overlap "
-                            f"closely enough on this corpus to compare at "
-                            f"matched budget"),
+                            f"point within {MATCH_TOLERANCE} of the target - "
+                            f"{reason}"),
+                            "granularity_limited": limited,
+                            "operating_points": n_points,
+                            "max_operating_points_at_any_n": bound,
                             "budgets_tried": len(h2h_budgets),
                             "match_tolerance": MATCH_TOLERANCE,
                             "comparison_basis": basis},
