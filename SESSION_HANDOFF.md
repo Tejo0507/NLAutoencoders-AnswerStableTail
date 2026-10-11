@@ -183,16 +183,41 @@ to `runs/main/traces_stage.out`. `env`, `data` and `models` are complete.
 **It is safe to stop at any point.** The problem order is interleaved, so any
 prefix is proportional: 24 problems is 14 GSM8K / 10 MATH, 120 is 72 / 48.
 
-**Throughput, measured rather than assumed.** The handoff's 12.9 min/problem
-made 250 problems "over 50 hours". That figure is a degraded machine state, not
-a cost: the pilot generated the same traces *twice*, byte-identical, once at
-about 2 min/problem and once at 12.9, the slow pass with 1.3 GB of free RAM. A
-3-problem calibration under `main`'s own settings measured **3.2 min/problem**
-for GSM8K. MATH is substantially heavier — longer traces and `k = 5`
-continuations of 200 tokens at up to 12 boundaries — and the first MATH problem
-of the real run took over 15 minutes. Budget roughly **35–40 hours for all
-250**, dominated by MATH. The stage's own ETA line is the number to trust as it
-accumulates.
+**Throughput, measured rather than assumed.** The previous handoff's 12.9
+min/problem made 250 problems "over 50 hours". That figure is a degraded
+machine state, not a cost: the pilot generated the same traces *twice*,
+byte-identical, once at about 2 min/problem and once at 12.9, the slow pass
+with 1.3 GB of free RAM.
+
+The first three problems of the real run, measured:
+
+| # | problem | tokens | chunks | time |
+|---|---|---|---|---|
+| 1 | `gsm8k-test-00007` | 427 | 15 | 601s — contended with a test run |
+| 2 | `math-algebra-test-00002` | **768 (truncated)** | 12 | **1126s** |
+| 3 | `gsm8k-test-00016` | 193 | 9 | 277s |
+
+MATH is roughly 3–4x GSM8K: longer traces, and `k = 5` continuations of 200
+tokens at up to 12 boundaries is ~12,500 generated tokens of AST evidence per
+problem on top of the trace itself. At 150 GSM8K and 100 MATH that is
+**roughly 45 hours for all 250**, which matches the stage's own running ETA
+(2750 min). Trust that ETA line as it accumulates rather than this estimate.
+
+**Caveat found in the first MATH problem: 768 is still binding.** It generated
+exactly 768 tokens with `truncated=True`. Raising the cap from 512 reduced the
+truncation bias but has not removed it for Level-4 MATH, and in the pilot the
+truncated traces were exactly the ones with no detectable tail. Two options,
+both defensible, neither yet taken:
+
+- accept it and **report the achieved truncation rate** as a limit, which is
+  what the pilot did at 512; or
+- raise `generation.max_new_tokens` again. This costs more than it looks:
+  longer traces mean more chunks, and AST evidence scales with boundaries
+  evaluated, so the per-problem cost grows faster than the cap.
+
+Decide from the achieved rate once enough MATH problems have run — if it is a
+few percent it is a limit to report, and if it is the pilot's 30% it is
+distorting the corpus. The rate is in the stage's `truncated_rate` metric.
 
 **Config changes made** (D32, and `configs/main.yaml` carries the reasoning):
 
@@ -318,9 +343,10 @@ CPU-only and cheap.
 - **n = 24, one seed, one model, one layer** for everything in `docs/STATUS.md`.
   The main run changes the first of those and none of the others.
 - **The three truncated MATH traces** were the three with no tail. The main run
-  raises the cap, which should remove that bias — and will change the tail
-  numbers, so they are not directly comparable with the pilot's. The forcing
-  budget change does the same, deliberately (§5).
+  raises the cap, which reduces that bias but — measured on its first MATH
+  problem — does **not** remove it (§5). The raised caps also change the tail
+  numbers, so the main run's are not directly comparable with the pilot's. The
+  forcing-budget change does the same, deliberately.
 - **F8 is fixed at the pilot's 8-problem subsample** and cannot be re-measured
   without 15 GB of downloads.
 - **A second annotator** for O6 inter-rater reliability was never obtained.
