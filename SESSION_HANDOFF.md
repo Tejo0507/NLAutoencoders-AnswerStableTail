@@ -100,11 +100,25 @@ and a match at all nine budgets, where it is **exactly tied** with the readout:
 zero discordant problems, the two rules preserving the outcome on the same
 problems. (D30)
 
-The convergence comparison is genuinely unevaluable, and **no corpus size will
-change that**: its score is 1.0 once the last `window` answers agree and 0.0
-otherwise, so `d = 2` and its curve has three operating points at any N, with
-savings of 0.407 and 0.885 straddling the budget window. It needs a graded
-score, not more data. `granularity_bound` now reports this per rule. (D31)
+The convergence comparison is unevaluable **on the corpora measured so far**:
+its operating points fall either side of the shared budget window rather than
+in it. As originally implemented its score was binary — 1.0 once the last
+`window` answers agree, 0.0 otherwise — so `d = 2` and the curve had three
+operating points at any N, with savings of 0.407 and 0.885 straddling the
+window. `granularity_bound` reports this per rule. (D31)
+
+**D31's conclusion that "no corpus size will change that" no longer follows,
+and has been withdrawn — see D37.** It was argued from the binary score, which
+D36 replaced with the agreement run length. That score is an unbounded count,
+so its resolution bound rises with the corpus (8 on the pilot's 24 traces, 10
+on the first 86 of the main run) and `granularity_limited` is now `false`. The
+comparison is still unevaluable, but for the weaker reason the code itself now
+reports: *"the thresholds are exhausted, so the two curves do not come within
+tolerance of a shared budget on this corpus rather than the sweep having
+missed a point."* What the full corpus will show is **not known** — the
+achieved savings are means over problems, and the window is pinned by the NLA
+arm's own reachable range, which the `nla` stage has not yet produced for
+`main`.
 
 ### 3. A partial run would have been all GSM8K and no MATH
 
@@ -479,9 +493,31 @@ CPU-only and cheap.
   axis — proven identical to the canonical implementation over 83 traces for
   `w = 1..8`. It raised the rule's operating points from 3 to 8 and **did not**
   make the comparison evaluable: the achievable savings stay clustered, with
-  the budget window falling between `w = 2` (0.407) and `w = 1` (0.855). Worth
-  re-checking once `baselines` runs on the main corpus, since the window's
-  position depends on the NLA rule's own range.
+  the budget window falling between `w = 2` (0.407) and `w = 1` (0.855).
+
+  **The exact check, once `baselines` and `nla` have run on `main`** — no new
+  tooling needed, these fields already exist:
+
+  1. `runs/main/analysis/results.json` → `o3_unmatched`. **Key absent, or
+     `convergence` absent from it ⇒ the comparison is evaluable** and was
+     made; read the McNemar result in the test family as normal.
+  2. If `o3_unmatched.convergence` is present, read `granularity_limited`:
+     - `false` ⇒ the curves do not overlap *on this corpus*. Report per
+       D37b/D39, with the gap quantified from (3).
+     - `true` ⇒ the score's resolution is the limit; check
+       `max_operating_points_at_observed_scores` against the pilot's 8.
+  3. `runs/main/baselines/curves.json` → `curves.convergence[].mean_tokens_saved`
+     for the operating points, and `o3_comparison_basis.budgets` in
+     `results.json` for the window. The gap is the distance from the window
+     to the nearest convergence point; compare with 0.398 / 0.491 / 0.464
+     (24 / 86 / 100 traces) recorded in D37b.
+  4. `curve_resolution.convergence.n_distinct_scores` — rising with the
+     corpus is what makes evaluability possible at all.
+
+  Do **not** adjust the score, the exhaustive grid, `MATCH_TOLERANCE`, or
+  `budget_grid` to obtain a match. The window's position depends on the NLA
+  rule's own reachable range, which is why (3) cannot be read before `nla`
+  runs.
 
 ### Issue tracker, reconciled this session
 
@@ -504,7 +540,11 @@ CPU-only and cheap.
   exactly tied with the probe. Read with the probe's positional floor — 0.996
   AUC against 0.962 from position alone — a readout that ties a largely
   positional predictor is not obviously reading more than position.
-- **One of three head-to-heads cannot be made at any corpus size.**
+- **One of three head-to-heads could not be made on this corpus.** The
+  convergence rule's operating points fall either side of the shared budget
+  window. Whether the full corpus closes that gap is open (D37); the gap
+  widened between 24 and 86 traces, which is an observation and not a
+  projection.
 - **RQ3 produced no evidence in either direction, and now for two known
   reasons.** The fix to the second is unit-tested and unvalidated.
 - **n = 24, one seed, one model, one layer** for everything in `docs/STATUS.md`.
