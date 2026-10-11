@@ -370,6 +370,8 @@ editing the file would make the same change permanent and silent.
 
 ### 2. Validate the causal fix on a GPU — the one thing this session could not
 
+Tracked as **[#8](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/8)**, with the acceptance criteria below as its checklist.
+
 **Blocked until `traces` finishes or is deliberately paused at a safe
 checkpoint.** It needs the same 5.5 GB of VRAM the traces stage holds, and the
 card has 6.14 GB. Running both would thrash and corrupt the throughput of a
@@ -419,7 +421,22 @@ CPU-only and cheap.
   eviction rather than reported as a failure.
 - The agreement rule needs a **graded** score if its head-to-head is ever to be
   evaluable (D31) — for instance the fraction of the window that agrees, rather
-  than unanimity as a boolean.
+  than unanimity as a boolean. Tracked as
+  **[#9](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/9)**;
+  needs no GPU and no regeneration, since it is computed from `parsed_answer`
+  values already recorded.
+
+### Issue tracker, reconciled this session
+
+| issue | state |
+|---|---|
+| [#3](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/3) re-run the pilot after the parser/chunker fixes | **closed** — pilot ran to completion; 0 clamped positions, 0 re-tokenisation drift |
+| [#4](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/4) download the checkpoints, run the verbaliser | **closed** — F8 cosine 0.987, integrity 0.976; the D2 threat is measured |
+| [#5](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/5) decide the MATH token cap | **closed** — 768 chosen and validated; `n_math` kept at 100 |
+| [#6](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/6) grow the corpus for the supervised analyses | open — the main run unblocks it; `mlcorpus` is redundant, not rehabilitated |
+| [#7](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/7) run the main experiment, write the report | open — in progress, 53/250 |
+| [#8](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/8) validate the direction interventions on GPU | open — blocked on VRAM |
+| [#9](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/9) graded score for the agreement rule | open — cheap, no GPU |
 
 ---
 
