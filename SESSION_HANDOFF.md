@@ -14,8 +14,12 @@ The pilot's committed history is **pushed**. Re-reading the pilot's analysis
 against its own statistics found that **the study's one significant primary
 finding was an artefact of a default parameter**, and that three of five causal
 arms had never done anything. Both are fixed, with tests. The **main run is
-under way**: `env`, `data` and `models` are complete and `traces` is
-generating, resumable per problem.
+healthy and under way**: `env`, `data` and `models` are complete and `traces`
+has done **20 of 250** with 0 failures, ETA ~27 h, resumable per problem.
+
+**Leave it alone.** Do not run the test suite, the causal validation, or any
+other GPU work alongside it — doing so doubled a problem's wall time this
+session. Monitoring is file reads only.
 
 ---
 
@@ -189,25 +193,44 @@ machine state, not a cost: the pilot generated the same traces *twice*,
 byte-identical, once at about 2 min/problem and once at 12.9, the slow pass
 with 1.3 GB of free RAM.
 
-The first three problems of the real run, measured:
+### Verified progress — 20 of 250, as of 13:20 on 2026-10-11
 
-| # | problem | tokens | chunks | time |
-|---|---|---|---|---|
-| 1 | `gsm8k-test-00007` | 427 | 15 | 601s — contended with a test run |
-| 2 | `math-algebra-test-00002` | **768 (truncated)** | 12 | **1126s** |
-| 3 | `gsm8k-test-00016` | 193 | 9 | 277s |
+Process PID 19728, GPU 63% at 71 °C, 5.8 GB VRAM. **20 completed, 0 failed.**
 
-MATH is roughly 3–4x GSM8K: longer traces, and `k = 5` continuations of 200
-tokens at up to 12 boundaries is ~12,500 generated tokens of AST evidence per
-problem on top of the trace itself. At 150 GSM8K and 100 MATH that is
-**roughly 45 hours for all 250**, which matches the stage's own running ETA
-(2750 min). Trust that ETA line as it accumulates rather than this estimate.
+| dataset | n | mean | median | min | max |
+|---|---|---|---|---|---|
+| GSM8K | 12 | **5.0 min** | 4.6 min | 105s | 601s |
+| MATH | 8 | **9.9 min** | 7.3 min | 254s | 1126s |
 
-**Caveat found in the first MATH problem: 768 is still binding.** It generated
-exactly 768 tokens with `truncated=True`. Raising the cap from 512 reduced the
-truncation bias but has not removed it for Level-4 MATH, and in the pilot the
-truncated traces were exactly the ones with no detectable tail. Two options,
-both defensible, neither yet taken:
+MATH is about 2x GSM8K, not the 3–4x first estimated from two problems. The
+601s GSM8K outlier was contended with a test run and is not representative.
+
+**Remaining: 138 GSM8K + 92 MATH ≈ 26.8 hours** at the current per-dataset
+means, which matches the stage's own ETA line (1610 min) to within a few
+minutes. This supersedes the earlier 45-hour figure, which was extrapolated
+from the first, slowest problems. Trust the ETA line.
+
+### Verified truncation statistics
+
+| dataset | n | truncated | rate | mean tokens | max |
+|---|---|---|---|---|---|
+| GSM8K | 12 | 0 | **0.000** | 233 | 427 |
+| MATH | 8 | 1 | **0.125** | 436 | 768 |
+| all | 20 | 1 | 0.050 | — | — |
+
+Only `math-algebra-test-00002` has truncated, at exactly 768 tokens. Accuracy
+so far is 0.833 GSM8K and 0.875 MATH.
+
+**The cap has not been raised and should not be yet.** The MATH rate of 1/8 has
+a 95% exact interval of **[0.003, 0.527]** — it cannot be distinguished from
+the pilot's 3/10 = 0.300 at 512 tokens, nor from zero. MATH mean token count is
+436 against a 768 cap, so most MATH traces are nowhere near it, which is the
+first real sign the cap is no longer the binding constraint it was at 512.
+
+**When to decide:** roughly **40 MATH problems** are needed before the interval
+excludes the pilot's 0.300, which arrives at about problem 100 of the
+interleaved order — some 12 hours in. Read `truncated_rate` from the stage
+metrics then. Two options, both defensible, neither yet taken:
 
 - accept it and **report the achieved truncation rate** as a limit, which is
   what the pilot did at 512; or
@@ -215,9 +238,11 @@ both defensible, neither yet taken:
   longer traces mean more chunks, and AST evidence scales with boundaries
   evaluated, so the per-problem cost grows faster than the cap.
 
-Decide from the achieved rate once enough MATH problems have run — if it is a
-few percent it is a limit to report, and if it is the pilot's 30% it is
-distorting the corpus. The rate is in the stage's `truncated_rate` metric.
+If the settled rate is a few percent it is a limit to report; if it is the
+pilot's 30% it is distorting the corpus. **Raising it mid-run would also change
+the config hash**, which the manifest records as a provenance hazard against
+traces already generated under the old value, and would make the two halves of
+the corpus non-comparable. Prefer finishing at 768 and reporting the rate.
 
 **Config changes made** (D32, and `configs/main.yaml` carries the reasoning):
 
@@ -253,10 +278,11 @@ is exactly why the `env` stage's `disk_for_bf16_staging` check fails, as
 designed. `D:` has over 40 GB, so repointing `HF_HOME` there would make it
 possible.
 
-F8 was **deliberately deferred**, not forgotten: the quantisation cosine is a
-property of the checkpoint, not of the corpus, so the pilot's 0.987 over 82
-vectors carries forward. Re-measuring it on more problems buys precision on a
-number that is already far from the threshold that would matter.
+F8 remains **deliberately deferred and must stay so**: the quantisation cosine
+is a property of the checkpoint, not of the corpus, so the pilot's 0.987 over
+82 vectors carries forward. Re-measuring buys precision on a number already far
+from any threshold that would matter. **Do not download the bf16 checkpoint or
+spend the disk without asking first** — standing instruction from the user.
 
 Note the machine has only ~2.7–3.8 GB of free RAM with the user's applications
 open, and the pilot's 7x slowdown is attributable to RAM pressure. Avoid
@@ -278,14 +304,44 @@ calibration's 316s on the same problem).
 Skip `robustness:F8` or expect it to fail on disk (§6). If `run_pipeline` is
 used instead of the stage scripts, it will attempt F8 after `acts`.
 
-**Before the `nla` stage, decide `nla.max_problems`.** It is 80, which the
-power table puts at 0.99/0.71 depending on how discordances fall; 120 gives
-1.00/0.93 for 50% more verbaliser cost. The arm is now a proportional sample
-either way, so this is purely a power-versus-cost choice.
+**Before the `nla` stage, decide `nla.max_problems`. Recommendation: raise 80 →
+120.** Reviewed this session; the config is **unchanged** pending that decision.
+
+*Power* (`scripts/size_o3_corpus.py`, φ = chance a discordant problem favours
+the readout; φ = 0 is the pilot's own pattern, 4 of 4 against the readout):
+
+| problems | φ=0 | φ=0.1 | φ=0.2 |
+|---|---|---|---|
+| 80 | 0.99 | **0.71** | 0.32 |
+| 120 | 1.00 | **0.93** | 0.57 |
+
+*Cost*, from the pilot's own workload: 6 windows per problem × (2 samples + 1
+noise control) = **18 generated sequences per problem**, at main's 256-token
+cap ≈ 4.6k tokens. Against the traces stage's measured throughput that is
+**~2 min/problem**, so 80 ≈ 2.7 h and 120 ≈ 4 h. *Estimate, not measured* — the
+pilot's `nla` manifest records only the reconstruct phase (156 s for 378
+reconstructions), and the undated log cannot separate the verbalise phase.
+
+**The trade is ~1.3 hours of GPU on a ~30-hour run for 0.71 → 0.93 power at the
+one value of φ that is neither optimistic nor pessimistic.** That is cheap.
+Against it: φ is estimated from 4 discordant problems, so all three columns are
+soft, and the arm has ~219 tailed problems available so 120 is reachable.
+
+Apply it at the point of use, not now — editing `configs/main.yaml` mid-run
+changes the config hash and records a provenance hazard against the traces
+already generated:
+
+```powershell
+.venv\Scripts\python.exe scripts\run_autoencoder.py --config main --set nla.max_problems=120
+```
 
 ### 2. Validate the causal fix on a GPU — the one thing this session could not
 
-Once the GPU is free:
+**Blocked until `traces` finishes or is deliberately paused at a safe
+checkpoint.** It needs the same 5.5 GB of VRAM the traces stage holds, and the
+card has 6.14 GB. Running both would thrash and corrupt the throughput of a
+healthy 27-hour run for no gain. Pausing is safe — `traces` resumes per problem
+— but there is no reason to pause it for this.
 
 ```powershell
 .venv\Scripts\python.exe scripts\run_interventions.py --config pilot --force
@@ -307,6 +363,10 @@ pre-register for RQ3. `continuation_tokens` is the leading candidate — already
 recorded, continuous, and a question about how much further the model writes
 rather than about what the text means. **Do not pick the readout that gives
 the nicest answer**; that is what `screen_outcomes` exists to prevent. (D35)
+
+**RQ3 is not validated until this GPU run produces evidence.** The fix is unit
+-tested only. Until step 1 shows non-zero edits on a real run, nothing may be
+claimed about the tail direction in either direction.
 
 ### 3. Re-run the pilot analysis if anything upstream changes
 
