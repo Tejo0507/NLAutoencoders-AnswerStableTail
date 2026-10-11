@@ -15,7 +15,7 @@ against its own statistics found that **the study's one significant primary
 finding was an artefact of a default parameter**, and that three of five causal
 arms had never done anything. Both are fixed, with tests. The **main run is
 healthy and under way**: `env`, `data` and `models` are complete and `traces`
-has done **53 of 250** with 0 failures, ETA ~23.5 h, resumable per problem.
+has done **61 of 250** with 0 failures, ETA ~23 h, resumable per problem.
 
 **Leave it alone.** Do not run the test suite, the causal validation, or any
 other GPU work alongside it — doing so doubled a problem's wall time this
@@ -193,7 +193,16 @@ machine state, not a cost: the pilot generated the same traces *twice*,
 byte-identical, once at about 2 min/problem and once at 12.9, the slow pass
 with 1.3 GB of free RAM.
 
-### Verified progress — 53 of 250, as of 17:25 on 2026-10-11
+### Verified progress — 61 of 250, as of 18:30 on 2026-10-11
+
+Latest refresh: 37 GSM8K / 24 MATH, 0 failures. MATH truncation **1/24 =
+0.042, CI [0.001, 0.211]** — the upper bound has tightened further below the
+pilot's 0.300. Accuracy 0.919 GSM8K and 0.917 MATH. ETA ~23 h.
+
+The per-dataset timing table below is from the 53-problem refresh and has not
+materially moved.
+
+### Earlier refresh — 53 of 250, as of 17:25 on 2026-10-11
 
 Process PID 19728 (unchanged since launch), GPU 100% at 64 °C, 5.8 GB VRAM.
 **53 completed, 0 failed, 0 scan-capped.**
@@ -303,13 +312,57 @@ calibration's 316s on the same problem).
 
 ### 1. Let `traces` finish, then continue the pipeline
 
+**Gate first.** GPU stages must not start until a fresh check shows trace
+generation has actually finished — not merely that it looked close:
+
 ```powershell
-.venv\Scripts\python.exe scripts\extract_activations.py --config main --layers 14 20 24
-.venv\Scripts\python.exe scripts\run_pipeline.py --config main --from ast
+# expect 250 lines, and no running generate_traces process
+(Get-Content runs\main\traces\traces.jsonl).Count
+Get-Process python -ErrorAction SilentlyContinue | Format-Table Id, StartTime
 ```
 
-Skip `robustness:F8` or expect it to fail on disk (§6). If `run_pipeline` is
-used instead of the stage scripts, it will attempt F8 after `acts`.
+Then, stage by stage. Flags below were checked against each script's own
+`--help` this session, so they are the real interface, not a guess:
+
+```powershell
+.venv\Scripts\python.exe scripts\extract_activations.py --config main --layers 14 20 24
+.venv\Scripts\python.exe scripts\detect_answer_stable_tail.py --config main --sweep
+.venv\Scripts\python.exe scripts\score_baselines.py --config main
+.venv\Scripts\python.exe scripts\run_autoencoder.py --config main --set nla.max_problems=120
+.venv\Scripts\python.exe scripts\audit_faithfulness.py --config main
+.venv\Scripts\python.exe scripts\run_interventions.py --config main
+.venv\Scripts\python.exe scripts\aggregate_results.py --config main
+.venv\Scripts\python.exe scripts\run_falsification_tests.py --config main
+.venv\Scripts\python.exe scripts\write_run_report.py --config main
+```
+
+**Do not use `run_pipeline.py --config main --from ast`** unless F8 is wanted:
+the orchestrator inserts `robustness:F8` after `acts`, and F8 needs a bf16
+checkpoint that no longer exists (§6). Running the stages by hand, as above,
+skips it.
+
+**Checked this session, so these are not open risks:**
+
+- **Disk.** The pilot wrote 5.6 MB of activations for 24 problems across three
+  layers, so `acts` projects to ~0.06 GB at 250 and the whole run to ~100 MB.
+  41 GB free. Not a constraint.
+- **F5's `k = 5` arm** was `not_applicable` on the pilot, because only three
+  continuations per boundary were recorded and `k` simulates only downwards.
+  The main run records five at every evaluated boundary — confirmed across the
+  61 traces available when this was written — so both `ast_sweep_k` settings
+  will run. This is a falsification test the pilot could not perform.
+- **The `causal` arm's composition.** It took a prefix of `ast.jsonl`, which is
+  representative only because that file follows the interleaved trace order.
+  Now capped proportionally by dataset, so it no longer depends on an upstream
+  file's row order. `causal.max_problems` is 60 against roughly 130 eval-split
+  tailed problems expected, so the cap will bind.
+
+**Validate after each stage** against the field list in §7 of
+[`docs/STATUS.md`](docs/STATUS.md). The three that would most easily pass
+unnoticed: `total_clamped_positions` must be 0 in `acts/summary.json`; the
+`nla` stage's `phases_present` must contain both `verbalise` and `reconstruct`;
+and the probe's margin over its positional floor must stay above 0.05 or the
+probe must not be described as a correctness readout.
 
 **Before the `nla` stage, decide `nla.max_problems`. Recommendation: raise 80 →
 120.** Reviewed this session; the config is **unchanged** pending that decision.
@@ -419,12 +472,16 @@ CPU-only and cheap.
   delete.
 - The `env` stage's `disk_for_bf16_staging` check could be taught about
   eviction rather than reported as a failure.
-- The agreement rule needs a **graded** score if its head-to-head is ever to be
-  evaluable (D31) — for instance the fraction of the window that agrees, rather
-  than unanimity as a boolean. Tracked as
-  **[#9](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/9)**;
-  needs no GPU and no regeneration, since it is computed from `parsed_answer`
-  values already recorded.
+- The agreement rule's graded score is **done** (D36,
+  [#9](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/9)
+  still open to re-check on the main corpus). The score is the agreement run
+  length, which is the pre-registered `b_conv(w)` with `w` moved onto the sweep
+  axis — proven identical to the canonical implementation over 83 traces for
+  `w = 1..8`. It raised the rule's operating points from 3 to 8 and **did not**
+  make the comparison evaluable: the achievable savings stay clustered, with
+  the budget window falling between `w = 2` (0.407) and `w = 1` (0.855). Worth
+  re-checking once `baselines` runs on the main corpus, since the window's
+  position depends on the NLA rule's own range.
 
 ### Issue tracker, reconciled this session
 
