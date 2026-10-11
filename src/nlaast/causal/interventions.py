@@ -290,6 +290,15 @@ OUTCOMES: dict[str, Callable[[InterventionResult], float]] = {
 #: Arms the screen looks at: the candidate direction and its two controls.
 _DIRECTION_ARMS = ("ablate_dir", "random_dir", "matched_position")
 
+#: The readout ``direction_claim_supported`` actually gates on.
+#:
+#: Named here so that the gate and the screen cannot disagree about it, and so
+#: that it is visible as a *choice*. The pre-registration does not specify a
+#: dependent variable for RQ3 (D40), so this is the implementation's default
+#: rather than a registered commitment. Changing it is a scientific decision
+#: and requires a pre-registration amendment, not an edit here.
+VERDICT_OUTCOME = "marker_delta"
+
 
 def screen_outcomes(
     results: Sequence[InterventionResult], compare_at: float = 1.0
@@ -306,6 +315,13 @@ def screen_outcomes(
     arms are direction edits, and if their spans never intersected the forward
     pass they reproduce the baseline exactly - which looks like a readout with
     no effect instead of an intervention that did not happen.
+
+    Finally it reports *how much* each arm edited
+    (``edit_extent_by_arm``), because the two pre-registered controls are not
+    matched on extent in the same way: ``random_dir`` shares the candidate's
+    span exactly, while ``matched_position`` is the matched-length window
+    before the tail and edits its whole span in one pass. See the comment at
+    that block and D39.
     """
     rows = [r for r in results if r.intervention in _DIRECTION_ARMS]
     edited = [int((r.notes or {}).get("n_positions_edited", -1)) for r in rows]
@@ -325,6 +341,42 @@ def screen_outcomes(
             "identical to the unintervened baseline by construction and no "
             "readout can distinguish them; this is a broken independent "
             "variable, not a negative result")
+
+    # How *much* each arm edited, not just whether it edited at all.
+    #
+    # The pre-registration's two controls do different jobs, and only one of
+    # them is matched on extent. `random_dir` is given the candidate's own
+    # span, so that contrast isolates the direction exactly. `matched_position`
+    # is the pre-registered matched-length window ending before the tail, which
+    # lives inside the prompt - so it is delivered in a single forward pass and
+    # edits its whole span, while the candidate edits only as far as generation
+    # actually ran. On the pilot's spans that is a median of 72 positions
+    # against 36: the location contrast also differs in extent, and in the
+    # direction that makes the control the *stronger* edit.
+    #
+    # Reported rather than corrected, because matching the two would require
+    # either redefining the pre-registered control window or a second
+    # generation pass to learn the length first (D39). A reader comparing
+    # `ablate_dir` with `matched_position` needs this beside the arm means.
+    extent: dict[str, Any] = {}
+    for arm in _DIRECTION_ARMS:
+        vals = [int((r.notes or {}).get("n_positions_edited", -1))
+                for r in rows if r.intervention == arm]
+        vals = [v for v in vals if v >= 0]
+        extent[arm] = {
+            "n": len(vals),
+            "median_positions_edited": float(np.median(vals)) if vals else float("nan"),
+            "min": min(vals) if vals else None,
+            "max": max(vals) if vals else None,
+        }
+    out["edit_extent_by_arm"] = extent
+    cand = extent.get("ablate_dir", {}).get("median_positions_edited", float("nan"))
+    out["extent_matched_candidate_vs_random"] = bool(
+        np.isfinite(cand)
+        and cand == extent.get("random_dir", {}).get("median_positions_edited"))
+    mp = extent.get("matched_position", {}).get("median_positions_edited", float("nan"))
+    if np.isfinite(cand) and np.isfinite(mp) and cand > 0:
+        out["extent_ratio_matched_position_over_candidate"] = float(mp / cand)
     for name, fn in OUTCOMES.items():
         vals = [fn(r) for r in rows]
         finite = [v for v in vals if np.isfinite(v)]
@@ -352,15 +404,30 @@ def screen_outcomes(
         entry["separates_arms"] = (
             len(finite_means) >= 2
             and float(np.max(finite_means) - np.min(finite_means)) > 0.0)
-        entry["pre_registered"] = name == "marker_delta"
+        # Which readout the gate reads, *not* a claim that it was registered.
+        #
+        # This flag used to be `pre_registered`, set True for `marker_delta`.
+        # That was false: "verification markers" appear nowhere in
+        # PROJECT_PLAN.md or in either review. The pre-registration fixes the
+        # five arms, the two control comparisons and the requirement of a
+        # dose-response curve, and names no dependent variable at all - "beat"
+        # is left undefined (D40). Recording marker_delta as registered made
+        # an implementation default look like a commitment made in advance.
+        entry["is_verdict_outcome"] = name == VERDICT_OUTCOME
+        entry["pre_registered"] = False
         out["outcomes"][name] = entry
     usable = [n for n, e in out["outcomes"].items()
               if e["varies"] and e["separates_arms"]]
     out["usable_outcomes"] = usable
+    out["preregistered_outcome"] = None
+    out["verdict_outcome"] = VERDICT_OUTCOME
     out["note"] = (
-        "exploratory. The verdict is computed from the pre-registered "
-        "marker_delta; these are reported so that a readout with power can be "
-        "pre-registered for a later run, not so that one can be chosen now "
+        "exploratory. The pre-registration specifies the arms, both control "
+        "comparisons and a dose-response requirement, but **no dependent "
+        f"variable**; the verdict is computed from `{VERDICT_OUTCOME}`, which "
+        "is the implementation's default and not a registered choice (D40). "
+        "These candidates are reported so that a readout with power can be "
+        "registered for a later run, not so that one can be chosen now "
         "because it gave the preferred answer.")
     return out
 
@@ -416,8 +483,21 @@ def direction_claim_supported(
         and abs(ablate.marker_delta) > abs(matched.marker_delta)
     )
     deltas = [p["marker_delta"] for p in curve if np.isfinite(p["marker_delta"])]
-    monotone = len(deltas) >= 3 and all(
-        abs(deltas[i + 1]) >= abs(deltas[i]) - 1e-9 for i in range(len(deltas) - 1)
+    # A constant readout satisfies "non-decreasing in |delta|" vacuously, so an
+    # identically-zero outcome used to report `monotone_dose_response: true` -
+    # the pilot's own summary.json says so, next to `outcome_varies: false`. A
+    # reader scanning the four conditions saw one of them met when the
+    # dose-response curve was flat at zero and nothing had been established.
+    #
+    # Monotonicity is computed from the same readout as `beats_*`, so it is
+    # gated the same way: unknown when the readout does not vary. It also
+    # requires the curve itself to move, rather than only to not go down -
+    # a dose-response claim needs a response.
+    monotone = (
+        len(deltas) >= 3
+        and len(set(deltas)) > 1
+        and all(abs(deltas[i + 1]) >= abs(deltas[i]) - 1e-9
+                for i in range(len(deltas) - 1))
     )
     # "Selectively": behaviour moves, the answer does not.
     answer_preserved = _finite(ablate.answer_change_rate) and ablate.answer_change_rate < 0.2
@@ -431,11 +511,17 @@ def direction_claim_supported(
     return {
         "beats_random_direction": beats_random if outcome_varies else None,
         "beats_matched_position": beats_position if outcome_varies else None,
-        "monotone_dose_response": monotone,
+        "monotone_dose_response": monotone if outcome_varies else None,
+        # Not gated on the readout: it is measured on a different variable
+        # (whether the final answer changed), so it stays meaningful even when
+        # the behavioural readout is flat. Under a no-op intervention it is
+        # vacuous for another reason, which `screen_outcomes` reports as
+        # `interventions_were_no_ops`.
         "answers_preserved": answer_preserved,
         "supported": supported,
         "outcome_varies": outcome_varies,
         "outcome": "verification_markers - baseline_verification_markers",
+        "outcome_is_preregistered": False,
         "untestable_reason": (
             None if outcome_varies else
             "the behavioural readout is constant across every direction arm, "
