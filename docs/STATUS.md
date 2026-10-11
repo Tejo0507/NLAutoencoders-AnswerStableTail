@@ -1,7 +1,7 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-10.
+Last reviewed 2026-10-11.
 
 **One-line status:** the pilot has run **to completion** — all thirteen
 stages on all 24 configured problems, including the released autoencoder,
@@ -10,11 +10,22 @@ come from `runs/pilot/`, whose execution report is
 `runs/pilot/report/RESULTS.md`. The sample is 24 problems, so every interval
 is wide and nothing here is a claim about language models in general.
 
-**The headline is negative for the verbalised readout.** Where the stopping
-comparison can be made at genuinely matched budget, the readout is
-significantly *worse* than semantic entropy. The review named that as an
-acceptable outcome in advance and it is reported with the weight a positive
-result would have had.
+**The headline is negative for the verbalised readout, and not significantly
+so.** At matched budget the readout is *worse* than semantic entropy — 4
+discordant problems of 21, all four favouring semantic entropy — but on 21
+problems that is p = 0.125, q = 0.156. It is **exactly tied** with the
+hidden-state probe, preserving the outcome on the same problems. The review
+named a negative result as acceptable in advance and it is reported with the
+weight a positive result would have had.
+
+> **This supersedes an earlier reading of the same run.** The comparison was
+> previously reported as significant at q = 0.0065. That test paired the two
+> rules over nine *budget levels*, all nine of which resolved to one pair of
+> operating points, so it saw nine copies of one comparison and its p-value
+> was set by the size of the budget grid — 0.0625 at five budgets, 1e-6 at
+> twenty-five. Tested over problems, which is the unit safety is measured on,
+> the same data give q = 0.156. See [`DECISIONS.md`](DECISIONS.md) D29. The
+> direction of every claim below is unchanged; the strength is not.
 
 ---
 
@@ -31,8 +42,8 @@ result would have had.
 | `baselines` | complete | probe grouped-CV AUC 0.996 — but see §2 for what that number is |
 | `nla` | complete | 126 windows, 252 activation samples + 126 controls; integrity **0.976**; FVE **0.677** against the empirical baseline |
 | `faithfulness` | complete | 967 claims over 246 explanations; 0.759 reconstruction-dependent, 0.003 reproduced from noise |
-| `causal` | complete | truncating the tail changes **no answer on 10/10** problems; the direction claim is **untested**, not refuted |
-| `analysis` | complete | 9 tests in the family, 5 evaluable, 4 significant at q = 0.05 |
+| `causal` | complete | truncating the tail changes **no answer on 10/10** problems; the direction claim is **untested** — the three direction arms were no-ops (D34), now fixed but not re-run |
+| `analysis` | complete | 9 tests in the family, 5 evaluable, 3 significant at q = 0.05 |
 | `robustness` | complete | all nine tests ran; F8 cos 0.987, F6 no leak, F7 layer 20 not special |
 | `report` | complete | `runs/pilot/report/RESULTS.md`, 5 figures, 7 tables |
 
@@ -110,25 +121,45 @@ be read as a positional rule with a small activation-derived increment, not as
 a correctness readout. This matters because the probe is one of the baselines
 the primary research question is measured against.
 
-### The primary question: the readout loses to the cheap signals
+### The primary question: the readout does not beat the cheap signals
 
-Of the three planned head-to-head comparisons at matched token budget, **only
-one could be made**. A rule's safety/saving curve is a step function — it
-fires at a boundary or it does not — and on 21 problems the steps are wide
-enough that two curves need not have any operating point near a shared budget.
-Asking all four rules for a saving of 0.632 returned convergence at 0.407 and
-the probe at 0.855, a 45-point spread. Points more than 0.05 from the target
-are now refused rather than compared as though matched.
+Two of the three planned head-to-heads can now be made. The outcome is binary
+per problem — stopping there either preserved the verified outcome or it did
+not — and both rules are scored on the same problems, so each comparison is
+McNemar's exact test over problems. Only *discordant* problems carry
+information.
 
-| compared against | NLA safe rate | its safe rate | budgets | q |
-|---|---|---|---|---|
-| semantic entropy | **0.095** | **0.286** | 9 | 0.0065 |
-| convergence | — | — | 0 | not evaluable |
-| hidden-state probe | — | — | 0 | not evaluable |
+| compared against | NLA safe | its safe | discordant | favouring NLA | q |
+|---|---|---|---|---|---|
+| semantic entropy | **0.095** | **0.286** | 4 of 21 | 0 | 0.156 |
+| hidden-state probe | 0.095 | 0.095 | **0** of 21 | — | tied |
+| convergence | — | — | — | — | not evaluable, at any N |
 
-The one comparison that can be made goes against the readout. Both
-unevaluable tests stay in the pre-registered family rather than being dropped,
-so the Benjamini–Hochberg correction is not flattered by their absence.
+Neither comparison favours the readout, and neither is significant. Against
+semantic entropy all four discordant problems fall the same way, which is
+suggestive on a corpus this size and no more: eight such problems would be
+needed to clear q = 0.05, and `scripts/size_o3_corpus.py` turns that into a
+corpus size.
+
+Against the probe the result is a genuine tie — the two rules preserved the
+outcome on *exactly the same* problems, so there is nothing to test rather
+than nothing to see. Read with the positional-floor finding above, a readout
+that matches a predictor largely reading position is not obviously reading
+more than position either.
+
+The convergence comparison is **not** a sample-size limit. Its score is 1.0
+once the last `window` answers agree and 0.0 otherwise, so its curve has three
+operating points at any corpus size, and its two savings of 0.407 and 0.885
+straddle the shared budget window without entering it. No amount of data fixes
+that; a graded score would. See [`DECISIONS.md`](DECISIONS.md) D31.
+
+Both of the previously "unevaluable" comparisons were partly an artefact of
+sweeping 25 evenly spaced thresholds, which samples the score axis rather than
+the rule. The probe's scores saturate, so the linear grid found 5 operating
+points; swept at the observed values the same problems give 86 and match at
+every budget (D30). The unevaluable test stays in the pre-registered family
+rather than being dropped, so the Benjamini–Hochberg correction is not
+flattered by its absence.
 
 ### RQ2: the claims are reconstruction-dependent and not noise
 
@@ -156,15 +187,36 @@ describes a late mathematical-reasoning state about equally well wherever it
 is sampled. The Gaussian control at 0.391 is what shows it is doing anything
 at all.
 
-### RQ3: untested, not refuted
+### RQ3: untested, for two reasons rather than one
 
-**The behavioural readout never moved.** Not one of the twenty rechecking
+**The direction edit never reached the computation.** All three direction arms
+were no-ops. The edit is restricted to absolute token positions covering the
+generated continuation, but the span was applied as an index into whichever
+tensor the forward hook received — and cached decoding passes the whole prompt
+once and then one token at a time, so the span intersected neither. The run's
+own output shows it: on all ten problems `ablate_dir` returned identical
+answers and identical token counts at coefficients 0.0, 1.0 and 2.0, and dose
+0.0 is a no-op by definition.
+
+Fixed, unit-tested including the cached-decode case, and now *checked* — the
+editor counts the positions it modifies, the stage warns when a non-zero dose
+edits nothing, and the screen reports a broken independent variable rather
+than a negative result. **Not yet validated on GPU.** The numbers below are
+from the pre-fix run and describe arms that did nothing.
+
+**The behavioural readout also never moved.** Not one of the twenty rechecking
 markers occurs in any of the 24 traces — this model writes clean step-by-step
 derivations with no "wait", "actually" or "let me check". With a constant
 outcome every comparison in the Zhang & Nanda gate fails trivially, so the
-gate now returns `supported: null` with the reason rather than `false`, and
-the two control comparisons as null. A constant outcome is no evidence either
-way.
+gate returns `supported: null` with the reason rather than `false`, and the
+two control comparisons as null. A constant outcome is no evidence either way.
+
+So RQ3 had neither a working independent variable nor a varying dependent one.
+The handoff recorded only the second. Candidate readouts are now screened for
+variation and arm separation on every run, with the pre-registered marker
+delta still the one the verdict uses, so a readout with power can be
+pre-registered rather than chosen after the fact ([`DECISIONS.md`](DECISIONS.md)
+D34, D35).
 
 What the behavioural arms *do* show, after fixing an off-by-one that had them
 truncating one chunk too early: **stopping at the tail start changes no answer
@@ -245,9 +297,15 @@ itself forced.
 
 ## 5. What has not run
 
-- **The main configuration.** `configs/main.yaml` is 250 problems. At the
-  pilot's measured 12.9 min/problem for traces alone that is over 50 hours on
-  this machine, so it has not been attempted. The pilot is the achieved scale.
+- **The main configuration** is **running** as of 2026-10-11. 250 problems,
+  interleaved by dataset so the achieved N is a proportional sample of both
+  benchmarks at whatever point it stops (D33). Measured throughput on an
+  otherwise idle machine is **3.2 min/problem** for GSM8K under main's
+  settings, against the 12.9 min/problem the pilot's manifest records — the
+  pilot generated the same traces twice, once at about 2 min/problem and once
+  at 12.9, with byte-identical outputs, so the slow figure was a degraded
+  machine state (1.3 GB free RAM) and not an intrinsic cost. Expect roughly
+  20 hours for all 250, with MATH about twice GSM8K per problem.
 - **The two supervised analyses** (`scripts/predict_tail_fraction.py`,
   `scripts/predict_correctness.py`) refuse below 30 train / 20 eval rows and so
   cannot run on 24 problems. They are correct to refuse. The root-level
@@ -259,17 +317,23 @@ itself forced.
   them automatically (D22).
 - **A second annotator** for O6 inter-rater reliability. Single-rater, as the
   review anticipated.
-- **A corpus large enough for the O3 comparison to resolve anything.** Two of
-  the three planned head-to-heads could not be made at matched budget at all,
-  and the one that could rests on nine operating points over 21 problems.
-  This is the single most valuable thing a larger run would buy.
+- **A corpus large enough for the O3 comparison to resolve anything.** The
+  binding quantity is **discordant** problems, not total ones: 8 are needed to
+  clear q = 0.05 and the pilot's rate of 4/21 puts that at about 42 problems in
+  the NLA arm (D32). `scripts/size_o3_corpus.py` recomputes it from any run.
+  Note that this is no longer what blocks *two* of three head-to-heads — one
+  was a threshold-grid artefact and is now evaluable (D30), and one is
+  unevaluable at any N (D31).
+- **A GPU validation of the fixed direction interventions.** They were no-ops
+  for the whole pilot (D34). The fix is unit-tested but the causal stage has
+  not been re-run, because the traces stage holds the GPU.
 - **A behavioural readout for RQ3 that varies on this model.** The marker list
-  is empty on every trace, so the causal gate has no outcome to judge. Either
-  a model that verbalises its rechecking, or a different readout — the answer
-  distribution's entropy under intervention would be one — is needed before
-  RQ3 can be tested at all. The direction *is* fittable (38 tail / 32
-  pre-stabilisation vectors from 11 train problems); it is the dependent
-  variable that is missing.
+  is empty on every trace, so the causal gate has no outcome to judge. Readouts
+  are now screened for variation and arm separation rather than chosen after
+  the fact (D35), with `continuation_tokens` the leading candidate. Whether
+  anything separates the arms cannot be known until the arms do something. The
+  direction *is* fittable (38 tail / 32 pre-stabilisation vectors from 11 train
+  problems).
 
 ---
 
@@ -279,7 +343,7 @@ itself forced.
 $env:HF_HOME = "<volume>/hf_cache"      # bf16 staging
 $env:NLAAST_QUANT_DIR = "<volume>/nf4"  # 4-bit checkpoints
 
-.venv\Scripts\python.exe -m pytest                       # 430 tests, no GPU
+.venv\Scripts\python.exe -m pytest                       # 513 tests, no GPU
 .venv\Scripts\python.exe -m pytest -m slow               # adds the 4-bit GPU paths
 .venv\Scripts\python.exe scripts\run_pipeline.py --config pilot --dry-run
 ```
@@ -287,24 +351,39 @@ $env:NLAAST_QUANT_DIR = "<volume>/nf4"  # 4-bit checkpoints
 The pilot's stages are all complete, so `run_pipeline.py --config pilot` is a
 no-op. To re-run from a stage, pass `--from <stage> --force`.
 
-**For a larger run,** the order that fits on this hardware is the one the
-orchestrator already encodes, with the checkpoint preparation split in two
-because the three models cannot coexist:
+**The larger run is in progress.** `env`, `data` and `models` are complete and
+`traces` is running; the token caps are already raised in `main.yaml`. To
+continue it after an interruption, the same command resumes per problem:
 
 ```powershell
-# 1. traces, activations, and F8 while the bf16 target still exists
-.venv\Scripts\python.exe scripts\run_pipeline.py --config main --stages env data traces acts
-.venv\Scripts\python.exe scripts\run_falsification_tests.py --config main --only F8_quantisation --force
+.venv\Scripts\python.exe scripts\generate_traces.py --config main
+```
 
-# 2. the autoencoders, after the bf16 target is evicted
-.venv\Scripts\python.exe scripts\prepare_checkpoints.py --config main --evict-bf16 target
-.venv\Scripts\python.exe scripts\prepare_checkpoints.py --config main --skip target --force
+Then the rest, in the order this hardware requires. **F8 is the exception to
+the documented ordering:** it is placed before the autoencoders so it can run
+while the bf16 target still exists, but all bf16 sources were evicted during
+the pilot, so it cannot run at all without re-downloading 15.3 GB. The
+download cache has 12.0 GB free, which is why the `env` stage's
+`disk_for_bf16_staging` check fails; `D:` has over 50 GB, so repointing
+`HF_HOME` there would make it possible. F8 measures a property of the
+checkpoint rather than of the corpus, so the pilot's cosine of 0.987 carries
+forward and re-measuring it is optional.
 
-# 3. the rest
+```powershell
+.venv\Scripts\python.exe scripts\extract_activations.py --config main --layers 14 20 24
 .venv\Scripts\python.exe scripts\run_pipeline.py --config main --from ast
 ```
 
-Raise `generation.max_new_tokens` to 768 for MATH first — see §4.
+If the autoencoder stages need the three checkpoints and they cannot coexist,
+the preparation splits in two:
+
+```powershell
+.venv\Scripts\python.exe scripts\prepare_checkpoints.py --config main --evict-bf16 target
+.venv\Scripts\python.exe scripts\prepare_checkpoints.py --config main --skip target --force
+```
+
+All three NF4 checkpoints are currently present (14.8 GB: target on `D:`, AV
+and AR reached through junctions to `E:`), so `models` is already a no-op.
 
 ---
 
@@ -327,7 +406,23 @@ Raise `generation.max_new_tokens` to 768 for MATH first — see §4.
   else means an activation was read where its chunk boundary did not say.
 - **`matched` in the stopping comparison table, and `o3_unmatched` in
   `analysis/results.json`.** A head-to-head that could not be matched is not a
-  null result; it is an absent one. On 21 problems two of three went this way.
+  null result; it is an absent one. Read `granularity_limited` alongside it:
+  true means the rule's score is too coarse to ever be matched and more
+  problems will not help.
+- **`n_discordant` in each O3 test.** This, not `n_problems`, is the
+  comparison's effective sample size. Zero means the two rules preserved the
+  outcome on the same problems — a tie, with nothing to test. Fewer than 8
+  cannot clear q = 0.05 however lopsided they are.
+- **`n_distinct_operating_points` against `n_budgets_requested`.** If the
+  second greatly exceeds the first, the requested budgets are landing on the
+  same points, which is the condition that used to inflate the p-value.
+- **`n_positions_edited` in `causal/interventions.jsonl`, and
+  `outcome_screen.interventions_were_no_ops`.** Zero on a non-zero dose means
+  the direction edit never reached the forward pass and the arm is not
+  evidence about anything. This was true of the entire pilot.
+- **`outcome_screen.usable_outcomes`.** Empty means no candidate RQ3 readout
+  varied *and* separated the arms, so the stage had no power regardless of
+  what the verdict says.
 - **`verdict.supported: null` in `causal/summary.json`.** Means the readout
   did not vary, so nothing was tested. Distinct from `false`.
 - **`phases_present` in `nla`'s metrics.** Both `verbalise` and `reconstruct`
