@@ -320,8 +320,11 @@ def main() -> int:
                         "same few points at any corpus size, so a larger "
                         "corpus would not make this comparison evaluable"
                         if limited else
-                        "no budget where both rules have an operating point "
-                        "within tolerance, with the thresholds exhausted")
+                        f"the thresholds are exhausted, so the two curves do "
+                        f"not come within tolerance of a shared budget on "
+                        f"this corpus rather than the sweep having missed a "
+                        f"point; {other} reaches {n_points} distinct savings "
+                        f"here")
                     log.warning(
                         "O3: %s cannot be compared with %s at any budget - %s",
                         NLA_RULE, other, reason)
