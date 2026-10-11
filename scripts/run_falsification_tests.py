@@ -25,10 +25,12 @@ runs it alone, which is how the orchestrator sequences it.
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -76,16 +78,59 @@ def f1_length(cfg, traces, ast_rows, log) -> dict:
 
 
 # --- F2 ---
+def gold_magnitude(gold: str | None) -> float | None:
+    """``|gold|`` where the gold answer is a plain number, else ``None``.
+
+    F2 asks for a stratification by gold-answer magnitude, which only exists
+    for numeric answers. GSM8K's are all numeric; MATH's are often not
+    (``\\dfrac{9}{7}``, ``4,6,14,15``), so the stratum is reported with its
+    own coverage rather than silently covering part of the corpus.
+    """
+    if gold is None:
+        return None
+    s = str(gold).strip().replace("$", "").replace("%", "").replace(" ", "")
+    # MATH writes thousands separators as a comma plus a LaTeX thin space,
+    # e.g. "1,\!000,\!000". That is formatting, so it is normalised away
+    # before the separator check below rather than discarded as non-numeric.
+    s = s.replace(r"\!", "").replace(r"\,", "")
+    # Commas are only stripped when they are thousands separators. Stripping
+    # them unconditionally turned MATH's list answers into huge numbers -
+    # "4,6,14,15" parsed as 461415 - which would have loaded the top
+    # magnitude tertile with answers that have no magnitude at all.
+    if "," in s:
+        if not re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", s):
+            return None
+        s = s.replace(",", "")
+    try:
+        return abs(float(s))
+    except ValueError:
+        return None
+
+
 def f2_difficulty(cfg, traces, ast_rows, log) -> dict:
-    """Does the tail track problem difficulty rather than redundancy?"""
+    """Does the tail track problem difficulty rather than redundancy?
+
+    The pre-registration asks for two stratifications - "by MATH level and by
+    gold-answer magnitude". Only the first was implemented; the second was
+    missing entirely, so the falsification battery reported F2 as having run
+    while covering half of it. Magnitude is now stratified the same way:
+    descriptively, in tertiles of the observed magnitudes, with no threshold
+    chosen and no new inferential machinery. F2 is not a member of the
+    pre-registered hypothesis-test family, so this adds nothing to the
+    multiplicity correction.
+    """
     by_level: dict[str, list[float]] = {}
     by_dataset: dict[str, list[float]] = {}
+    mags: list[tuple[float, float]] = []
     for r in ast_rows:
         if r.get("tail_start") is None:
             continue
         if r.get("level"):
             by_level.setdefault(str(r["level"]), []).append(r["tail_fraction"])
         by_dataset.setdefault(str(r.get("dataset")), []).append(r["tail_fraction"])
+        mag = gold_magnitude((traces.get(r["problem_id"]) or {}).get("gold"))
+        if mag is not None:
+            mags.append((mag, r["tail_fraction"]))
     out = {
         "status": "ran",
         "by_level": {k: {"n": len(v), "mean_tail_fraction": float(np.mean(v))}
@@ -99,6 +144,44 @@ def f2_difficulty(cfg, traces, ast_rows, log) -> dict:
             out["dataset_test"] = unpaired_test(
                 "F2: tail fraction by dataset", a, b, cfg.analysis.confidence
             ).to_dict()
+
+    # -- the second registered stratification -------------------------------
+    n_tailed = sum(len(v) for v in by_dataset.values())
+    mag_out: dict[str, Any] = {
+        "n_with_numeric_gold": len(mags),
+        "n_tailed": n_tailed,
+        "coverage": (len(mags) / n_tailed) if n_tailed else 0.0,
+    }
+    if len(mags) >= 3:
+        mags.sort(key=lambda p: p[0])
+        # Tertiles by position, so the bins are defined by the observed
+        # distribution rather than by a magnitude cut someone picked.
+        k = len(mags)
+        edges = [0, k // 3, 2 * k // 3, k]
+        names = ("low", "mid", "high")
+        bins = {}
+        for name, lo, hi in zip(names, edges[:-1], edges[1:]):
+            chunk = mags[lo:hi]
+            if not chunk:
+                continue
+            bins[name] = {
+                "n": len(chunk),
+                "gold_magnitude_min": float(chunk[0][0]),
+                "gold_magnitude_max": float(chunk[-1][0]),
+                "mean_tail_fraction": float(np.mean([t for _, t in chunk])),
+            }
+        mag_out["tertiles"] = bins
+        lo_b, hi_b = bins.get("low"), bins.get("high")
+        if lo_b and hi_b and lo_b["n"] >= 3 and hi_b["n"] >= 3:
+            mag_out["low_vs_high_test"] = unpaired_test(
+                "F2: tail fraction, low vs high gold magnitude",
+                [t for _, t in mags[edges[0]:edges[1]]],
+                [t for _, t in mags[edges[2]:edges[3]]],
+                cfg.analysis.confidence,
+            ).to_dict()
+    else:
+        mag_out["reason"] = "fewer than 3 tailed problems with a numeric gold"
+    out["by_gold_magnitude"] = mag_out
     return out
 
 
