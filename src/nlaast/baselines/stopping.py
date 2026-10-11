@@ -109,6 +109,46 @@ class OperatingPoint:
         return asdict(self)
 
 
+def decisions_at(
+    per_problem: Sequence[dict[str, Any]],
+    threshold: float,
+    higher_fires: bool = True,
+) -> list[StopDecision]:
+    """Where each problem's rule fires at one threshold, and whether it was safe.
+
+    An operating point reports only rates, which is enough to draw a curve and
+    not enough to test one: the matched-budget comparison's outcome is binary
+    and per problem, so the test has to see the individual problems. This
+    returns them, in the order given, for one point on the curve.
+    """
+    out: list[StopDecision] = []
+    for row in per_problem:
+        scores = row["scores"]
+        fire_at = None
+        for i, s in enumerate(scores):
+            if s is None or not np.isfinite(s):
+                continue
+            if (s >= threshold) if higher_fires else (s <= threshold):
+                fire_at = i
+                break
+        if fire_at is None:
+            out.append(
+                evaluate_stop(row["problem_id"], "sweep", None, None,
+                              row["final_answer"], row["gold"],
+                              row["total_tokens"], row["total_tokens"], threshold)
+            )
+        else:
+            out.append(
+                evaluate_stop(
+                    row["problem_id"], "sweep", fire_at,
+                    row["answers"][fire_at], row["final_answer"], row["gold"],
+                    row["boundary_tokens"][fire_at], row["total_tokens"],
+                    scores[fire_at],
+                )
+            )
+    return out
+
+
 def sweep_threshold(
     per_problem: Sequence[dict[str, Any]],
     thresholds: Sequence[float],
@@ -123,31 +163,7 @@ def sweep_threshold(
     """
     points: list[OperatingPoint] = []
     for thr in thresholds:
-        decisions: list[StopDecision] = []
-        for row in per_problem:
-            scores = row["scores"]
-            fire_at = None
-            for i, s in enumerate(scores):
-                if s is None or not np.isfinite(s):
-                    continue
-                if (s >= thr) if higher_fires else (s <= thr):
-                    fire_at = i
-                    break
-            if fire_at is None:
-                decisions.append(
-                    evaluate_stop(row["problem_id"], "sweep", None, None,
-                                  row["final_answer"], row["gold"],
-                                  row["total_tokens"], row["total_tokens"], thr)
-                )
-            else:
-                decisions.append(
-                    evaluate_stop(
-                        row["problem_id"], "sweep", fire_at,
-                        row["answers"][fire_at], row["final_answer"], row["gold"],
-                        row["boundary_tokens"][fire_at], row["total_tokens"],
-                        scores[fire_at],
-                    )
-                )
+        decisions = decisions_at(per_problem, thr, higher_fires)
         n = len(decisions)
         if n == 0:
             continue
@@ -162,6 +178,56 @@ def sweep_threshold(
             )
         )
     return points
+
+
+def complete_threshold_grid(values: Sequence[float]) -> list[float]:
+    """Every threshold that can produce a distinct operating point.
+
+    A rule's curve changes only at a threshold that crosses an observed score:
+    between two adjacent observed values no problem can change the boundary it
+    fires at, so no threshold between them yields a new operating point.
+    Sweeping the observed values therefore enumerates the *whole* curve, and
+    does so exactly.
+
+    This replaces a fixed-size linear grid, which samples the score axis
+    uniformly and so depends on how the scores happen to be distributed rather
+    than on the rule. The pilot shows why that mattered: the hidden-state
+    probe's scores are logistic and saturate near 0 and 1, so 25 evenly spaced
+    thresholds found 5 operating points and *none* within tolerance of a
+    shared budget, and the probe's head-to-head was reported as unevaluable.
+    The same 21 problems swept at their observed values give 86 operating
+    points and match at all nine budgets. The comparison was never missing
+    data; it was missing thresholds.
+
+    The converse case is as important. With the complete grid, a curve's
+    operating points are exhaustive, so a rule that still cannot be matched is
+    not being failed by the sweep. ``granularity_bound`` is what distinguishes
+    the two reasons that can happen.
+    """
+    finite = sorted({float(v) for v in values if v is not None and np.isfinite(v)})
+    if not finite:
+        return []
+    eps = 1e-9
+    # One threshold below the minimum gives the "fires wherever it can" end;
+    # each observed value nudged upwards gives the point just past that score.
+    return [finite[0] - eps] + [v + eps for v in finite]
+
+
+def granularity_bound(values: Sequence[float]) -> int:
+    """Most operating points a rule's curve can ever have, at any corpus size.
+
+    A score taking ``d`` distinct values admits at most ``d + 1`` thresholds
+    that behave differently, so the curve has at most ``d + 1`` points however
+    many problems are added. This separates a comparison that a larger corpus
+    would unblock from one no corpus size can.
+
+    The agreement rule is the case in point: its score is 1.0 once the last
+    ``window`` answers agree and 0.0 otherwise, so ``d = 2`` and its curve has
+    three points at any N. On the pilot those are savings of 0.407 and 0.885,
+    which straddle the matched-budget window without landing in it. That is a
+    property of a binary score, not of 21 problems.
+    """
+    return len({float(v) for v in values if v is not None and np.isfinite(v)}) + 1
 
 
 #: How far an operating point may sit from the requested budget and still be
@@ -210,12 +276,20 @@ def budget_grid(curves: dict[str, Sequence[OperatingPoint]], n: int = 9) -> list
     Taking the intersection of the per-rule achievable ranges avoids comparing
     one rule at an operating point another cannot reach, which would make the
     comparison an artefact of the threshold grid.
+
+    Operating points that save nothing are excluded. Every complete curve has
+    one - the threshold above which the rule never fires - and at that point
+    no rule stops, so every rule is trivially safe and the difference between
+    them is identically zero. Including it does not make the comparison
+    conservative, it makes it vacuous: the budget the rules are matched at has
+    to be a budget. The floor is therefore the smallest saving every rule can
+    reach *while actually stopping somewhere*.
     """
     lows, highs = [], []
     for pts in curves.values():
-        if not pts:
+        vals = [p.mean_tokens_saved for p in pts if p.mean_tokens_saved > 0]
+        if not vals:
             continue
-        vals = [p.mean_tokens_saved for p in pts]
         lows.append(min(vals))
         highs.append(max(vals))
     if not lows:
