@@ -46,6 +46,7 @@ from nlaast.causal.interventions import (
     random_direction,
     summarise_arm,
 )
+from nlaast.data import datasets
 from nlaast.data.answers import PERMISSIVE, equivalent, extract_answer
 from nlaast.logging_utils import JsonlWriter, read_jsonl, write_json
 from nlaast.models.target import TargetModel
@@ -137,8 +138,20 @@ def main() -> int:
                if r.get("tail_start") is not None
                and traces.get(r["problem_id"], {}).get("split") == "eval"
                and r.get("windows")]
-    targets = targets[: (args.limit or ccfg.max_problems)]
-    log.info("%d eval-split problems with a tail available for intervention", len(targets))
+    # Proportional by dataset, not a prefix. A prefix is only representative
+    # because `ast.jsonl` happens to follow the interleaved trace order, which
+    # makes correctness depend on an upstream file's row order - and the same
+    # assumption has already failed twice, in `load_problems` and in the NLA
+    # cap, both silently. The pilot's own `ast.jsonl` is dataset-blocked,
+    # predating the interleaving fix, so a prefix of it would be all GSM8K.
+    available = len(targets)
+    targets = datasets.stratified_cap(targets, args.limit or ccfg.max_problems)
+    by_ds: dict[str, int] = {}
+    for r in targets:
+        by_ds[r.get("dataset")] = by_ds.get(r.get("dataset"), 0) + 1
+    log.info("%d eval-split problems with a tail available for intervention; "
+             "using %d, proportional by dataset: %s",
+             available, len(targets), by_ds)
     if not targets:
         manifest.finish_stage(STAGE, status="skipped",
                               metrics={"reason": "no eval-split problem has a tail",
