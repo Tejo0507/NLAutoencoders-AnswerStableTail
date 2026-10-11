@@ -92,3 +92,41 @@ class TestIntegrity:
     def test_ids_are_unique(self, problems):
         ids = [p.id for p in problems]
         assert len(ids) == len(set(ids))
+
+
+class TestProcessingOrder:
+    """Every stage resumes per problem, so the achieved N is whatever
+    completed. That is only a usable sample if any prefix is representative -
+    concatenating the datasets would put all GSM8K before all MATH, and a run
+    halted partway would have no MATH at all.
+    """
+
+    def test_both_datasets_appear_early(self, problems):
+        head = problems[: len(problems) // 4]
+        assert {p.dataset for p in head} == {"gsm8k", "math"}
+
+    def test_every_prefix_is_close_to_the_configured_proportion(self, problems):
+        target = 20 / 30
+        for k in range(6, len(problems) + 1):
+            share = sum(1 for p in problems[:k] if p.dataset == "gsm8k") / k
+            assert abs(share - target) < 0.2, f"prefix of {k} is {share:.2f} gsm8k"
+
+    def test_the_order_is_deterministic(self):
+        a = [p.id for p in datasets.load_problems(SMALL)]
+        b = [p.id for p in datasets.load_problems(SMALL)]
+        assert a == b
+
+    def test_interleaving_preserves_the_whole_set(self):
+        groups = [["a", "b", "c", "d", "e"], ["x", "y"]]
+        out = datasets.interleave_by_dataset(groups)
+        assert sorted(out) == sorted(groups[0] + groups[1])
+        assert len(out) == 7
+
+    def test_a_single_group_is_left_alone(self):
+        assert datasets.interleave_by_dataset([["a", "b", "c"]]) == ["a", "b", "c"]
+        assert datasets.interleave_by_dataset([]) == []
+
+    def test_a_large_group_does_not_block_a_small_one(self):
+        out = datasets.interleave_by_dataset([["g"] * 150, ["m"] * 100])
+        # In any prefix of 10, both datasets are present.
+        assert "m" in out[:10] and "g" in out[:10]

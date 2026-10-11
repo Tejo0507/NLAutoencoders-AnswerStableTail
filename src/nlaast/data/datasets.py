@@ -15,7 +15,7 @@ import hashlib
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Iterable, Literal, Sequence
 
 from .. import paths
 from ..config import DataConfig
@@ -121,14 +121,51 @@ def _take_stratified(problems: list[Problem], n: int, salt: int) -> list[Problem
     return sorted(ordered[:n], key=lambda p: p.id)
 
 
+def interleave_by_dataset(groups: Sequence[Sequence[Problem]]) -> list[Problem]:
+    """Order the problem set so that every prefix of it is representative.
+
+    Every stage checkpoints per problem and resumes, so the achieved N is
+    whatever completed - which is only a usable sample if stopping early
+    leaves a balanced corpus. Concatenating the datasets does not: it puts all
+    150 GSM8K problems before all 100 MATH ones, so a run halted at 120 has no
+    MATH at all. That silently rules out F2, which compares tail fraction
+    between benchmarks, and biases every pooled quantity towards the easier
+    dataset.
+
+    Each group is therefore spread evenly across the whole order by largest
+    remainder on its own position, which keeps each prefix close to the
+    configured proportions. The order is a deterministic function of the
+    group sizes, so it does not depend on the seed and a resumed run keeps
+    the order it started with.
+    """
+    present = [list(g) for g in groups if g]
+    if len(present) <= 1:
+        return [p for g in present for p in g]
+    total = sum(len(g) for g in present)
+    # Position each item at (its index + 0.5) / group size, so groups of
+    # different sizes interleave in proportion rather than in blocks.
+    keyed = [
+        ((i + 0.5) / len(g), gi, i, p)
+        for gi, g in enumerate(present)
+        for i, p in enumerate(g)
+    ]
+    keyed.sort(key=lambda t: (t[0], t[1], t[2]))
+    assert len(keyed) == total
+    return [t[3] for t in keyed]
+
+
 def load_problems(cfg: DataConfig) -> list[Problem]:
-    """The study's problem set: validated, subsampled, deterministically split."""
-    out: list[Problem] = []
+    """The study's problem set: validated, subsampled, deterministically split.
+
+    Returned interleaved by dataset; see ``interleave_by_dataset`` for why the
+    order is part of the design rather than an accident of concatenation.
+    """
+    groups: list[list[Problem]] = []
     if "gsm8k" in cfg.datasets:
-        out += _take_stratified(load_gsm8k(cfg), cfg.n_gsm8k, cfg.seed)
+        groups.append(_take_stratified(load_gsm8k(cfg), cfg.n_gsm8k, cfg.seed))
     if "math" in cfg.datasets:
-        out += _take_stratified(load_math(cfg), cfg.n_math, cfg.seed)
-    return out
+        groups.append(_take_stratified(load_math(cfg), cfg.n_math, cfg.seed))
+    return interleave_by_dataset(groups)
 
 
 def validate(problems: Iterable[Problem]) -> dict:
