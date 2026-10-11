@@ -29,6 +29,7 @@ import numpy as np
 from _stage import base_parser, setup, should_skip
 
 from nlaast.activations.store import ActivationStore
+from nlaast.ast_detect.detector import agreement_run_length
 from nlaast.baselines.probe import CorrectnessProbe, cross_validate
 from nlaast.baselines.semantic_entropy import confidence_score, semantic_entropy
 from nlaast.baselines.stopping import (
@@ -44,23 +45,24 @@ from nlaast.trace.chunking import Chunk, prefix_text
 STAGE = "baselines"
 
 
-def convergence_scores(trace: dict, window: int) -> list[float]:
-    """Per-boundary score for the agreement rule.
+def convergence_scores(trace: dict, window: int | None = None) -> list[float]:
+    """Per-boundary score for the agreement rule: the agreement run length.
 
-    1.0 once the last ``window`` parsed answers agree, else 0.0. Expressed as a
-    score rather than a boundary so it sweeps like the others; thresholding at
-    any value in (0, 1] recovers the original rule.
+    Thresholding this at ``w`` is exactly ``convergence_boundary(parsed, w)``,
+    so the swept rule is the pre-registered baseline with its own ``w`` on the
+    sweep axis rather than fixed from config. See ``agreement_run_length`` for
+    why that matters and for what it does not fix.
+
+    ``window``, if given, caps the score. That is only useful for reproducing
+    the former binary behaviour in a test; the O3 curve passes nothing, because
+    capping the score at the configured ``w`` would collapse the sweep back to
+    the two values this replaces.
     """
     parsed = [b.get("parsed_answer") for b in trace.get("boundaries", [])]
-    out = []
-    for i in range(len(parsed)):
-        lo = i - window + 1
-        if lo < 0 or any(parsed[j] is None for j in range(lo, i + 1)):
-            out.append(0.0)
-            continue
-        agree = all(equivalent(parsed[lo], parsed[j]) for j in range(lo + 1, i + 1))
-        out.append(1.0 if agree else 0.0)
-    return out
+    runs = agreement_run_length(parsed)
+    if window is None:
+        return runs
+    return [min(r, float(window)) for r in runs]
 
 
 def build_rows(traces: list[dict]) -> dict[str, dict[str, Any]]:
@@ -109,8 +111,11 @@ def main() -> int:
     base = build_rows(traces)
 
     # -- 1. answer convergence -------------------------------------------
-    conv = {t["problem_id"]: convergence_scores(t, cfg.ast.convergence_window)
-            for t in traces}
+    # Unconfigured on purpose: the score is the agreement run length and the
+    # sweep threshold *is* the rule's window, so passing
+    # ast.convergence_window here would fix the parameter the sweep exists to
+    # vary and collapse the curve to three operating points.
+    conv = {t["problem_id"]: convergence_scores(t) for t in traces}
 
     # -- 2. semantic entropy ---------------------------------------------
     entropy: dict[str, dict] = {}

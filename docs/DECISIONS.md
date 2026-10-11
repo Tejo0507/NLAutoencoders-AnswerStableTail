@@ -586,7 +586,71 @@ score. The `baselines` stage records the bound per rule and warns when a score
 is this coarse, and O3 reports it as the reason rather than as a shortage of
 problems — which is what the pilot's resume notes had concluded.
 
+**Superseded in part by D36.** The graded score now exists, and the diagnosis
+above was correct about the mechanism but wrong about the remedy's effect. With
+the run-length score the agreement rule has `d = 7` on the pilot and `d = 9` on
+the main run so far, so `granularity_limited` is now false and the bound is no
+longer what blocks the comparison. It is still unevaluable, for the narrower
+reason D36 gives.
+
 ---
+
+## D36. The agreement baseline is swept over its own window, not a derived flag
+
+The pre-registration fixes the baseline as a *boundary* and names its parameter
+as free:
+
+> **Answer-convergence boundary** `b_conv(w)` — smallest `i` such that
+> `a_i..a_{i+w-1}` are all non-null and pairwise equivalent. This is the Liu &
+> Wang baseline, **`w` configurable**.
+
+O3 compares rules on a safety/saving curve, which requires a swept threshold,
+so the baseline was adapted by scoring 1.0 once `w` answers agree at one `w`
+taken from config and 0.0 otherwise. That adapter fixes the rule's own
+parameter and then sweeps a derived indicator of it — and `w` is precisely what
+moves where the rule fires. Two distinct values give three operating points at
+any corpus size (D31).
+
+**The score is now the agreement run length**: how many consecutive boundaries
+ending here carry one answer, 0 where the answer did not parse. The identity
+that licenses this is
+
+```
+first i with run_length[i] >= w   ==   convergence_boundary(parsed, w)
+```
+
+because "the last `w` answers agree" and "the agreement run here is at least
+`w` long" are the same statement. So every operating point on the curve *is*
+the Liu & Wang rule at one `w`, and the sweep axis is the parameter the
+pre-registration left free. This is a re-parameterisation, not a new rule, and
+the claim is tested rather than argued: `tests/test_ast_detector.py` asserts
+the identity over nine answer patterns and every `w` up to the trace length,
+and it was checked against the canonical `convergence_boundary` on all 24 pilot
+and 59 then-available main traces for `w = 1..8` — 83 traces, zero mismatches.
+
+**It does not make the comparison evaluable, and that was verified before
+implementing rather than hoped for afterwards.** On the pilot the achievable
+mean savings go from three values to eight, and they stay clustered:
+
+```
+0.0, 0.024, 0.025, 0.059, 0.097, 0.407, 0.855, 0.885
+```
+
+The shared budget window of 0.632–0.675 falls in the gap between `w = 2`
+(0.407) and `w = 1` (0.855). `w` is an integer and a threshold of 1.5 selects
+the same boundaries as 2, so nothing is reachable in between.
+
+What changed is the honesty of the diagnosis. O3 no longer reports the score as
+too coarse; it reports that the thresholds are exhausted and the two curves do
+not overlap near a shared budget. Whether a larger corpus helps is now an open
+question rather than a settled no: the *gap* between adjacent `w` is structural,
+but where the shared window sits depends on both curves on the actual corpus,
+and the window is set by the NLA rule's own achievable range. D31's flat "no
+corpus size will help" was over-stated and is corrected here.
+
+Everything else about the pilot is unchanged by this: semantic entropy still
+q = 0.156, the probe still exactly tied, RQ2 and the F10 family identical. The
+full-corpus budget grid is also unchanged, so no other comparison moved.
 
 ## D32. The corpus is sized by discordant problems, not by configured N
 

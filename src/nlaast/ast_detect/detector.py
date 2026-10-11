@@ -131,6 +131,52 @@ def convergence_boundary(
     return None
 
 
+def agreement_run_length(parsed: Sequence[str | None]) -> list[float]:
+    """``convergence_boundary`` as a per-boundary score, with ``w`` as the threshold.
+
+    How many consecutive boundaries ending at ``i`` carry one answer; 0 where
+    the answer did not parse. The identity that matters is
+
+        ``first i with run_length[i] >= w``  ==  ``convergence_boundary(parsed, w)``
+
+    because "the last ``w`` answers agree" and "the agreement run here is at
+    least ``w`` long" are the same statement. So this is the pre-registered
+    baseline re-parameterised, not a different rule, and
+    ``tests/test_ast_detect.py`` asserts the identity rather than trusting it.
+
+    **Why it is needed.** The O3 comparison reads every rule off a safety/saving
+    curve at a shared token budget, which means sweeping a threshold. The
+    baseline was adapted to that by scoring 1.0 once ``w`` answers agree at one
+    fixed ``w`` from config, and 0.0 otherwise - two distinct values, so three
+    operating points however large the corpus. The pre-registration calls ``w``
+    *configurable*; fixing it and then sweeping a derived indicator throws away
+    the rule's own parameter, which is the thing that actually moves where it
+    fires. Scoring the run length puts ``w`` back on the sweep axis, where each
+    operating point is the Liu & Wang rule at one ``w``.
+
+    **What it does not do.** It does not make the comparison evaluable. On the
+    pilot the achievable mean savings go from three values to eight, and they
+    remain clustered - 0.407 at ``w = 2`` against 0.855 at ``w = 1``, with the
+    shared budget window of 0.632-0.675 in the gap between them. ``w`` is an
+    integer and a threshold of 1.5 means the same as 2, so nothing lies between
+    those two points for any corpus size. The improvement is in resolution and
+    in faithfulness to the pre-registered rule; the unevaluability is a property
+    of where this rule fires, which is a finding about the baseline rather than
+    a limitation of the sweep.
+    """
+    out: list[float] = []
+    for i, a in enumerate(parsed):
+        if a is None:
+            out.append(0.0)
+            continue
+        n, j = 1, i - 1
+        while j >= 0 and parsed[j] is not None and equivalent(parsed[j], a):
+            n += 1
+            j -= 1
+        out.append(float(n))
+    return out
+
+
 def detect_ast(
     problem_id: str,
     evidence: Sequence[BoundaryEvidence],

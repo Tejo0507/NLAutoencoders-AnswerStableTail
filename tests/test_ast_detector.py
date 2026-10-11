@@ -10,6 +10,7 @@ import pytest
 from nlaast.ast_detect import (
     BoundaryEvidence,
     TailStatus,
+    agreement_run_length,
     convergence_boundary,
     detect_ast,
     matched_windows,
@@ -58,6 +59,66 @@ class TestConvergenceBaseline:
     def test_rejects_zero_window(self):
         with pytest.raises(ValueError):
             convergence_boundary(["1"], 0)
+
+
+class TestAgreementRunLength:
+    """The graded score must *be* the pre-registered rule, re-parameterised.
+
+    The O3 comparison sweeps a threshold, so the baseline was adapted to it by
+    scoring 1.0 once `w` answers agree at one fixed `w` and 0.0 otherwise -
+    two values, so three operating points at any corpus size. Scoring the
+    agreement run length puts `w` back on the sweep axis, which is where the
+    pre-registration puts it ("`w` configurable").
+
+    That is only legitimate if thresholding the score at `w` is the same rule.
+    This class asserts the identity instead of trusting the argument.
+    """
+
+    @staticmethod
+    def _first_at_least(scores, w):
+        for i, s in enumerate(scores):
+            if s >= w:
+                return i
+        return None
+
+    @pytest.mark.parametrize("parsed", [
+        ["1", "2", "7", "7", "7"],
+        ["1", "7", "7", "7"],
+        ["7", None, "7", "7"],
+        ["1", "2", "3"],
+        ["1", "0.5", "1/2"],
+        [None, None, None],
+        ["7", "7", "7", "1", "7", "7"],
+        ["7"],
+        [],
+    ])
+    def test_threshold_w_is_convergence_boundary_w(self, parsed):
+        runs = agreement_run_length(parsed)
+        for w in range(1, len(parsed) + 2):
+            assert self._first_at_least(runs, w) == convergence_boundary(parsed, w), (
+                f"w={w} parsed={parsed} runs={runs}")
+
+    def test_the_score_is_the_run_length(self):
+        assert agreement_run_length(["1", "7", "7", "7"]) == [1.0, 1.0, 2.0, 3.0]
+
+    def test_unparseable_scores_zero_and_breaks_the_run(self):
+        assert agreement_run_length(["7", None, "7", "7"]) == [1.0, 0.0, 1.0, 2.0]
+
+    def test_a_disagreement_restarts_the_run(self):
+        assert agreement_run_length(["7", "7", "1", "7"]) == [1.0, 2.0, 1.0, 1.0]
+
+    def test_equivalent_forms_extend_the_run(self):
+        # "0.5" and "1/2" are the same answer, so the run continues.
+        assert agreement_run_length(["1", "0.5", "1/2"]) == [1.0, 1.0, 2.0]
+
+    def test_it_is_graded_where_the_binary_score_was_not(self):
+        """The point of the change: enough distinct values to resolve a curve."""
+        runs = agreement_run_length(["7"] * 8)
+        assert runs == [float(i) for i in range(1, 9)]
+        assert len(set(runs)) == 8
+
+    def test_empty(self):
+        assert agreement_run_length([]) == []
 
 
 class TestCriteria:
