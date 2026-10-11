@@ -130,3 +130,56 @@ class TestProcessingOrder:
         out = datasets.interleave_by_dataset([["g"] * 150, ["m"] * 100])
         # In any prefix of 10, both datasets are present.
         assert "m" in out[:10] and "g" in out[:10]
+
+
+class TestStratifiedCap:
+    """An arm that can only afford a subset must still sample this corpus.
+
+    The NLA arm is capped by `nla.max_problems` and the primary O3 comparison
+    is computed on the problems it covers. Capping by sorted problem id would
+    take every `gsm8k-...` before any `math-...`, making that comparison a
+    GSM8K-only result reported as a corpus-wide one.
+    """
+
+    @staticmethod
+    def _rows(n_gsm8k, n_math):
+        return ([{"problem_id": f"gsm8k-test-{i:05}", "dataset": "gsm8k"}
+                 for i in range(n_gsm8k)]
+                + [{"problem_id": f"math-algebra-test-{i:05}", "dataset": "math"}
+                   for i in range(n_math)])
+
+    def test_the_cap_keeps_both_datasets(self):
+        out = datasets.stratified_cap(self._rows(130, 90), 80)
+        counts = {d: sum(1 for r in out if r["dataset"] == d)
+                  for d in ("gsm8k", "math")}
+        assert len(out) == 80
+        assert counts["gsm8k"] > 0 and counts["math"] > 0
+
+    def test_the_cap_holds_the_corpus_proportions(self):
+        out = datasets.stratified_cap(self._rows(150, 100), 80)
+        share = sum(1 for r in out if r["dataset"] == "gsm8k") / len(out)
+        assert abs(share - 0.6) < 0.02
+
+    def test_sorting_by_id_would_have_dropped_a_dataset(self):
+        """The behaviour being replaced, stated so the fix cannot regress."""
+        rows = self._rows(130, 90)
+        naive = sorted(rows, key=lambda r: r["problem_id"])[:80]
+        assert {r["dataset"] for r in naive} == {"gsm8k"}
+        fixed = datasets.stratified_cap(rows, 80)
+        assert {r["dataset"] for r in fixed} == {"gsm8k", "math"}
+
+    def test_it_is_a_deterministic_subset_under_extension(self):
+        small = datasets.stratified_cap(self._rows(60, 40), 50)
+        larger = datasets.stratified_cap(self._rows(150, 100), 50)
+        assert ([r["problem_id"] for r in small]
+                == [r["problem_id"] for r in larger])
+
+    def test_no_cap_and_an_undersized_corpus_pass_through(self):
+        rows = self._rows(5, 5)
+        assert datasets.stratified_cap(rows, 0) == rows
+        assert datasets.stratified_cap(rows, 50) == rows
+
+    def test_a_stratum_smaller_than_its_share_does_not_overdraw(self):
+        out = datasets.stratified_cap(self._rows(95, 5), 50)
+        assert len(out) == 50
+        assert sum(1 for r in out if r["dataset"] == "math") <= 5

@@ -154,6 +154,44 @@ def interleave_by_dataset(groups: Sequence[Sequence[Problem]]) -> list[Problem]:
     return [t[3] for t in keyed]
 
 
+def stratified_cap(rows: Sequence[dict], cap: int, key: str = "dataset") -> list[dict]:
+    """Take ``cap`` rows while keeping each stratum's share of the whole.
+
+    An arm that can only afford a subset still has to be a subset *of this
+    corpus*. Taking a prefix of the ids does not qualify: problem ids sort as
+    ``gsm8k-...`` before ``math-...``, so capping 220 problems at 80 by sorted
+    id yields 80 GSM8K problems and no MATH. The NLA arm is capped this way and
+    the primary O3 head-to-head is computed on the problems it covers, so that
+    prefix would have made the study's central comparison a GSM8K-only result
+    reported as a corpus-wide one.
+
+    Each stratum therefore gets its proportional share by largest remainder,
+    filled with a deterministic prefix of its own sorted ids so that a resumed
+    or extended run keeps the same subset instead of drifting onto new
+    problems.
+    """
+    rows = list(rows)
+    if cap <= 0 or len(rows) <= cap:
+        return rows
+    strata: dict[str, list[dict]] = {}
+    for r in rows:
+        strata.setdefault(str(r.get(key)), []).append(r)
+    names = sorted(strata)
+    exact = {s: cap * len(strata[s]) / len(rows) for s in names}
+    take = {s: min(len(strata[s]), int(exact[s])) for s in names}
+    # Largest remainder, then by stratum name, so the result is deterministic.
+    while sum(take.values()) < cap:
+        candidates = [s for s in names if take[s] < len(strata[s])]
+        if not candidates:
+            break
+        s = max(candidates, key=lambda s: (exact[s] - take[s], -names.index(s)))
+        take[s] += 1
+    out: list[dict] = []
+    for s in names:
+        out += sorted(strata[s], key=lambda r: str(r.get("problem_id", "")))[:take[s]]
+    return out
+
+
 def load_problems(cfg: DataConfig) -> list[Problem]:
     """The study's problem set: validated, subsampled, deterministically split.
 
