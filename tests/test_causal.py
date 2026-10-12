@@ -21,8 +21,12 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from nlaast.causal.interventions import (  # noqa: E402
+    ELIGIBLE_OUTCOMES,
+    OUTCOME_CONSTRUCT,
+    REGISTERED_CONSTRUCT,
     VERDICT_OUTCOME,
     InterventionResult,
+    paired_arm_contrast,
     count_verification_markers,
     direction_claim_supported,
     dose_response,
@@ -556,7 +560,185 @@ class TestAConstantOutcomeIsNotAResult:
 
     def test_the_readout_is_named_in_the_verdict(self):
         v = direction_claim_supported(self._all_zero())
-        assert "verification_markers" in v["outcome"]
+        assert v["outcome"] == "marker_delta"
+        assert "verification_markers" in v["outcome_definition"]
+        # And which construct it stands for, against the registered one.
+        assert v["outcome_construct"] == v["registered_construct"]
+
+
+class TestBeatIsAPairedTest:
+    """"Beat" used to be a comparison of two arm means with no test at all.
+
+    `abs(ablate.marker_delta) > abs(random_.marker_delta)` was satisfied by
+    0.30 against 0.29 on ten problems. Every arm runs on the same problems, so
+    the unit of analysis is the problem and the contrast is paired - the same
+    correction D29 made to the primary O3 comparison.
+    """
+
+    @staticmethod
+    def _rows(cand, ctrl, n=6, arm="random_dir"):
+        out = []
+        for i in range(n):
+            out.append(result("ablate_dir", 1.0, markers=cand[i], pid=f"p{i}"))
+            out.append(result(arm, 1.0, markers=ctrl[i], pid=f"p{i}",
+                              did="random_0" if arm == "random_dir" else None))
+        return out
+
+    def test_a_hair_wide_mean_gap_no_longer_counts_as_beating(self):
+        """The defect, stated as a test.
+
+        A candidate that wins on half the problems and loses on the other half
+        has a mean advantage driven by one outlier and no paired evidence. The
+        old mean comparison called that a win.
+        """
+        cand = [10, 0, 0, 0, 0, 0]
+        ctrl = [0, 1, 1, 1, 1, 1]
+        c = paired_arm_contrast(self._rows(cand, ctrl), "ablate_dir", "random_dir")
+        assert c["median_paired_difference"] < 0, "mean favours it, median does not"
+        assert c["beats"] is False
+        # The mean comparison the old gate used would have passed:
+        assert sum(cand) / 6 > sum(ctrl) / 6
+
+    def test_a_consistent_win_beats(self):
+        c = paired_arm_contrast(self._rows([4] * 6, [0] * 6),
+                                "ablate_dir", "random_dir")
+        assert c["beats"] is True
+        assert c["n_pairs"] == 6
+        assert c["n_pairs_favouring_candidate"] == 6
+        assert c["p_value"] <= 0.05
+
+    def test_a_consistent_win_on_too_few_problems_does_not_beat(self):
+        """Direction is right, evidence is not enough. Must not pass."""
+        c = paired_arm_contrast(self._rows([4] * 4, [0] * 4, n=4),
+                                "ablate_dir", "random_dir")
+        assert c["n_pairs"] == 4
+        assert c["direction_favours_candidate"] is True
+        assert c["p_value"] > 0.05
+        assert c["beats"] is False
+
+    def test_replicate_control_directions_count_once_per_problem(self):
+        """`random_dir` runs several directions per problem; averaging them
+        first keeps a problem from being weighted by its replicate count."""
+        rows = []
+        for i in range(5):
+            rows.append(result("ablate_dir", 1.0, markers=4, pid=f"p{i}"))
+            for k in range(3):
+                rows.append(result("random_dir", 1.0, markers=k, pid=f"p{i}",
+                                   did=f"random_{k}"))
+        c = paired_arm_contrast(rows, "ablate_dir", "random_dir")
+        assert c["n_pairs"] == 5, "five problems, not fifteen rows"
+        assert c["median_abs_effect_control"] == pytest.approx(1.0)  # mean of 0,1,2
+
+    def test_only_the_matched_dose_is_compared(self):
+        """Pooling the candidate's sweep would dilute it against undiluted
+        controls - including dose 0.0, which is a no-op by definition."""
+        rows = []
+        for i in range(5):
+            rows += [result("ablate_dir", 0.0, markers=0, pid=f"p{i}"),
+                     result("ablate_dir", 1.0, markers=5, pid=f"p{i}"),
+                     result("random_dir", 1.0, markers=0, pid=f"p{i}",
+                            did="random_0")]
+        c = paired_arm_contrast(rows, "ablate_dir", "random_dir", compare_at=1.0)
+        assert c["median_abs_effect_candidate"] == pytest.approx(5.0)
+        assert c["dose"] == 1.0
+
+    def test_no_shared_problems_is_uncomparable_not_a_loss(self):
+        rows = [result("ablate_dir", 1.0, markers=5, pid="a0"),
+                result("ablate_dir", 1.0, markers=5, pid="a1"),
+                result("ablate_dir", 1.0, markers=5, pid="a2"),
+                result("random_dir", 1.0, markers=0, pid="b0", did="random_0"),
+                result("random_dir", 1.0, markers=0, pid="b1", did="random_0")]
+        c = paired_arm_contrast(rows, "ablate_dir", "random_dir")
+        assert c["n_pairs"] == 0
+        assert c["beats"] is None
+        assert "both arms" in c["reason"]
+
+    def test_identical_arms_is_a_determinate_refusal(self):
+        """Wilcoxon is undefined on all-zero differences, but "beat" is
+        one-sided and the answer does not need the test: the candidate moved
+        the outcome by exactly as much as its control everywhere."""
+        c = paired_arm_contrast(self._rows([3] * 6, [3] * 6),
+                                "ablate_dir", "random_dir")
+        assert c["beats"] is False
+        assert c["p_value"] == 1.0
+        assert c["direction_favours_candidate"] is False
+        assert c["n_pairs_tied"] == 6
+
+    def test_the_contrast_uses_magnitude_not_signed_direction(self):
+        """RQ3 asks whether ablation *changes* behaviour, not which way, so a
+        large negative change must count as a change."""
+        c = paired_arm_contrast(self._rows([-6] * 6, [0] * 6),
+                                "ablate_dir", "random_dir")
+        assert c["median_abs_effect_candidate"] == pytest.approx(6.0)
+        assert c["beats"] is True
+
+    def test_an_ineligible_outcome_is_refused(self):
+        """continuation_tokens measures output length, not verification.
+
+        It may not be substituted into RQ3's verdict by changing a constant;
+        that would answer a different question under RQ3's name (D41).
+        """
+        rows = self._rows([4] * 6, [0] * 6)
+        with pytest.raises(ValueError, match="output_length"):
+            direction_claim_supported(rows, outcome="continuation_tokens")
+        with pytest.raises(ValueError, match="unknown outcome"):
+            direction_claim_supported(rows, outcome="not_a_readout")
+
+    def test_the_eligible_set_is_exactly_the_registered_construct(self):
+        assert VERDICT_OUTCOME in ELIGIBLE_OUTCOMES
+        assert OUTCOME_CONSTRUCT[VERDICT_OUTCOME] == REGISTERED_CONSTRUCT
+        assert "continuation_tokens" not in ELIGIBLE_OUTCOMES
+        for name in ELIGIBLE_OUTCOMES:
+            assert OUTCOME_CONSTRUCT[name] == REGISTERED_CONSTRUCT
+
+
+class TestTheConjunctionIsTriState:
+    """None must not collapse to False anywhere in the conjunction.
+
+    `all()` over the four conditions would read "could not be compared" as
+    "did not win", which is the error the whole gate exists to avoid.
+    """
+
+    @staticmethod
+    def _disjoint_problems():
+        """Candidate and controls share no problems, so neither contrast can
+        be made - while the readout still varies, so the old `outcome_varies`
+        guard does not catch it."""
+        rows = []
+        for i in range(4):
+            rows += [result("ablate_dir", 0.0, markers=0, pid=f"a{i}"),
+                     result("ablate_dir", 1.0, markers=3, pid=f"a{i}"),
+                     result("ablate_dir", 2.0, markers=6, pid=f"a{i}")]
+        for i in range(4):
+            rows += [result("random_dir", 1.0, markers=0, pid=f"b{i}",
+                            did="random_0"),
+                     result("matched_position", 1.0, markers=0, pid=f"b{i}")]
+        return rows
+
+    def test_an_uncomparable_contrast_makes_the_verdict_none(self):
+        v = direction_claim_supported(self._disjoint_problems())
+        assert v["outcome_varies"] is True, "the guard that would have caught it"
+        assert v["beats_random_direction"] is None
+        assert v["supported"] is None, "not False - nothing was compared"
+
+    def test_a_genuine_loss_is_false_not_none(self):
+        v = direction_claim_supported(supported_evidence(random_markers=9))
+        assert v["beats_random_direction"] is False
+        assert v["supported"] is False
+
+    def test_distinct_doses_are_counted_not_finite_readings(self):
+        """A duplicated dose must not count towards the minimum."""
+        rows = []
+        for i in range(6):
+            rows += [result("ablate_dir", 0.0, markers=0, pid=f"p{i}"),
+                     result("ablate_dir", 1.0, markers=3, pid=f"p{i}"),
+                     result("random_dir", 1.0, markers=0, pid=f"p{i}",
+                            did="random_0"),
+                     result("matched_position", 1.0, markers=0, pid=f"p{i}")]
+        v = direction_claim_supported(rows)
+        assert v["n_distinct_doses"] == 2
+        assert v["monotone_dose_response"] is False, "two doses cannot establish it"
+        assert v["supported"] is False
 
 
 class TestOutcomeScreen:
