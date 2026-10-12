@@ -124,6 +124,96 @@ class TestTheInterventionHasToHaveHappened:
         assert not np.isfinite(out["test_result"].p_value)
 
 
+@pytest.fixture(scope="module")
+def wrr():
+    return importlib.import_module("write_run_report")
+
+
+def _verdict(cand_markers=4, matched_markers=1, cand_edits=36,
+             matched_edits=72, n=6):
+    from nlaast.causal.interventions import (
+        InterventionResult,
+        direction_claim_supported,
+    )
+
+    def r(arm, c, pid, mk, ed):
+        return InterventionResult(
+            problem_id=pid, intervention=arm, coefficient=c, answer="1",
+            baseline_answer="1", gold="1", answer_changed=False, correct=True,
+            baseline_correct=True, tokens_generated=20,
+            verification_markers=mk, baseline_verification_markers=0,
+            direction_id="random_0" if arm == "random_dir" else None,
+            notes={"n_positions_edited": ed})
+
+    rows = []
+    for i in range(n):
+        p = f"p{i}"
+        rows += [r("ablate_dir", 0.0, p, 0, cand_edits),
+                 r("ablate_dir", 1.0, p, cand_markers, cand_edits),
+                 r("ablate_dir", 2.0, p, cand_markers * 2, cand_edits),
+                 r("random_dir", 1.0, p, 0, cand_edits),
+                 r("matched_position", 1.0, p, matched_markers, matched_edits)]
+    return direction_claim_supported(rows)
+
+
+class TestReportExposesCausalValidity:
+    """The diagnostics have to reach the page, not just the JSON.
+
+    A reader given only True/False/not-testable cannot tell a decisive loss
+    from four problems, and cannot see that the location contrast also differs
+    in extent (D39).
+    """
+
+    @staticmethod
+    def _render(fn, *args):
+        lines = []
+        fn(lines.append, *args)
+        return "\n".join(lines)
+
+    def test_the_paired_evidence_is_on_the_page(self, wrr):
+        out = self._render(wrr._rq3_contrasts, _verdict())
+        assert "paired over problems" in out
+        for col in ("n_pairs", "median paired diff", "pairs for candidate", "p"):
+            assert col in out
+        assert "random_dir" in out and "matched_position" in out
+
+    def test_an_uncomparable_contrast_states_its_reason(self, wrr):
+        out = self._render(wrr._rq3_contrasts, _verdict(n=2))
+        assert "not testable" in out
+        assert "paired contrast" in out or "problems appear in both arms" in out
+
+    def test_the_extent_asymmetry_and_its_bias_direction_are_stated(self, wrr):
+        v = _verdict(cand_edits=36, matched_edits=72)
+        out = self._render(wrr._rq3_edit_extent, v.get("outcome_screen") or {})
+        assert "2.00x" in out
+        assert "Validity limitation" in out
+        assert "larger" in out and "conservative" in out
+        assert "same number of positions: **True**" in out
+
+    def test_the_opposite_asymmetry_flips_the_stated_bias(self, wrr):
+        """If the candidate ever becomes the larger edit, the warning must
+        change direction rather than be reused."""
+        v = _verdict(cand_edits=80, matched_edits=40)
+        out = self._render(wrr._rq3_edit_extent, v.get("outcome_screen") or {})
+        assert "candidate is the **larger** edit" in out
+        assert "conservative" not in out
+
+    def test_matched_extents_raise_no_limitation(self, wrr):
+        v = _verdict(cand_edits=50, matched_edits=50)
+        out = self._render(wrr._rq3_edit_extent, v.get("outcome_screen") or {})
+        assert "1.00x" in out
+        assert "Validity limitation" not in out
+
+    def test_a_no_op_intervention_is_announced(self, wrr):
+        v = _verdict(cand_edits=0, matched_edits=0)
+        out = self._render(wrr._rq3_edit_extent, v.get("outcome_screen") or {})
+        assert "independent variable was not applied" in out
+
+    def test_nothing_is_emitted_without_recorded_extents(self, wrr):
+        assert self._render(wrr._rq3_edit_extent, {}) == ""
+        assert self._render(wrr._rq3_contrasts, {}) == ""
+
+
 class TestDegenerateInputs:
     def test_no_rows_at_all(self, agg):
         out = agg.rq3_paired_contrast([], 0.95)
