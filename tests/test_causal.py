@@ -24,9 +24,12 @@ from nlaast.causal.interventions import (  # noqa: E402
     ELIGIBLE_OUTCOMES,
     OUTCOME_CONSTRUCT,
     REGISTERED_CONSTRUCT,
+    SPAN_SLACK_TOKENS,
     VERDICT_OUTCOME,
     InterventionResult,
+    intervention_spans,
     paired_arm_contrast,
+    spans_are_disjoint,
     count_verification_markers,
     direction_claim_supported,
     dose_response,
@@ -564,6 +567,80 @@ class TestAConstantOutcomeIsNotAResult:
         assert "verification_markers" in v["outcome_definition"]
         # And which construct it stands for, against the registered one.
         assert v["outcome_construct"] == v["registered_construct"]
+
+
+class TestSpanSelection:
+    """The registered span arithmetic, now testable rather than only runnable.
+
+    It was inline in `run_interventions.run_problem`, so the one part of the
+    design that decides *which positions each arm edits* had no tests at all.
+    Extracted unchanged - verified against the old expressions for several
+    shapes before the extraction landed.
+    """
+
+    def test_the_candidate_covers_the_generated_continuation(self):
+        s = intervention_spans(prompt_tokens=111, tail_tokens=72,
+                               pre_window_tokens=72)
+        assert s["tail"] == (111, 111 + 72 + SPAN_SLACK_TOKENS)
+        assert s["tail"][0] == 111, "starts exactly at the prompt boundary"
+
+    def test_the_control_covers_the_prompt_side_window(self):
+        """Editing prompt context is the registered design, not a bug.
+
+        PROJECT_PLAN.md §5 defines matched-position as a window of length L
+        ending at i*-1, and the prefix up to the tail start is fed as prompt,
+        so that window necessarily lies inside the prompt.
+        """
+        s = intervention_spans(111, 72, 72)
+        assert s["pre"] == (39, 111)
+        assert s["pre"][1] == s["tail"][0], "they meet at the boundary"
+
+    def test_the_two_spans_never_overlap(self):
+        for pt, tt, pl in ((111, 72, 72), (200, 10, 3), (5, 1, 99), (1, 0, 1)):
+            assert spans_are_disjoint(intervention_spans(pt, tt, pl))
+
+    def test_a_pre_window_longer_than_the_prompt_is_clamped_not_negative(self):
+        s = intervention_spans(prompt_tokens=5, tail_tokens=1,
+                               pre_window_tokens=99)
+        assert s["pre"] == (0, 5)
+        assert spans_are_disjoint(s)
+
+    def test_a_zero_length_pre_window_still_edits_one_position(self):
+        """`max(1, ...)`: a control that edits nothing is not a control."""
+        s = intervention_spans(10, 4, 0)
+        assert s["pre"] == (9, 10)
+        assert s["pre"][1] - s["pre"][0] == 1
+
+    def test_the_slack_is_a_margin_not_an_extent(self):
+        """It widens the span; what the editor edits is bounded by generation.
+
+        Measured on the pilot the slack never binds, so trimming it would
+        change nothing - which is why D39 leaves it alone.
+        """
+        s = intervention_spans(100, 20, 20, slack=64)
+        assert s["tail"][1] - s["tail"][0] == 84
+        tight = intervention_spans(100, 20, 20, slack=0)
+        assert tight["tail"][1] - tight["tail"][0] == 20
+        # With only 5 generated tokens, both spans edit the same 5 positions.
+        for spans in (s, tight):
+            edit = projection_editor(unit(3), 1.0, span=spans["tail"])
+            edit(torch.randn(1, 100, D))
+            for _ in range(5):
+                edit(torch.randn(1, 1, D))
+            assert edit.n_positions_edited == 5
+
+    def test_negative_token_counts_are_refused(self):
+        with pytest.raises(ValueError):
+            intervention_spans(-1, 10, 10)
+        with pytest.raises(ValueError):
+            intervention_spans(10, -1, 10)
+
+    def test_an_overlap_is_detected_rather_than_assumed(self):
+        """The guard the stage relies on before running the direction arms."""
+        overlapping = {"tail": (10, 20), "pre": (15, 25)}
+        assert not spans_are_disjoint(overlapping)
+        touching = {"tail": (10, 20), "pre": (0, 10)}
+        assert spans_are_disjoint(touching)
 
 
 class TestBeatIsAPairedTest:

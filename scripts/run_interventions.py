@@ -42,8 +42,10 @@ from nlaast.causal.interventions import (
     direction_claim_supported,
     dose_response,
     filler_text,
+    intervention_spans,
     projection_editor,
     random_direction,
+    spans_are_disjoint,
     summarise_arm,
 )
 from nlaast.data import datasets
@@ -272,12 +274,24 @@ def run_problem(model, cfg, ast_row, trace, direction, writer, log) -> None:
     # -- direction ablation over the tail span ----------------------------
     # The span starts where the tail starts; everything before it is left
     # untouched, which is what makes this an intervention on the tail rather
-    # than on the whole sequence.
-    span = (prompt_tokens, prompt_tokens + tail_tokens + 64)
+    # than on the whole sequence. The matched-position window ends there, so
+    # the two never overlap - see `intervention_spans` for why the control
+    # edits prompt context by design.
+    #
+    # `pre_len` is the token length of the same number of chunks as the tail,
+    # taken immediately before it: PROJECT_PLAN.md §5's "window of length L
+    # ending at i*-1".
     pre_len = chunks[tail_start - 1].prefix_tokens - (
         chunks[max(0, tail_start - 1 - (len(chunks) - tail_start))].prefix_tokens
     )
-    pre_span = (max(0, prompt_tokens - max(1, pre_len)), prompt_tokens)
+    spans = intervention_spans(prompt_tokens, tail_tokens, pre_len)
+    span, pre_span = spans["tail"], spans["pre"]
+    if not spans_are_disjoint(spans):
+        # Would make the location contrast compare a window with itself.
+        log.error("%s: tail span %s overlaps the matched-position span %s; "
+                  "skipping the direction arms for this problem",
+                  pid, list(span), list(pre_span))
+        return
 
     arms = []
     if "ablate_dir" in ccfg.interventions:

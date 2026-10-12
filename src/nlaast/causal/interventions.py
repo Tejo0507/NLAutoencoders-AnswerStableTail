@@ -371,6 +371,62 @@ def _assert_eligible(outcome: str) -> None:
             f"constant (D41).")
 
 
+#: Slack added to the candidate's span beyond the original tail's token
+#: length, to cover a regeneration that runs longer than the tail it replaces.
+#:
+#: Measured on the pilot it never binds: the candidate's span was a median of
+#: 148 positions while the regenerated continuation was 35.5, and the editor
+#: can only edit positions the forward pass produces. So this is a safety
+#: margin, not an extent, and trimming it would change nothing (D39).
+SPAN_SLACK_TOKENS = 64
+
+
+def intervention_spans(
+    prompt_tokens: int,
+    tail_tokens: int,
+    pre_window_tokens: int,
+    slack: int = SPAN_SLACK_TOKENS,
+) -> dict[str, tuple[int, int]]:
+    """The candidate and matched-position spans, in absolute token positions.
+
+    Extracted from ``run_interventions.run_problem`` so the registered design
+    is testable rather than only runnable. Behaviour is unchanged; this is the
+    same arithmetic the stage already used.
+
+    The two spans meet at the prompt boundary without overlapping:
+
+    - ``tail`` starts at ``prompt_tokens``, so it covers the *generated*
+      continuation - the regenerated tail - and nothing before it.
+    - ``pre`` ends at ``prompt_tokens``, so it covers the pre-stabilisation
+      window, which lies inside the prompt because the prefix up to the tail
+      start is fed as prompt. The control editing prompt context is therefore
+      the registered design, not a bug: PROJECT_PLAN.md §5 defines
+      matched-position as "a window of length L ending at i*-1".
+
+    That difference in *kind* - editing representations as they are generated
+    versus editing already-fixed context - is why matching the two on extent
+    would not make them the same experiment, and why D39 retains the asymmetry
+    and reports it instead.
+    """
+    if prompt_tokens < 0 or tail_tokens < 0:
+        raise ValueError("token counts must be non-negative")
+    tail = (prompt_tokens, prompt_tokens + tail_tokens + max(0, slack))
+    pre_len = max(1, int(pre_window_tokens))
+    pre = (max(0, prompt_tokens - pre_len), prompt_tokens)
+    return {"tail": tail, "pre": pre}
+
+
+def spans_are_disjoint(spans: dict[str, tuple[int, int]]) -> bool:
+    """Do the candidate and control spans share no position?
+
+    Asserted by the stage rather than assumed, because an overlap would let
+    the matched-position control edit part of the region the candidate edits,
+    and the location contrast would then be comparing a window against itself.
+    """
+    (a0, a1), (b0, b1) = spans["tail"], spans["pre"]
+    return min(a1, b1) <= max(a0, b0)
+
+
 def paired_arm_contrast(
     results: Sequence[InterventionResult],
     candidate: str,
