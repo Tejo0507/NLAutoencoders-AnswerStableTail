@@ -49,6 +49,7 @@ built to report that with the same weight as a positive result.
 | Stage-by-stage manual | [`docs/PIPELINE.md`](docs/PIPELINE.md) |
 | Every deviation, with reasons | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | Current state and next steps | [`docs/STATUS.md`](docs/STATUS.md) |
+| Paper drafts, and what each waits on | [`paper/README.md`](paper/README.md) |
 
 ---
 
