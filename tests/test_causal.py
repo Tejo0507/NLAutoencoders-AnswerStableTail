@@ -21,7 +21,15 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from nlaast.causal.interventions import (  # noqa: E402
+    ELIGIBLE_OUTCOMES,
+    OUTCOME_CONSTRUCT,
+    REGISTERED_CONSTRUCT,
+    SPAN_SLACK_TOKENS,
+    VERDICT_OUTCOME,
     InterventionResult,
+    intervention_spans,
+    paired_arm_contrast,
+    spans_are_disjoint,
     count_verification_markers,
     direction_claim_supported,
     dose_response,
@@ -142,6 +150,133 @@ class TestProjectionEditor:
         edit = projection_editor(unit(3), 1.0, span=(100, 200))
         edit(torch.randn(1, 6, D))
         assert edit.n_positions_edited == 0
+
+    def test_the_count_is_bounded_by_the_forward_pass_not_the_span(self):
+        """``n_positions_edited`` cannot be asserted equal to the span length.
+
+        The tail span is ``(prompt_tokens, prompt_tokens + tail_tokens + 64)``,
+        but generation stops at EOS or at ``max_new_tokens``, so a shorter
+        continuation leaves part of the span unvisited. The only sound
+        invariants are ``0 <= edited <= span length`` and, for a complete
+        pass, ``edited == min(span length, tokens generated)``. A validation
+        check that demanded equality with the span would fail on every arm
+        whose generation ended early.
+        """
+        span_len = 10
+        edit = projection_editor(unit(3), 1.0, span=(5, 5 + span_len))
+        edit(torch.randn(1, 5, D))                 # the prompt
+        for _ in range(3):                         # only 3 generated tokens
+            edit(torch.zeros(1, 1, D))
+        assert edit.n_positions_edited == 3
+        assert edit.n_positions_edited <= span_len
+
+    def test_the_count_is_positions_visited_in_span_not_values_changed(self):
+        """Why a non-zero count is necessary but not sufficient.
+
+        The counter increments for every position inside the span, whatever
+        the edit did to it. A direction orthogonal to the activations there
+        removes nothing while still counting, and so does dose 0.0. So
+        ``n_positions_edited > 0`` establishes that the span reached the
+        forward pass - the D34 defect - and nothing more. Establishing that
+        the activations actually moved is a separate check.
+        """
+        # Activations lie entirely along dim 0; the edit targets dim 3.
+        h = torch.zeros(1, 4, D)
+        h[0, :, 0] = 1.0
+        edit = projection_editor(unit(3), 1.0, span=(0, 4))
+        out = edit(h)
+        assert edit.n_positions_edited == 4
+        assert torch.allclose(out, h), "nothing was removed, yet it counted"
+
+        # Dose 0.0 is the same story: visited, counted, unchanged.
+        zero = projection_editor(unit(0), 0.0, span=(0, 4))
+        assert torch.allclose(zero(h), h)
+        assert zero.n_positions_edited == 4
+
+    def test_the_candidate_and_random_arms_edit_the_same_positions(self):
+        """The two arms that share a span must be matched on edit extent.
+
+        ``ablate_dir`` and ``random_dir`` are given the *same* tail span in
+        `run_interventions`, differing only in the direction. If their edit
+        counts diverged, the contrast would confound which direction was
+        removed with how much of the sequence was touched - and the
+        pre-registration requires the candidate to beat the random control on
+        the direction alone.
+        """
+        span = (5, 12)
+        cand = projection_editor(unit(3), 1.0, span=span)
+        ctrl = projection_editor(unit(7), 1.0, span=span)
+        for e in (cand, ctrl):
+            e(torch.randn(1, 5, D))
+            for _ in range(9):
+                e(torch.randn(1, 1, D))
+        assert cand.n_positions_edited == ctrl.n_positions_edited == 7
+
+    def test_the_tail_and_matched_position_spans_are_disjoint(self):
+        """The matched-position control must not touch the tail it controls for.
+
+        `run_interventions` builds the tail span as
+        ``(prompt_tokens, ...)`` and the pre-stabilisation span as
+        ``(..., prompt_tokens)``, so they meet at the prompt boundary without
+        overlapping: the control edits inside the prompt - which is where the
+        pre-stabilisation window lives, since the prefix is fed as prompt -
+        and the candidate edits the generated continuation. This asserts the
+        mechanism delivers that, rather than re-deriving the arithmetic.
+        """
+        prompt_tokens, pre_len, tail_len = 8, 3, 4
+        tail = projection_editor(unit(3), 1.0,
+                                 span=(prompt_tokens, prompt_tokens + tail_len))
+        pre = projection_editor(unit(3), 1.0,
+                                span=(prompt_tokens - pre_len, prompt_tokens))
+
+        # One stream, replayed for each arm: prompt in one call, then tokens.
+        for e in (tail, pre):
+            e(torch.randn(1, prompt_tokens, D))
+            for _ in range(tail_len):
+                e(torch.randn(1, 1, D))
+        assert pre.n_positions_edited == pre_len, "the control edits the prompt"
+        assert tail.n_positions_edited == tail_len, "the candidate edits the tail"
+
+        # Disjointness, shown where it matters: the candidate leaves the prompt
+        # untouched and the control leaves the continuation untouched.
+        prompt = torch.zeros(1, prompt_tokens, D)
+        prompt[0, :, 3] = 1.0
+        t2 = projection_editor(unit(3), 1.0,
+                              span=(prompt_tokens, prompt_tokens + tail_len))
+        assert torch.allclose(t2(prompt), prompt)
+
+        p2 = projection_editor(unit(3), 1.0,
+                               span=(prompt_tokens - pre_len, prompt_tokens))
+        p2(torch.zeros(1, prompt_tokens, D))       # consume the prompt
+        step = torch.zeros(1, 1, D)
+        step[0, 0, 3] = 1.0
+        assert torch.allclose(p2(step), step), "the control must not reach the tail"
+
+    def test_arms_with_different_span_lengths_edit_different_amounts(self):
+        """Documents a known asymmetry between the candidate and its control.
+
+        The candidate's span is ``tail_tokens + 64`` long - the 64 covers
+        continuation past the tail, whose length is not known before
+        generating - while the matched-position control's span is the
+        pre-stabilisation window, about ``tail_tokens``. So the two arms do not
+        in general edit the same number of positions.
+
+        **Whether that matters is an open design question, not a settled
+        defect** (see the session report): matching them exactly would either
+        drop the candidate's coverage of the continuation or push the control
+        across the prompt boundary into the tail. This test pins the current
+        behaviour so that a deliberate change to it is visible, and asserts
+        nothing about which arrangement is correct.
+        """
+        long_span = projection_editor(unit(3), 1.0, span=(4, 4 + 10))
+        short_span = projection_editor(unit(3), 1.0, span=(0, 4))
+        for e in (long_span, short_span):
+            e(torch.randn(1, 4, D))
+            for _ in range(10):
+                e(torch.randn(1, 1, D))
+        assert short_span.n_positions_edited == 4
+        assert long_span.n_positions_edited == 10
+        assert long_span.n_positions_edited != short_span.n_positions_edited
 
     def test_reset_restarts_the_position_count(self):
         edit = projection_editor(unit(3), 1.0, span=(0, 2))
@@ -397,6 +532,29 @@ class TestAConstantOutcomeIsNotAResult:
         assert v["beats_random_direction"] is None
         assert v["beats_matched_position"] is None
 
+    def test_a_flat_curve_does_not_report_a_monotone_dose_response(self):
+        """The pilot reported `monotone_dose_response: true` at a flat zero.
+
+        "Non-decreasing in |delta|" is vacuously true of a constant, so a
+        readout that never moved satisfied a dose-response condition. Next to
+        `outcome_varies: false` that put one of the four conditions in the
+        met column when nothing had been established. It is now gated on the
+        readout varying, like the two control comparisons, and additionally
+        requires the curve to actually move.
+        """
+        v = direction_claim_supported(self._all_zero())
+        assert v["monotone_dose_response"] is None
+        assert v["outcome_varies"] is False
+        # Nothing in the verdict may read as a satisfied condition.
+        assert v["supported"] is None
+        assert not any(v[k] is True for k in
+                       ("beats_random_direction", "beats_matched_position",
+                        "monotone_dose_response"))
+
+    def test_the_outcome_is_not_claimed_to_be_preregistered(self):
+        v = direction_claim_supported(supported_evidence())
+        assert v["outcome_is_preregistered"] is False
+
     def test_a_varying_readout_is_judged_normally(self):
         v = direction_claim_supported(supported_evidence())
         assert v["outcome_varies"] is True
@@ -405,7 +563,259 @@ class TestAConstantOutcomeIsNotAResult:
 
     def test_the_readout_is_named_in_the_verdict(self):
         v = direction_claim_supported(self._all_zero())
-        assert "verification_markers" in v["outcome"]
+        assert v["outcome"] == "marker_delta"
+        assert "verification_markers" in v["outcome_definition"]
+        # And which construct it stands for, against the registered one.
+        assert v["outcome_construct"] == v["registered_construct"]
+
+
+class TestSpanSelection:
+    """The registered span arithmetic, now testable rather than only runnable.
+
+    It was inline in `run_interventions.run_problem`, so the one part of the
+    design that decides *which positions each arm edits* had no tests at all.
+    Extracted unchanged - verified against the old expressions for several
+    shapes before the extraction landed.
+    """
+
+    def test_the_candidate_covers_the_generated_continuation(self):
+        s = intervention_spans(prompt_tokens=111, tail_tokens=72,
+                               pre_window_tokens=72)
+        assert s["tail"] == (111, 111 + 72 + SPAN_SLACK_TOKENS)
+        assert s["tail"][0] == 111, "starts exactly at the prompt boundary"
+
+    def test_the_control_covers_the_prompt_side_window(self):
+        """Editing prompt context is the registered design, not a bug.
+
+        PROJECT_PLAN.md §5 defines matched-position as a window of length L
+        ending at i*-1, and the prefix up to the tail start is fed as prompt,
+        so that window necessarily lies inside the prompt.
+        """
+        s = intervention_spans(111, 72, 72)
+        assert s["pre"] == (39, 111)
+        assert s["pre"][1] == s["tail"][0], "they meet at the boundary"
+
+    def test_the_two_spans_never_overlap(self):
+        for pt, tt, pl in ((111, 72, 72), (200, 10, 3), (5, 1, 99), (1, 0, 1)):
+            assert spans_are_disjoint(intervention_spans(pt, tt, pl))
+
+    def test_a_pre_window_longer_than_the_prompt_is_clamped_not_negative(self):
+        s = intervention_spans(prompt_tokens=5, tail_tokens=1,
+                               pre_window_tokens=99)
+        assert s["pre"] == (0, 5)
+        assert spans_are_disjoint(s)
+
+    def test_a_zero_length_pre_window_still_edits_one_position(self):
+        """`max(1, ...)`: a control that edits nothing is not a control."""
+        s = intervention_spans(10, 4, 0)
+        assert s["pre"] == (9, 10)
+        assert s["pre"][1] - s["pre"][0] == 1
+
+    def test_the_slack_is_a_margin_not_an_extent(self):
+        """It widens the span; what the editor edits is bounded by generation.
+
+        Measured on the pilot the slack never binds, so trimming it would
+        change nothing - which is why D39 leaves it alone.
+        """
+        s = intervention_spans(100, 20, 20, slack=64)
+        assert s["tail"][1] - s["tail"][0] == 84
+        tight = intervention_spans(100, 20, 20, slack=0)
+        assert tight["tail"][1] - tight["tail"][0] == 20
+        # With only 5 generated tokens, both spans edit the same 5 positions.
+        for spans in (s, tight):
+            edit = projection_editor(unit(3), 1.0, span=spans["tail"])
+            edit(torch.randn(1, 100, D))
+            for _ in range(5):
+                edit(torch.randn(1, 1, D))
+            assert edit.n_positions_edited == 5
+
+    def test_negative_token_counts_are_refused(self):
+        with pytest.raises(ValueError):
+            intervention_spans(-1, 10, 10)
+        with pytest.raises(ValueError):
+            intervention_spans(10, -1, 10)
+
+    def test_an_overlap_is_detected_rather_than_assumed(self):
+        """The guard the stage relies on before running the direction arms."""
+        overlapping = {"tail": (10, 20), "pre": (15, 25)}
+        assert not spans_are_disjoint(overlapping)
+        touching = {"tail": (10, 20), "pre": (0, 10)}
+        assert spans_are_disjoint(touching)
+
+
+class TestBeatIsAPairedTest:
+    """"Beat" used to be a comparison of two arm means with no test at all.
+
+    `abs(ablate.marker_delta) > abs(random_.marker_delta)` was satisfied by
+    0.30 against 0.29 on ten problems. Every arm runs on the same problems, so
+    the unit of analysis is the problem and the contrast is paired - the same
+    correction D29 made to the primary O3 comparison.
+    """
+
+    @staticmethod
+    def _rows(cand, ctrl, n=6, arm="random_dir"):
+        out = []
+        for i in range(n):
+            out.append(result("ablate_dir", 1.0, markers=cand[i], pid=f"p{i}"))
+            out.append(result(arm, 1.0, markers=ctrl[i], pid=f"p{i}",
+                              did="random_0" if arm == "random_dir" else None))
+        return out
+
+    def test_a_hair_wide_mean_gap_no_longer_counts_as_beating(self):
+        """The defect, stated as a test.
+
+        A candidate that wins on half the problems and loses on the other half
+        has a mean advantage driven by one outlier and no paired evidence. The
+        old mean comparison called that a win.
+        """
+        cand = [10, 0, 0, 0, 0, 0]
+        ctrl = [0, 1, 1, 1, 1, 1]
+        c = paired_arm_contrast(self._rows(cand, ctrl), "ablate_dir", "random_dir")
+        assert c["median_paired_difference"] < 0, "mean favours it, median does not"
+        assert c["beats"] is False
+        # The mean comparison the old gate used would have passed:
+        assert sum(cand) / 6 > sum(ctrl) / 6
+
+    def test_a_consistent_win_beats(self):
+        c = paired_arm_contrast(self._rows([4] * 6, [0] * 6),
+                                "ablate_dir", "random_dir")
+        assert c["beats"] is True
+        assert c["n_pairs"] == 6
+        assert c["n_pairs_favouring_candidate"] == 6
+        assert c["p_value"] <= 0.05
+
+    def test_a_consistent_win_on_too_few_problems_does_not_beat(self):
+        """Direction is right, evidence is not enough. Must not pass."""
+        c = paired_arm_contrast(self._rows([4] * 4, [0] * 4, n=4),
+                                "ablate_dir", "random_dir")
+        assert c["n_pairs"] == 4
+        assert c["direction_favours_candidate"] is True
+        assert c["p_value"] > 0.05
+        assert c["beats"] is False
+
+    def test_replicate_control_directions_count_once_per_problem(self):
+        """`random_dir` runs several directions per problem; averaging them
+        first keeps a problem from being weighted by its replicate count."""
+        rows = []
+        for i in range(5):
+            rows.append(result("ablate_dir", 1.0, markers=4, pid=f"p{i}"))
+            for k in range(3):
+                rows.append(result("random_dir", 1.0, markers=k, pid=f"p{i}",
+                                   did=f"random_{k}"))
+        c = paired_arm_contrast(rows, "ablate_dir", "random_dir")
+        assert c["n_pairs"] == 5, "five problems, not fifteen rows"
+        assert c["median_abs_effect_control"] == pytest.approx(1.0)  # mean of 0,1,2
+
+    def test_only_the_matched_dose_is_compared(self):
+        """Pooling the candidate's sweep would dilute it against undiluted
+        controls - including dose 0.0, which is a no-op by definition."""
+        rows = []
+        for i in range(5):
+            rows += [result("ablate_dir", 0.0, markers=0, pid=f"p{i}"),
+                     result("ablate_dir", 1.0, markers=5, pid=f"p{i}"),
+                     result("random_dir", 1.0, markers=0, pid=f"p{i}",
+                            did="random_0")]
+        c = paired_arm_contrast(rows, "ablate_dir", "random_dir", compare_at=1.0)
+        assert c["median_abs_effect_candidate"] == pytest.approx(5.0)
+        assert c["dose"] == 1.0
+
+    def test_no_shared_problems_is_uncomparable_not_a_loss(self):
+        rows = [result("ablate_dir", 1.0, markers=5, pid="a0"),
+                result("ablate_dir", 1.0, markers=5, pid="a1"),
+                result("ablate_dir", 1.0, markers=5, pid="a2"),
+                result("random_dir", 1.0, markers=0, pid="b0", did="random_0"),
+                result("random_dir", 1.0, markers=0, pid="b1", did="random_0")]
+        c = paired_arm_contrast(rows, "ablate_dir", "random_dir")
+        assert c["n_pairs"] == 0
+        assert c["beats"] is None
+        assert "both arms" in c["reason"]
+
+    def test_identical_arms_is_a_determinate_refusal(self):
+        """Wilcoxon is undefined on all-zero differences, but "beat" is
+        one-sided and the answer does not need the test: the candidate moved
+        the outcome by exactly as much as its control everywhere."""
+        c = paired_arm_contrast(self._rows([3] * 6, [3] * 6),
+                                "ablate_dir", "random_dir")
+        assert c["beats"] is False
+        assert c["p_value"] == 1.0
+        assert c["direction_favours_candidate"] is False
+        assert c["n_pairs_tied"] == 6
+
+    def test_the_contrast_uses_magnitude_not_signed_direction(self):
+        """RQ3 asks whether ablation *changes* behaviour, not which way, so a
+        large negative change must count as a change."""
+        c = paired_arm_contrast(self._rows([-6] * 6, [0] * 6),
+                                "ablate_dir", "random_dir")
+        assert c["median_abs_effect_candidate"] == pytest.approx(6.0)
+        assert c["beats"] is True
+
+    def test_an_ineligible_outcome_is_refused(self):
+        """continuation_tokens measures output length, not verification.
+
+        It may not be substituted into RQ3's verdict by changing a constant;
+        that would answer a different question under RQ3's name (D41).
+        """
+        rows = self._rows([4] * 6, [0] * 6)
+        with pytest.raises(ValueError, match="output_length"):
+            direction_claim_supported(rows, outcome="continuation_tokens")
+        with pytest.raises(ValueError, match="unknown outcome"):
+            direction_claim_supported(rows, outcome="not_a_readout")
+
+    def test_the_eligible_set_is_exactly_the_registered_construct(self):
+        assert VERDICT_OUTCOME in ELIGIBLE_OUTCOMES
+        assert OUTCOME_CONSTRUCT[VERDICT_OUTCOME] == REGISTERED_CONSTRUCT
+        assert "continuation_tokens" not in ELIGIBLE_OUTCOMES
+        for name in ELIGIBLE_OUTCOMES:
+            assert OUTCOME_CONSTRUCT[name] == REGISTERED_CONSTRUCT
+
+
+class TestTheConjunctionIsTriState:
+    """None must not collapse to False anywhere in the conjunction.
+
+    `all()` over the four conditions would read "could not be compared" as
+    "did not win", which is the error the whole gate exists to avoid.
+    """
+
+    @staticmethod
+    def _disjoint_problems():
+        """Candidate and controls share no problems, so neither contrast can
+        be made - while the readout still varies, so the old `outcome_varies`
+        guard does not catch it."""
+        rows = []
+        for i in range(4):
+            rows += [result("ablate_dir", 0.0, markers=0, pid=f"a{i}"),
+                     result("ablate_dir", 1.0, markers=3, pid=f"a{i}"),
+                     result("ablate_dir", 2.0, markers=6, pid=f"a{i}")]
+        for i in range(4):
+            rows += [result("random_dir", 1.0, markers=0, pid=f"b{i}",
+                            did="random_0"),
+                     result("matched_position", 1.0, markers=0, pid=f"b{i}")]
+        return rows
+
+    def test_an_uncomparable_contrast_makes_the_verdict_none(self):
+        v = direction_claim_supported(self._disjoint_problems())
+        assert v["outcome_varies"] is True, "the guard that would have caught it"
+        assert v["beats_random_direction"] is None
+        assert v["supported"] is None, "not False - nothing was compared"
+
+    def test_a_genuine_loss_is_false_not_none(self):
+        v = direction_claim_supported(supported_evidence(random_markers=9))
+        assert v["beats_random_direction"] is False
+        assert v["supported"] is False
+
+    def test_distinct_doses_are_counted_not_finite_readings(self):
+        """A duplicated dose must not count towards the minimum."""
+        rows = []
+        for i in range(6):
+            rows += [result("ablate_dir", 0.0, markers=0, pid=f"p{i}"),
+                     result("ablate_dir", 1.0, markers=3, pid=f"p{i}"),
+                     result("random_dir", 1.0, markers=0, pid=f"p{i}",
+                            did="random_0"),
+                     result("matched_position", 1.0, markers=0, pid=f"p{i}")]
+        v = direction_claim_supported(rows)
+        assert v["n_distinct_doses"] == 2
+        assert v["monotone_dose_response"] is False, "two doses cannot establish it"
+        assert v["supported"] is False
 
 
 class TestOutcomeScreen:
@@ -472,11 +882,97 @@ class TestOutcomeScreen:
         assert "interventions_were_no_ops" not in s
         assert s["arms_that_edited_nothing"] == 0
 
-    def test_the_pre_registered_readout_is_marked(self):
+    def test_the_text_level_arms_cannot_influence_the_screen(self):
+        """``truncate`` and ``filler`` are not direction arms and must not count.
+
+        Both are text-level: they stop at the tail or replace it with filler,
+        and neither applies a projection, so neither records an edit count and
+        neither bears on whether the *direction* separates its controls. They
+        also record 0 continuation tokens by construction, which would drag
+        `continuation_tokens` around if they were pooled in. The screen filters
+        to the three direction arms; this asserts that filter holds.
+        """
+        base = self._rows({"ablate_dir": [40, 50], "random_dir": [10, 12],
+                           "matched_position": [11, 13]}, edited=7)
+        noise = [result("truncate", 0.0, markers=99, tokens=0, pid="p0"),
+                 result("filler", 0.0, markers=99, tokens=999, pid="p0")]
+        before = screen_outcomes(base)
+        after = screen_outcomes(base + noise)
+        assert after["n_direction_results"] == before["n_direction_results"] == 6
+        assert after["usable_outcomes"] == before["usable_outcomes"]
+        assert after["outcomes"]["continuation_tokens"]["mean"] == pytest.approx(
+            before["outcomes"]["continuation_tokens"]["mean"])
+        # Their missing edit counts must not read as broken interventions.
+        assert after["arms_that_edited_nothing"] == 0
+        assert "interventions_were_no_ops" not in after
+
+    def test_the_edit_extent_of_each_arm_is_reported(self):
+        """The location contrast's extent confound, measured not assumed (D39).
+
+        `random_dir` is given the candidate's own span, so those two are
+        matched exactly. `matched_position` edits the pre-registered
+        matched-length window inside the prompt, which arrives in one forward
+        pass, so it edits its whole span while the candidate stops where
+        generation stopped. The screen reports the ratio so a reader comparing
+        the two arms can see it.
+        """
+        rows = [result("ablate_dir", 1.0, markers=0, tokens=10, pid="p0", edited=36),
+                result("ablate_dir", 1.0, markers=0, tokens=11, pid="p1", edited=36),
+                result("random_dir", 1.0, markers=0, tokens=10, pid="p0", edited=36),
+                result("random_dir", 1.0, markers=0, tokens=11, pid="p1", edited=36),
+                result("matched_position", 1.0, markers=0, tokens=10, pid="p0", edited=72),
+                result("matched_position", 1.0, markers=0, tokens=11, pid="p1", edited=72)]
+        s = screen_outcomes(rows)
+        ext = s["edit_extent_by_arm"]
+        assert ext["ablate_dir"]["median_positions_edited"] == 36
+        assert ext["matched_position"]["median_positions_edited"] == 72
+        assert s["extent_matched_candidate_vs_random"] is True
+        assert s["extent_ratio_matched_position_over_candidate"] == pytest.approx(2.0)
+
+    def test_an_unmatched_random_control_is_flagged(self):
+        """If the candidate and its direction control ever diverge in extent,
+        that contrast stops isolating the direction and must be visible."""
+        rows = [result("ablate_dir", 1.0, markers=0, pid="p0", edited=40),
+                result("random_dir", 1.0, markers=0, pid="p0", edited=12),
+                result("matched_position", 1.0, markers=0, pid="p0", edited=40)]
+        s = screen_outcomes(rows)
+        assert s["extent_matched_candidate_vs_random"] is False
+
+    def test_extent_is_reported_as_unknown_when_not_recorded(self):
+        """Pilot artifacts predate the counter; absence must not read as zero."""
+        rows = [result("ablate_dir", 1.0, markers=0, pid="p0"),
+                result("random_dir", 1.0, markers=0, pid="p0"),
+                result("matched_position", 1.0, markers=0, pid="p0")]
+        s = screen_outcomes(rows)
+        ext = s["edit_extent_by_arm"]
+        assert ext["ablate_dir"]["n"] == 0
+        assert np.isnan(ext["ablate_dir"]["median_positions_edited"])
+        assert "extent_ratio_matched_position_over_candidate" not in s
+        # And it must not be mistaken for a no-op intervention.
+        assert "interventions_were_no_ops" not in s
+        assert s["arms_that_edited_nothing"] == 0
+
+    def test_no_readout_is_marked_pre_registered(self):
+        """Because none is (D40).
+
+        `marker_delta` used to carry `pre_registered: True`. "Verification
+        markers" appear nowhere in PROJECT_PLAN.md or either review: the
+        pre-registration fixes the arms, both control comparisons and the
+        dose-response requirement, and leaves "beat" undefined. The flag made
+        an implementation default look like an advance commitment.
+        """
         s = screen_outcomes(self._rows({"ablate_dir": [10], "random_dir": [10],
                                         "matched_position": [10]}))
-        flagged = [n for n, e in s["outcomes"].items() if e["pre_registered"]]
-        assert flagged == ["marker_delta"]
+        assert [n for n, e in s["outcomes"].items() if e["pre_registered"]] == []
+        assert s["preregistered_outcome"] is None
+
+    def test_the_readout_the_gate_uses_is_identified(self):
+        """Still recoverable - as a choice, not as a registration."""
+        s = screen_outcomes(self._rows({"ablate_dir": [10], "random_dir": [10],
+                                        "matched_position": [10]}))
+        flagged = [n for n, e in s["outcomes"].items() if e["is_verdict_outcome"]]
+        assert flagged == [VERDICT_OUTCOME] == ["marker_delta"]
+        assert s["verdict_outcome"] == "marker_delta"
 
     def test_the_screen_rides_along_with_the_verdict(self):
         rows = self._rows({"ablate_dir": [40], "random_dir": [10],

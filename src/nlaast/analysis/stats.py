@@ -337,6 +337,22 @@ def paired_binary_test(
     Only the discordant problems carry information, so the exact binomial form
     is used rather than the chi-square approximation, which is unreliable when
     that count is small - and on 21 problems it is.
+
+    **Two things this reports that the p-value alone does not.**
+
+    ``notes['smallest_attainable_p']`` is the p-value this many discordant
+    pairs would give if every one of them pointed the same way - the best the
+    comparison could possibly have done. It separates "no difference was
+    found" from "no difference could have been found": on the pilot's four
+    discordant pairs it is 0.125, so that comparison could not have cleared a
+    corrected threshold of 0.01 whichever way the pairs fell. That is a
+    statement about the design, available without simulating anything.
+
+    ``n_discordant == 0`` returns **p = 1.0**, not ``nan``. See the comment at
+    that branch: conditioning on zero discordant pairs leaves one possible
+    table, so the exact two-sided p-value is 1 and the hypothesis was tested
+    and not rejected. ``notes['zero_discordant']`` marks it so a reader is not
+    left to infer from a bare p = 1.0 that the comparison was informative.
     """
     from scipy import stats
 
@@ -361,13 +377,41 @@ def paired_binary_test(
         "unit_of_analysis": "problem",
     }
     if n_disc == 0:
-        notes["skipped"] = (
-            "no discordant problems: the two rules preserved the outcome on "
-            "exactly the same problems, so there is nothing to test")
-        return TestResult(name, float("nan"), float("nan"), float("nan"),
+        # p = 1.0, not "no result". The exact conditional test conditions on
+        # the number of discordant pairs; given d = 0 the conditional sample
+        # space is the single point b = 0, so P(as extreme or more) = 1 and the
+        # two-sided exact p-value *is* 1.0. This is arithmetic, not a
+        # convention.
+        #
+        # It used to return nan and mark itself skipped, which misclassified
+        # the one case where the null holds exactly. Zero discordant pairs is
+        # the strongest agreement the design can observe - both rules
+        # preserved the verified outcome on exactly the same problems - so
+        # treating it as missing evidence dropped a test from the
+        # Benjamini-Hochberg denominator *because* its null was perfectly
+        # satisfied. That is the one exclusion that correlates with the effect
+        # being tested, and it biases every other q-value downwards (D38).
+        #
+        # The test is reported as conducted and not rejected. That it has no
+        # power is a separate and separately reported fact: `power` below is
+        # the smallest two-sided p this design could have produced, which at
+        # d = 0 is 1.0 - there was no evidence available either way.
+        notes["interpretation"] = (
+            "no discordant problems: both rules preserved the verified "
+            "outcome on exactly the same problems. This is maximal agreement, "
+            "not missing data, and the exact conditional p-value is 1.0. The "
+            "comparison is uninformative rather than unevaluable: no "
+            "assignment of the discordant pairs could have rejected, because "
+            "there are none")
+        notes["zero_discordant"] = True
+        notes["smallest_attainable_p"] = 1.0
+        return TestResult(name, 0.0, 1.0, float("nan"),
                           "odds_ratio_discordant", n=len(pairs), notes=notes,
                           interval=paired_rate_difference_ci(
                               b_only, c_only, len(pairs), confidence))
+    # The best case this many discordant pairs could ever do: all one way.
+    notes["smallest_attainable_p"] = float(
+        stats.binomtest(0, n_disc, 0.5).pvalue)
     p = float(stats.binomtest(b_only, n_disc, 0.5).pvalue)
     # Reported on the discordant pairs, which are the only ones that differ.
     effect = float("inf") if c_only == 0 else b_only / c_only
@@ -403,14 +447,62 @@ def unpaired_test(
     )
 
 
+def _has_p(t: TestResult) -> bool:
+    """Did this test actually produce a p-value?
+
+    ``None`` and ``nan`` both mean "no p-value" and reach here from different
+    places: a test that declined to run returns ``float('nan')``, while a
+    result round-tripped through JSON comes back with ``None``, because the
+    writer has no ``nan`` to serialise. Treating only one of them as missing
+    made this function raise on the other.
+    """
+    return t.p_value is not None and bool(np.isfinite(t.p_value))
+
+
 def benjamini_hochberg(tests: Sequence[TestResult], q: float = 0.05) -> list[TestResult]:
     """Annotate a family of tests with BH q-values, in place of raw p-values.
 
-    Tests without a usable p-value are carried through unflagged rather than
-    dropped: silently shrinking the family would make the correction look
-    kinder than it is.
+    **The correction is taken over the tests that produced a p-value**, so
+    ``m`` is the number of *evaluable* tests rather than the number
+    pre-registered. A test that could not be evaluated - no matched budget, no
+    discordant pairs, a missing dependent variable - is carried through to the
+    report with ``q_value`` and ``significant`` left ``None``, so it stays
+    visible as planned-and-not-made. It does not enter ``m``.
+
+    **Why that is defensible rather than merely convenient.** BH controls the
+    false discovery rate, ``E[V/R]``, over the hypotheses actually tested. A
+    hypothesis that produced no p-value cannot be rejected, so it can
+    contribute neither to ``V`` nor to ``R``; including it in ``m`` buys no
+    error control and only makes every other test conservative. What F9's
+    "pre-registered family" guards against is choosing the denominator *after
+    seeing which tests came out well*, and that guard is satisfied here
+    provided every exclusion is for a reason independent of the direction and
+    size of the effect under test. On this analysis plan they are:
+
+    - **no matched budget exists** - decided by the rules' token-saving
+      curves, not by their safe rates (O3 vs convergence);
+    - **fewer than three observations in an arm** - decided by how many
+      problems the model got right, not by the tail fractions compared (RQ1);
+    - **the dependent variable has no variance** - decided by the
+      instrument's floor, not by the arms' means (RQ3's marker count, which
+      is identically zero on this model).
+
+    **One exclusion was not independent of the effect, and has been removed.**
+    A McNemar comparison with zero discordant pairs used to return ``nan`` and
+    drop out of ``m`` - but zero discordance is exactly the null holding
+    perfectly, so the family shrank *because* a null was true, which biases
+    every other q-value downwards. ``paired_binary_test`` now returns the
+    arithmetically correct ``p = 1.0`` there, so that test is counted. See
+    D38.
+
+    With that fixed, ``m = len(usable)`` is the convention this code
+    implements and the one to report as primary. ``summarise_tests`` also
+    reports ``q_values_at_planned_family_size`` so the stricter reading -
+    ``m`` = every pre-registered test, evaluable or not - is visible as a
+    sensitivity without re-running anything. D38 records the reasoning and the
+    one judgement left to the author: which of the two to foreground.
     """
-    usable = [t for t in tests if np.isfinite(t.p_value)]
+    usable = [t for t in tests if _has_p(t)]
     m = len(usable)
     if m == 0:
         return list(tests)
@@ -423,17 +515,69 @@ def benjamini_hochberg(tests: Sequence[TestResult], q: float = 0.05) -> list[Tes
         t.significant = bool(t.q_value <= q)
         prev = adj
     for t in tests:
-        if not np.isfinite(t.p_value):
+        if not _has_p(t):
             t.q_value = None
             t.significant = None
     return list(tests)
 
 
-def summarise_tests(tests: Sequence[TestResult]) -> dict[str, Any]:
+def bh_at_family_size(
+    tests: Sequence[TestResult], m: int, q: float = 0.05
+) -> dict[str, Any]:
+    """BH q-values for the same p-values under a *stated* family size.
+
+    The sensitivity half of D38. ``benjamini_hochberg`` corrects over the
+    tests that produced a p-value; this recomputes the same step-up with ``m``
+    forced, so the stricter reading of F9 - every pre-registered test counts,
+    evaluable or not - can be reported beside the primary numbers without
+    re-running an analysis or mutating the results.
+
+    Pure function: it does not touch the ``TestResult`` objects.
+    """
+    usable = sorted((t for t in tests if _has_p(t)), key=lambda t: t.p_value)
+    k = len(usable)
+    m = max(int(m), k)  # a family cannot be smaller than the tests in it
+    out: dict[str, Any] = {}
+    prev = 1.0
+    for i in range(k - 1, -1, -1):
+        t = usable[i]
+        adj = min(prev, t.p_value * m / (i + 1))
+        out[t.name] = {"q_value": float(min(1.0, adj)),
+                       "significant": bool(min(1.0, adj) <= q)}
+        prev = adj
+    return {"family_size": m, "q": q,
+            "n_significant": sum(1 for v in out.values() if v["significant"]),
+            "q_values": out}
+
+
+def summarise_tests(tests: Sequence[TestResult], q: float = 0.05) -> dict[str, Any]:
+    """Family-level counts, the ``m`` used, and the alternative convention.
+
+    ``bh_family_size`` is the one number a reader needs to reproduce the
+    q-values, so it is stated rather than left to be inferred.
+    ``n_planned_but_unevaluable`` is its complement: tests that were
+    pre-registered, ran, and produced no p-value.
+
+    ``q_values_at_planned_family_size`` is the D38 sensitivity - the same
+    p-values corrected over every pre-registered test instead of only the
+    evaluable ones. It is reported always, so the choice of convention changes
+    which number is foregrounded rather than which numbers exist.
+    """
     done = [t for t in tests if t.significant is not None]
-    return {
+    out = {
         "n_tests": len(tests),
         "n_evaluated": len(done),
         "n_significant": sum(1 for t in done if t.significant),
+        #: The ``m`` used by ``benjamini_hochberg``: evaluable tests only.
+        "bh_family_size": len(done),
+        "n_planned_but_unevaluable": len(tests) - len(done),
+        "bh_family_convention": "evaluable_tests",
         "tests": [t.to_dict() for t in tests],
     }
+    if tests:
+        out["q_values_at_planned_family_size"] = bh_at_family_size(
+            tests, len(tests), q)
+        out["verdict_is_robust_to_family_convention"] = (
+            out["n_significant"]
+            == out["q_values_at_planned_family_size"]["n_significant"])
+    return out
