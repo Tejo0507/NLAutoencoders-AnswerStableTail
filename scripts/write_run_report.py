@@ -441,18 +441,27 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
     rq3 = results.get("rq3") or {}
     if rq3:
         v = rq3.get("verdict", {})
+        outcome = v.get("outcome_definition") or v.get("outcome") or "the readout"
+        if v.get("outcome_is_preregistered") is False:
+            A(f"**Outcome: `{v.get('outcome')}` ({outcome}).** The "
+              f"pre-registration registers RQ3 against the *construct* "
+              f"\"{v.get('registered_construct', 'verification-like behaviour')}\" "
+              f"but names no operationalisation of it, so this readout is a "
+              f"documented choice among those measuring that construct and "
+              f"**not** a pre-registered outcome. See DECISIONS.md D40/D41.")
+            A("")
         if v.get("supported") is None:
             A("**Direction claim: not tested.** The gate returns neither "
-              "support nor refutation, because the behavioural readout it "
-              "judges — the change in rechecking-marker count — did not vary "
-              "at all.")
+              "support nor refutation.")
             A("")
-            A(f"> {v.get('untestable_reason')}")
-            A("")
+            if v.get("untestable_reason"):
+                A(f"> {v.get('untestable_reason')}")
+                A("")
             A("Reporting this as *unsupported* would say the candidate "
               "direction failed to beat its controls. It did not fail: "
-              "nothing was measured. The outcome variable has to move before "
-              "any of the four requirements below can mean anything.")
+              "nothing was measured. The outcome variable has to move, and "
+              "both arms have to cover the same problems, before any of the "
+              "four requirements below can mean anything.")
             A("")
         else:
             A(f"**Direction claim supported: {v.get('supported')}**")
@@ -465,10 +474,19 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
             A(f"| {k.replace('_', ' ')} | "
               f"{'not testable' if val is None else val} |")
         A("")
+        if v.get("beat_definition"):
+            A(f"\"Beat\" means: {v['beat_definition']}. Each arm is scored on "
+              f"the same problems, so the contrast is paired and the unit of "
+              f"analysis is the problem — a comparison of arm means would be "
+              f"satisfied by an arbitrarily small gap on an arbitrarily small "
+              f"sample.")
+            A("")
+        _rq3_contrasts(A, v)
         arms = rq3.get("arms") or {}
         if arms:
             A(tables.markdown(pd.DataFrame(list(arms.values()))))
             A("")
+        _rq3_edit_extent(A, (v.get("outcome_screen") or {}))
         A("Following Zhang & Nanda, a direction claim requires the candidate to "
           "beat both a matched-random direction and the same direction applied at "
           "a matched pre-stabilisation position, with a monotone dose-response. "
@@ -538,6 +556,99 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
 def _clip(text: str, n: int = 380) -> str:
     text = " ".join((text or "").split())
     return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _rq3_contrasts(A, verdict: dict) -> None:
+    """The two "beat" comparisons, with their paired evidence on the page.
+
+    Without this a reader sees only True/False/not-testable and cannot tell
+    whether a False came from a decisive loss or from four problems.
+    """
+    rows = []
+    for key in ("contrast_random_direction", "contrast_matched_position"):
+        c = verdict.get(key)
+        if not c:
+            continue
+        rows.append({
+            "control": c.get("control"),
+            "n_pairs": c.get("n_pairs"),
+            "median |effect| candidate": c.get("median_abs_effect_candidate"),
+            "median |effect| control": c.get("median_abs_effect_control"),
+            "median paired diff": c.get("median_paired_difference"),
+            "pairs for candidate": c.get("n_pairs_favouring_candidate"),
+            "pairs for control": c.get("n_pairs_favouring_control"),
+            "ties": c.get("n_pairs_tied"),
+            "p": c.get("p_value"),
+            "beats": "not testable" if c.get("beats") is None else c.get("beats"),
+        })
+    if not rows:
+        return
+    A("**The two control comparisons, paired over problems.**")
+    A("")
+    A(tables.markdown(pd.DataFrame(rows)))
+    A("")
+    for key in ("contrast_random_direction", "contrast_matched_position"):
+        c = verdict.get(key) or {}
+        if c.get("beats") is None and c.get("reason"):
+            A(f"- `{c.get('control')}`: {c['reason']}")
+    A("")
+
+
+def _rq3_edit_extent(A, screen: dict) -> None:
+    """How much each arm actually edited, and the validity limit that follows.
+
+    The two registered controls are matched on different things. `random_dir`
+    is given the candidate's own span, so that contrast isolates the direction.
+    `matched_position` is the registered matched-length window ending before
+    the tail, which lives inside the prompt and so arrives in one forward pass
+    and edits its whole span, while the candidate edits only as far as
+    generation actually ran. A reader comparing those two arms needs the extent
+    beside the means or they will read a location difference off a comparison
+    that also differs in extent (D39).
+    """
+    extent = screen.get("edit_extent_by_arm")
+    if not extent:
+        return
+    A("**Positions actually edited, per arm.**")
+    A("")
+    rows = [{"arm": arm, **{k: v for k, v in d.items()}}
+            for arm, d in extent.items()]
+    A(tables.markdown(pd.DataFrame(rows)))
+    A("")
+    matched = screen.get("extent_matched_candidate_vs_random")
+    if matched is not None:
+        A(f"- Candidate and matched-random direction edit the same number of "
+          f"positions: **{matched}**. They share a span by construction, so "
+          f"that contrast isolates the direction.")
+    ratio = screen.get("extent_ratio_matched_position_over_candidate")
+    if ratio is not None:
+        A(f"- Matched-position control edits **{ratio:.2f}x** the candidate's "
+          f"positions.")
+        if abs(ratio - 1.0) > 0.1:
+            A("")
+            A("**Validity limitation.** A difference between `ablate_dir` and "
+              "`matched_position` therefore cannot be attributed to position "
+              "alone: the two arms also differ in how many positions were "
+              "edited, and in kind — the candidate edits representations as "
+              "tokens are generated, so its edit compounds into what is "
+              "written next, while the control edits already-fixed prompt "
+              "context acting only through attention. "
+              + ("Note the direction of the bias: the control is the "
+                 "**larger** edit, so a candidate that still moves the "
+                 "readout further does so against the asymmetry and that "
+                 "reading is conservative; a control that moves it further "
+                 "leaves extent as a live alternative explanation and does "
+                 "not support the location claim."
+                 if ratio > 1.0 else
+                 "Note the direction of the bias: the candidate is the "
+                 "**larger** edit, so a candidate advantage may reflect "
+                 "extent rather than location and does not on its own "
+                 "support the location claim."))
+    if screen.get("interventions_were_no_ops"):
+        A("")
+        A(f"**The independent variable was not applied.** "
+          f"{screen.get('warning')}")
+    A("")
 
 
 def _o3_verdict(results: dict) -> str:
