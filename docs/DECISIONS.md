@@ -1155,16 +1155,44 @@ confirmatory claim is **left blocked on this model**. Reasoning:
   code already documents that it is a behavioural readout and not a claim to
   read text as a log of the computation, which `Project_Review_II.md` §2.1.6
   rules out.
-- Its defect is a **floor effect**, not a construct mismatch: on this model the
-  twenty markers occur in none of the pilot's 24 traces. That is a statement
-  about measurement power, and the honest response is to report RQ3 as
-  unevaluable on this model rather than to swap the construct.
+- Its defect is a **floor effect**, not a construct mismatch. That is a
+  statement about measurement power, and the honest response is to report RQ3
+  as unevaluable on this model rather than to swap the construct.
 - Widening the marker lexicon until it moves would be tuning the instrument
   against the data, which is the same error in a different coat.
 
 So: **no amendment to the dependent variable is made.** The gap is documented,
 the construct is cited, and the claim stays blocked. This is the "strongest
 valid alternative" rather than a manufactured answer.
+
+### The floor effect, measured at scale rather than asserted
+
+The pilot's 24 traces were too few to distinguish "this model does not
+recheck" from "we have not seen enough traces". Re-measured across the
+pilot **and the 116 main-run traces available on 2026-10-12** — 140 traces,
+5.8x the pilot:
+
+| corpus | traces with any marker | total marker occurrences | rate | 95% exact CI |
+|---|---|---|---|---|
+| pilot | 0 / 24 | 0 | 0.0000 | [0.0000, 0.1425] |
+| main so far | 1 / 116 | 1 | 0.0086 | [0.0002, 0.0471] |
+| **pooled** | **1 / 140** | **1** | **0.0071** | **[0.0002, 0.0392]** |
+
+The single occurrence is the word "confirming", once, in one trace. Not one of
+the other nineteen markers appears anywhere in 140 traces.
+
+**What that implies for the causal arm**, which runs on `causal.max_problems`
+= 60 problems. At the pooled rate, the expected number of marker-bearing
+problems in that arm is **0.43**; at the *upper* bound of the 95% interval it
+is **2.35**, and the probability of even one is 0.35. `MIN_PAIRS` is 3, and a
+paired test with any power needs far more. So the dependent variable cannot
+support the comparison on this model **at any corpus size this study can
+reach** — the binding constraint is the model's writing style, not N.
+
+This is the evidence that converts "blocked, pending more data" into
+**"blocked, and more data will not help"**. It is a finding about Qwen2.5-7B-
+Instruct's output — it writes clean step-by-step derivations without
+rechecking language — and not a defect in the study design. Reported as such.
 
 ### What this costs, stated plainly
 
