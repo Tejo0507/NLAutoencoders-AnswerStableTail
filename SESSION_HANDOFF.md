@@ -1,4 +1,4 @@
-# Session handoff — 2026-10-11
+# Session handoff — 2026-10-12
 
 Where the project stands, what this session did, and what to do next.
 
@@ -10,16 +10,25 @@ the science.
 
 ## 1. One-line state
 
-The pilot's committed history is **pushed**. Re-reading the pilot's analysis
-against its own statistics found that **the study's one significant primary
-finding was an artefact of a default parameter**, and that three of five causal
-arms had never done anything. Both are fixed, with tests. The **main run is
-healthy and under way**: `env`, `data` and `models` are complete and `traces`
-has done **61 of 250** with 0 failures, ETA ~23 h, resumable per problem.
+**The analysis corrections are merged to `main`.** Nineteen files, 2820
+insertions, 532 CPU tests passing: the Benjamini–Hochberg family question is
+resolved (D38), the convergence unevaluability claim is scoped to the corpora
+measured (D37b), RQ3's "beat" relation is a paired test rather than a
+comparison of two means (D41), and the causal arms' edit extents are measured
+and reported (D39).
 
-**Leave it alone.** Do not run the test suite, the causal validation, or any
-other GPU work alongside it — doing so doubled a problem's wall time this
-session. Monitoring is file reads only.
+**`traces` is at 116 of 250 and running, but roughly 3x slower than it was.**
+0 failures, 0 malformed records, 0 duplicates. The slowdown is diagnosed in §5
+and is a machine-state problem, not a code or data problem — two actions would
+restore it.
+
+**RQ3 is now blocked for a reason that is measured rather than suspected.**
+Its registered construct's readout occurs once in 140 traces, which projects
+to 0.43 marker-bearing problems in the 60-problem causal arm. More data will
+not help. See §9.
+
+**Leave the traces run alone.** Do not run the test suite, the causal
+validation, or any other GPU work alongside it. Monitoring is file reads only.
 
 ---
 
@@ -100,11 +109,25 @@ and a match at all nine budgets, where it is **exactly tied** with the readout:
 zero discordant problems, the two rules preserving the outcome on the same
 problems. (D30)
 
-The convergence comparison is genuinely unevaluable, and **no corpus size will
-change that**: its score is 1.0 once the last `window` answers agree and 0.0
-otherwise, so `d = 2` and its curve has three operating points at any N, with
-savings of 0.407 and 0.885 straddling the budget window. It needs a graded
-score, not more data. `granularity_bound` now reports this per rule. (D31)
+The convergence comparison is unevaluable **on the corpora measured so far**:
+its operating points fall either side of the shared budget window rather than
+in it. As originally implemented its score was binary — 1.0 once the last
+`window` answers agree, 0.0 otherwise — so `d = 2` and the curve had three
+operating points at any N, with savings of 0.407 and 0.885 straddling the
+window. `granularity_bound` reports this per rule. (D31)
+
+**D31's conclusion that "no corpus size will change that" no longer follows,
+and has been withdrawn — see D37.** It was argued from the binary score, which
+D36 replaced with the agreement run length. That score is an unbounded count,
+so its resolution bound rises with the corpus (8 on the pilot's 24 traces, 10
+on the first 86 of the main run) and `granularity_limited` is now `false`. The
+comparison is still unevaluable, but for the weaker reason the code itself now
+reports: *"the thresholds are exhausted, so the two curves do not come within
+tolerance of a shared budget on this corpus rather than the sweep having
+missed a point."* What the full corpus will show is **not known** — the
+achieved savings are means over problems, and the window is pinned by the NLA
+arm's own reachable range, which the `nla` stage has not yet produced for
+`main`.
 
 ### 3. A partial run would have been all GSM8K and no MATH
 
@@ -176,13 +199,68 @@ touched the 4-bit loading paths.
 
 ## 5. The main run
 
-**Status: `traces` running.** Launched 10:58 on 2026-10-11, detached, logging
-to `runs/main/traces_stage.out`. `env`, `data` and `models` are complete.
+**Status at 09:49 on 2026-10-12: `traces` running, 116 of 250.** Relaunched
+02:48:34 on 2026-10-12 (PIDs 20856 parent / 24432 worker), detached, logging to
+`runs/main/traces_stage.out`. `env`, `data` and `models` are complete. Corpus
+validated read-only: **0 malformed, 0 duplicate problem ids, 0 `ok=false`, no
+missing fields**, 70 GSM8K / 46 MATH — proportional, as the interleaving
+intends. Record count and progress-line count agree at 116.
 
 ```powershell
 # resumes per problem; safe to run after any interruption
 .venv\Scripts\python.exe scripts\generate_traces.py --config main
 ```
+
+### The slowdown, diagnosed
+
+Per-problem medians across the run, from its own log:
+
+| problems | GSM8K | MATH |
+|---|---|---|
+| 1–40 | 4.6 min | 8.4 min |
+| 41–80 | 6.2 min | 10.2 min |
+| 81–100 | 5.0 min | 11.7 min |
+| **101–116** (post-restart) | **21.4 min** | **25.2 min** |
+
+So this is **not** gradual degradation and not a data property — it begins
+exactly at the 02:48 restart, at 2.4–4.3x the earlier rate. ETA is now ~3240
+min (**~54 h**) against ~14 h at the original throughput.
+
+Evidence gathered read-only:
+
+- **RAM: 3.2 GB free of 16.0 GB.** The worker's `WorkingSetPeak` is 4.74 GB
+  but its current working set is 924 MB — it has been trimmed by ~3.8 GB — with
+  3.76M cumulative page faults and 5.74 GB of IO reads. That is the signature
+  of memory pressure paging the process out and reading it back, which is the
+  same cause §6 records for the pilot's 7x slowdown.
+- Competing for it: three VS Code processes (~2.1 GB), ChatGPT Classic
+  (394 MB), Defender (376 MB), plus this session.
+- **GPU is not the bottleneck and is not throttling.** 100% utilisation,
+  59 °C, no clock-event reason active (`HW Thermal Slowdown`, `SW Power Cap`,
+  `HW Power Brake` all Not Active), 5515/6141 MiB VRAM. But it draws **30 W
+  against a 60 W default limit** at 2550/3105 MHz SM — about half its budget.
+- On **AC power**, 100% charge, so not battery throttling. Windows power plan
+  is **Balanced**, not High Performance.
+
+**Two things would restore throughput, both the operator's call:**
+
+1. **Free RAM** — close the VS Code windows and other desktop apps not in use.
+   This is the dominant factor; the paging numbers above are unambiguous.
+2. **Switch the power plan to High Performance**, which should let the GPU use
+   more of its 60 W budget. Secondary, and worth less than (1).
+
+Neither requires touching the run: it resumes per problem, so even a reboot
+costs at most one problem. **Do not kill it to "fix" anything** — the fixes are
+all outside the process.
+
+**Is finishing practical?** At the current rate, no: 134 problems × ~23 min is
+~51 h. With RAM freed it is ~14 h, which is practical. The decision is
+therefore about the machine, not about the run. A third option exists and is
+scientifically sound: **stop at a round number and report the achieved N.**
+The problem order is interleaved, so any prefix is proportional, and
+`main.yaml` already states that the achieved N is what the report states. 150
+problems would be ~4 h away at the degraded rate and would clear the ~42-
+problem bar the O3 comparison needs (D32).
 
 **It is safe to stop at any point.** The problem order is interleaved, so any
 prefix is proportional: 24 problems is 14 GSM8K / 10 MATH, 120 is 72 / 48.
@@ -479,9 +557,31 @@ CPU-only and cheap.
   axis — proven identical to the canonical implementation over 83 traces for
   `w = 1..8`. It raised the rule's operating points from 3 to 8 and **did not**
   make the comparison evaluable: the achievable savings stay clustered, with
-  the budget window falling between `w = 2` (0.407) and `w = 1` (0.855). Worth
-  re-checking once `baselines` runs on the main corpus, since the window's
-  position depends on the NLA rule's own range.
+  the budget window falling between `w = 2` (0.407) and `w = 1` (0.855).
+
+  **The exact check, once `baselines` and `nla` have run on `main`** — no new
+  tooling needed, these fields already exist:
+
+  1. `runs/main/analysis/results.json` → `o3_unmatched`. **Key absent, or
+     `convergence` absent from it ⇒ the comparison is evaluable** and was
+     made; read the McNemar result in the test family as normal.
+  2. If `o3_unmatched.convergence` is present, read `granularity_limited`:
+     - `false` ⇒ the curves do not overlap *on this corpus*. Report per
+       D37b/D39, with the gap quantified from (3).
+     - `true` ⇒ the score's resolution is the limit; check
+       `max_operating_points_at_observed_scores` against the pilot's 8.
+  3. `runs/main/baselines/curves.json` → `curves.convergence[].mean_tokens_saved`
+     for the operating points, and `o3_comparison_basis.budgets` in
+     `results.json` for the window. The gap is the distance from the window
+     to the nearest convergence point; compare with 0.398 / 0.491 / 0.464
+     (24 / 86 / 100 traces) recorded in D37b.
+  4. `curve_resolution.convergence.n_distinct_scores` — rising with the
+     corpus is what makes evaluability possible at all.
+
+  Do **not** adjust the score, the exhaustive grid, `MATCH_TOLERANCE`, or
+  `budget_grid` to obtain a match. The window's position depends on the NLA
+  rule's own reachable range, which is why (3) cannot be read before `nla`
+  runs.
 
 ### Issue tracker, reconciled this session
 
@@ -491,22 +591,82 @@ CPU-only and cheap.
 | [#4](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/4) download the checkpoints, run the verbaliser | **closed** — F8 cosine 0.987, integrity 0.976; the D2 threat is measured |
 | [#5](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/5) decide the MATH token cap | **closed** — 768 chosen and validated; `n_math` kept at 100 |
 | [#6](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/6) grow the corpus for the supervised analyses | open — the main run unblocks it; `mlcorpus` is redundant, not rehabilitated |
-| [#7](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/7) run the main experiment, write the report | open — in progress, 53/250 |
-| [#8](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/8) validate the direction interventions on GPU | open — blocked on VRAM |
-| [#9](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/9) graded score for the agreement rule | open — cheap, no GPU |
+| [#7](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/7) run the main experiment, write the report | open — in progress, **116/250**, throughput degraded (§5) |
+| [#8](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/8) validate the direction interventions on GPU | open — blocked on VRAM; acceptance criteria now enforced in code, not just listed |
+| [#9](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/9) graded score for the agreement rule | open — done and verified at 100 traces; the exact post-trace check is in §7 |
+| [#11](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/11) RQ3 dependent variable | open — **premise reversed by D41**; the construct *is* registered and `continuation_tokens` is ruled out. Retitle to "RQ3 is unevaluable on this model" |
+| [#10](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/pull/10) analysis corrections | **merged** to `main` |
 
 ---
 
-## 8. Honest limits
+## 9. RQ3: resolved as far as the evidence allows
+
+**The question was: can RQ3's dependent variable be recovered or defensibly
+amended?** Answer: the *construct* is recoverable, the *measure* is not, and
+the claim stays blocked. No result was manufactured.
+
+**What is registered.** `Project_Review_II.md` line 122 states RQ3 in the
+proposal's own words: *"do tail-window states carry a direction whose ablation
+**selectively changes verification-like behaviour** without changing final
+answers?"* So the construct is registered; `PROJECT_PLAN.md` §5 registers the
+five arms, both control comparisons, the conjunction and the dose-response
+requirement. Only the operationalisation is absent.
+
+**Why `continuation_tokens` was rejected.** It measures output length. A model
+writes more when rechecking, and also when repeating, degenerating or padding.
+It kept being proposed because it has variance where the marker count has none
+— which is choosing a readout *because it is the one that moves*, the same
+failure `screen_outcomes` exists to prevent, approached from the other side.
+It stays a screening candidate and is reported; it cannot become the verdict
+outcome by editing a constant, because `_assert_eligible` now refuses any
+readout whose construct is not the registered one.
+
+**Why the retained measure cannot work here — measured, not asserted.** Across
+140 traces (the pilot's 24 plus the 116 main-run traces available on
+2026-10-12) there is exactly **one** marker occurrence: "confirming", once, in
+one trace. Pooled rate 1/140 = 0.0071, 95% exact CI [0.0002, 0.0392]. In the
+60-problem causal arm that is **0.43** marker-bearing problems expected, or
+**2.35** at the interval's upper bound, against a `MIN_PAIRS` of 3. So more
+data will not help: the binding constraint is that this model writes clean
+derivations without rechecking language. That is a finding about
+Qwen2.5-7B-Instruct, not a defect in the design.
+
+**What was fixed anyway**, because it was wrong independently of the measure:
+"beat" compared two arm *means*, so 0.30 against 0.29 on ten problems
+satisfied it. It is now a Wilcoxon signed-rank test paired over the problems
+each arm shares, at α = 0.05, read at the controls' dose — the correction D29
+made to the primary O3 comparison, applied consistently. `VERDICT_OUTCOME` is
+now authoritative rather than decorative, the conjunction is tri-state so
+"could not be compared" no longer reads as "did not win", and the RQ3 family
+test is paired, dosed and refuses a p-value unless a non-zero edit is
+demonstrated.
+
+**Routes out, for a later study rather than this one.** Register a validated
+in-construct measure — for example a judge-scored rechecking rubric with
+inter-rater agreement — *before* the confirmatory run; or amend RQ3's question
+itself if output length is the quantity of interest, dating and justifying it
+as a change to the question rather than to its measurement. D41 records both.
+
+---
+
+## 10. Honest limits
 
 - **The primary comparison is now significant nowhere.** The readout is
   directionally worse than semantic entropy on 4 discordant problems of 21, and
   exactly tied with the probe. Read with the probe's positional floor — 0.996
   AUC against 0.962 from position alone — a readout that ties a largely
   positional predictor is not obviously reading more than position.
-- **One of three head-to-heads cannot be made at any corpus size.**
-- **RQ3 produced no evidence in either direction, and now for two known
-  reasons.** The fix to the second is unit-tested and unvalidated.
+- **One of three head-to-heads could not be made on this corpus.** The
+  convergence rule's operating points fall either side of the shared budget
+  window. Whether the full corpus closes that gap is open (D37); the gap
+  widened between 24 and 86 traces, which is an observation and not a
+  projection.
+- **RQ3 produced no evidence in either direction, for three known reasons**
+  (§9): the dependent variable has no range on this model (1 marker in 140
+  traces — measured, so more data will not help); the independent variable is
+  unvalidated on GPU (D34's fix is unit-tested only); and the location
+  contrast is confounded with edit extent (D39). The first of these is now a
+  settled limitation rather than an open search.
 - **n = 24, one seed, one model, one layer** for everything in `docs/STATUS.md`.
   The main run changes the first of those and none of the others.
 - **The three truncated MATH traces** were the three with no tail. The main run

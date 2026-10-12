@@ -25,9 +25,30 @@ from pathlib import Path
 import numpy as np
 from scipy import stats
 
-#: BH with m evaluable tests gives the smallest p a q-value of m * p. The
-#: pilot's family has nine members of which five are evaluable, so a test has
-#: to clear roughly this to survive correction at q = 0.05.
+#: BH with m tests gives the smallest p a q-value of m * p, so a test has to
+#: clear roughly ``q / m`` to survive correction.
+#:
+#: This default is **the pilot's evaluable count**: nine tests were
+#: pre-registered and five produced a p-value, and ``benjamini_hochberg``
+#: corrects over the evaluable ones. It is therefore a property of the run it
+#: was read off, not a constant - a run on which more of the family becomes
+#: evaluable has a larger m and a stricter target. Pass ``--family-size`` to
+#: match the run being sized; the script warns when the run's own evaluable
+#: count disagrees with the value in use.
+#:
+#: ``m`` is now read from the run being sized rather than assumed, so the
+#: sizing and the analysis cannot drift apart; this constant is only the
+#: fallback for a run whose analysis has not been written yet. The convention -
+#: correct over the evaluable tests, and report the pre-registered count as a
+#: sensitivity - is settled in D38 and implemented in
+#: ``nlaast.analysis.stats.benjamini_hochberg``. It is not an independent
+#: decision here and must not be changed without changing both.
+#:
+#: Note that the pilot's own evaluable count becomes **6** once D38's fix is
+#: applied and its analysis is re-run, because the zero-discordance comparison
+#: is a test with p = 1.0 rather than a missing one. That tightens the target
+#: from 0.0100 to 0.0083 and leaves the sizing conclusion unchanged: eight
+#: discordant problems either way.
 DEFAULT_FAMILY_SIZE = 5
 DEFAULT_Q = 0.05
 
@@ -76,7 +97,10 @@ def power_at(n_problems: int, rate: float, phi: float, p_target: float,
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--run", default="runs/pilot", type=Path)
-    ap.add_argument("--family-size", type=int, default=DEFAULT_FAMILY_SIZE)
+    ap.add_argument(
+        "--family-size", type=int, default=None,
+        help="BH family size m. Default: read from the run's own analysis "
+             f"(bh_family_size), falling back to {DEFAULT_FAMILY_SIZE}.")
     ap.add_argument("--q", type=float, default=DEFAULT_Q)
     ap.add_argument("--sims", type=int, default=20000)
     ap.add_argument("--seed", type=int, default=20261011)
@@ -103,10 +127,31 @@ def main() -> int:
         print("no McNemar-tested O3 comparison in this run")
         return 1
 
-    p_target = args.q / args.family_size
+    # The target is only right if it uses the m this run's analysis actually
+    # corrected over, so m is read from the run rather than assumed. Sizing
+    # against a stale constant silently targets the wrong p (D38). An explicit
+    # --family-size still wins, and where m came from is always printed.
+    run_m = results["tests"].get("bh_family_size")
+    if run_m is None:
+        run_m = results["tests"].get("n_evaluated")
+
+    if args.family_size is not None:
+        family_size, source = args.family_size, "--family-size"
+        if run_m is not None and int(run_m) != family_size:
+            print(f"WARNING: this run's analysis corrected over m = {run_m}, "
+                  f"but --family-size {family_size} was given. The target "
+                  f"below is not the one the analysis applied.\n")
+    elif run_m:
+        family_size, source = int(run_m), "this run's analysis"
+    else:
+        family_size, source = DEFAULT_FAMILY_SIZE, "fallback default"
+        print(f"NOTE: this run records no BH family size; falling back to "
+              f"m = {DEFAULT_FAMILY_SIZE}.\n")
+
+    p_target = args.q / family_size
     d_min = required_discordant(p_target)
-    print(f"target p for q < {args.q} in a family of {args.family_size} "
-          f"evaluable tests: {p_target:.4f}")
+    print(f"target p for q < {args.q} in a family of {family_size} "
+          f"evaluable tests ({source}): {p_target:.4f}")
     print(f"fewest discordant problems that can reach it (all one way): {d_min}\n")
 
     rng = np.random.default_rng(args.seed)

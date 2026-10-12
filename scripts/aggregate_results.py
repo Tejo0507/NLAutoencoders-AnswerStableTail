@@ -64,6 +64,144 @@ def load_curves(cfg) -> tuple[dict, list[float], dict]:
             raw.get("curve_resolution", {}))
 
 
+def rq3_paired_contrast(rows: list[dict], confidence: float) -> dict[str, Any]:
+    """The RQ3 family test: candidate vs matched-random, paired over problems.
+
+    Built from ``interventions.jsonl`` rather than from the summary, because
+    the family test needs the per-problem values. It reuses the causal module's
+    own definitions - the eligible outcome, the dose the controls run at, and
+    the magnitude convention - so this test and the verdict in
+    ``causal/summary.json`` are the same contrast rather than two different
+    ones with the same name.
+
+    Returns the basis (counts, dose, outcome) always, and a ``TestResult`` only
+    when the contrast could actually be made. A contrast that could not be made
+    contributes no p-value, which is what keeps it out of the Benjamini-
+    Hochberg denominator while staying visible (D38).
+    """
+    from nlaast.causal.interventions import (
+        VERDICT_OUTCOME,
+        InterventionResult,
+        paired_arm_contrast,
+    )
+    from nlaast.analysis.stats import paired_test
+
+    if not rows:
+        return {"available": False, "reason": "no intervention rows"}
+
+    # `paired_arm_contrast` works on InterventionResult, so rehydrate the
+    # fields it reads rather than duplicating its pairing logic here.
+    recs, skipped = [], 0
+    for r in rows:
+        try:
+            recs.append(InterventionResult(
+                problem_id=r["problem_id"],
+                intervention=r["intervention"],
+                coefficient=float(r.get("coefficient", 0.0)),
+                answer=r.get("answer"), baseline_answer=r.get("baseline_answer"),
+                gold=r.get("gold"),
+                answer_changed=bool(r.get("answer_changed", False)),
+                correct=bool(r.get("correct", False)),
+                baseline_correct=bool(r.get("baseline_correct", False)),
+                tokens_generated=int(r.get("tokens_generated", 0) or 0),
+                verification_markers=int(r.get("verification_markers", 0) or 0),
+                baseline_verification_markers=int(
+                    r.get("baseline_verification_markers", 0) or 0),
+                direction_id=r.get("direction_id"),
+                notes=r.get("notes") or {},
+            ))
+        except (KeyError, TypeError, ValueError):
+            skipped += 1
+
+    c = paired_arm_contrast(recs, "ablate_dir", "random_dir",
+                            outcome=VERDICT_OUTCOME, compare_at=1.0,
+                            confidence=confidence)
+    out: dict[str, Any] = {"available": True, "malformed_rows_skipped": skipped,
+                           **c}
+    name = ("RQ3: marker change, candidate direction vs matched-random "
+            "direction")
+
+    # Did the independent variable actually get applied?
+    #
+    # This decides whether an identical-arms result is a *tested null* or a
+    # broken experiment, and the two must not be reported the same way. D38
+    # established that exact agreement between two arms is a null that was
+    # tested and should count towards the Benjamini-Hochberg denominator. That
+    # reasoning assumes the arms differed in what was done to them. Under D34
+    # the pilot's direction arms edited no positions at all, so their
+    # agreement says nothing about the direction - it says the edit never
+    # happened.
+    #
+    # So the test is only evaluable when the candidate demonstrably edited
+    # something. An unrecorded count (pilot artifacts predate the counter)
+    # counts as not demonstrated, which is the conservative reading.
+    edits = [int((r.notes or {}).get("n_positions_edited", -1)) for r in recs
+             if r.intervention == "ablate_dir"
+             and abs(r.coefficient - 1.0) < 1e-9]
+    known = [e for e in edits if e >= 0]
+    out["candidate_edits_recorded"] = len(known)
+    out["candidate_edits_min"] = min(known) if known else None
+    out["intervention_demonstrated"] = bool(known) and all(e > 0 for e in known)
+    if not out["intervention_demonstrated"]:
+        out["test_result"] = TestResult(
+            name=name, statistic=float("nan"), p_value=float("nan"),
+            effect=float("nan"), effect_name="cohens_d_paired",
+            n=int(c.get("n_pairs", 0)),
+            notes={"skipped": (
+                "the candidate arm is not demonstrated to have edited any "
+                "position at dose 1.0, so the arms' agreement is evidence "
+                "about the intervention rather than about the direction "
+                "(D34); no p-value is reported and this test does not enter "
+                "the BH denominator"),
+                "test": "wilcoxon_signed_rank_paired_on_problems",
+                "outcome": VERDICT_OUTCOME, "dose": 1.0,
+                "n_pairs": c.get("n_pairs", 0),
+                "candidate_edits_recorded": len(known),
+                "broken_independent_variable": True},
+        )
+        return out
+
+    if c.get("p_value") is None:
+        out["test_result"] = TestResult(
+            name=name, statistic=float("nan"), p_value=float("nan"),
+            effect=float("nan"), effect_name="cohens_d_paired",
+            n=int(c.get("n_pairs", 0)),
+            notes={"skipped": c.get("reason", "contrast could not be made"),
+                   "test": "wilcoxon_signed_rank_paired_on_problems",
+                   "outcome": VERDICT_OUTCOME, "dose": 1.0,
+                   "n_pairs": c.get("n_pairs", 0)},
+        )
+        return out
+
+    # Re-derive the identical test from the contrast's own paired arrays, so
+    # the family carries the interval and effect size rather than a
+    # reconstructed shell.
+    t = paired_test(name, c["paired_candidate_values"],
+                    c["paired_control_values"], confidence=confidence)
+    if not np.isfinite(t.p_value) and c.get("p_value") == 1.0:
+        # Exactly equal arms, with the intervention demonstrated. Wilcoxon is
+        # undefined once the zero differences are dropped, but the two-sided
+        # exact answer is p = 1.0 by the same argument as D38: this is a null
+        # that was tested and not rejected, so it counts towards m rather
+        # than disappearing from the family.
+        t.p_value = 1.0
+        t.statistic = 0.0
+    t.notes = {
+        "test": "wilcoxon_signed_rank_paired_on_problems",
+        "unit_of_analysis": "problem",
+        "outcome": VERDICT_OUTCOME,
+        "dose": c.get("dose"),
+        "n_pairs": c["n_pairs"],
+        "n_pairs_favouring_candidate": c.get("n_pairs_favouring_candidate"),
+        "n_pairs_favouring_control": c.get("n_pairs_favouring_control"),
+        "n_pairs_tied": c.get("n_pairs_tied"),
+        "median_paired_difference": c.get("median_paired_difference"),
+        "beats": c.get("beats"),
+    }
+    out["test_result"] = t
+    return out
+
+
 def nla_stopping_curve(cfg, log):
     """Turn the verbalised readout into a stopping rule, so it can be compared.
 
@@ -306,19 +444,27 @@ def main() -> int:
                     # The thresholds are now exhaustive, so the curve is not
                     # being failed by the sweep. Either the rule's score is
                     # too coarse to put an operating point in the window - in
-                    # which case no corpus size will help and the rule needs a
-                    # graded score - or the curves genuinely do not overlap,
-                    # which more problems can change.
+                    # which case the rule needs a graded score - or the curves
+                    # simply do not overlap on this corpus.
+                    #
+                    # Neither verdict licenses a claim about *all* corpus
+                    # sizes. The resolution bound is computed from the scores
+                    # observed here, so a score whose range grows with the
+                    # data has a bound that grows too (granularity_bound).
                     res = (curve_resolution or {}).get(other, {})
-                    bound = res.get("max_operating_points_at_any_n")
+                    bound = (res.get("max_operating_points_at_observed_scores")
+                             or res.get("max_operating_points_at_any_n"))
                     n_points = len({round(p.mean_tokens_saved, 9)
                                     for p in comparison_curves[other]})
                     limited = bool(res.get("granularity_limited")) or n_points <= 3
                     reason = (
-                        "the rule's score is too coarse to have an operating "
-                        "point in the shared budget window; its curve has the "
-                        "same few points at any corpus size, so a larger "
-                        "corpus would not make this comparison evaluable"
+                        f"the rule's score is too coarse to have an operating "
+                        f"point in the shared budget window: it takes "
+                        f"{res.get('n_distinct_scores', 'few')} distinct values "
+                        f"on this corpus, bounding its curve at {bound} points. "
+                        f"A larger corpus helps only if it widens the score's "
+                        f"range; if the score is bounded by construction it "
+                        f"cannot, and the rule needs a graded score"
                         if limited else
                         f"the thresholds are exhausted, so the two curves do "
                         f"not come within tolerance of a shared budget on "
@@ -337,12 +483,16 @@ def main() -> int:
                         "tolerance": MATCH_TOLERANCE,
                         "budgets_tried": len(h2h_budgets),
                     }
-                    # The test stays in the pre-registered family as
-                    # unevaluable rather than disappearing from it (D16):
-                    # dropping it would shrink m and make the Benjamini-
-                    # Hochberg correction look kinder than it is, and would
-                    # hide that the comparison was planned and could not be
-                    # made.
+                    # The test stays in the *report* as unevaluable rather
+                    # than disappearing from it (D16): dropping it would hide
+                    # that the comparison was planned and could not be made,
+                    # which is the finding here.
+                    #
+                    # It does not stay in the Benjamini-Hochberg denominator.
+                    # A nan p-value is excluded from m by `benjamini_hochberg`,
+                    # so the correction is over evaluable tests only - see that
+                    # function for why, and for the pre-registration gap that
+                    # leaves the choice of m open (D37).
                     tests.append(TestResult(
                         name=(f"O3: safe-stopping rate, {NLA_RULE} minus "
                               f"{other} at matched budget"),
@@ -478,15 +628,26 @@ def main() -> int:
         causal = read_json(causal_path)
         results["rq3"] = causal
         rows = read_jsonl(cfg.dir / "causal" / "interventions.jsonl")
-        abl = [r["verification_markers"] - r["baseline_verification_markers"]
-               for r in rows if r["intervention"] == "ablate_dir"]
-        rnd = [r["verification_markers"] - r["baseline_verification_markers"]
-               for r in rows if r["intervention"] == "random_dir"]
-        if len(abl) >= 3 and len(rnd) >= 3:
-            tests.append(unpaired_test(
-                "RQ3: marker change, candidate direction vs matched-random direction",
-                abl, rnd, cfg.analysis.confidence,
-            ))
+        # Paired over problems and read at the controls' dose.
+        #
+        # This test was `unpaired_test` (Mann-Whitney U) over every
+        # `ablate_dir` row against every `random_dir` row, which was wrong
+        # twice. Both arms run on the *same* problems, so discarding the
+        # pairing is the error D29 corrected in the primary O3 comparison -
+        # the unit of analysis is the problem. And pooling the candidate's
+        # whole dose sweep put dose 0.0 into the candidate arm, which is a
+        # no-op edit by definition, diluting the candidate against undiluted
+        # controls; `summarise_arm`'s docstring already warned against exactly
+        # that, so the registered test contradicted the gate beside it.
+        #
+        # `rq3_paired_contrast` rebuilds the same contrast the gate uses, so
+        # the family test and the verdict cannot disagree.
+        pair = rq3_paired_contrast(rows, cfg.analysis.confidence)
+        results["rq3_family_test_basis"] = {
+            k: v for k, v in pair.items() if k != "test_result"}
+        t = pair.get("test_result")
+        if t is not None:
+            tests.append(t)
         if rows:
             tables.write_table(pd.DataFrame(rows), tbl_dir, "interventions")
 
@@ -494,7 +655,7 @@ def main() -> int:
     tests = benjamini_hochberg(tests, cfg.analysis.fdr_q)
     tbl = tables.tests_table(tests)
     tables.write_table(tbl, tbl_dir, "hypothesis_tests")
-    results["tests"] = summarise_tests(tests)
+    results["tests"] = summarise_tests(tests, cfg.analysis.fdr_q)
     results["fdr_q"] = cfg.analysis.fdr_q
 
     write_json(out_dir / "results.json", results)

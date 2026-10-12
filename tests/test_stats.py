@@ -11,6 +11,7 @@ import pytest
 from nlaast.analysis.stats import (
     TestResult,
     benjamini_hochberg,
+    bh_at_family_size,
     bootstrap_statistic,
     cliffs_delta,
     cohens_d,
@@ -20,6 +21,7 @@ from nlaast.analysis.stats import (
     paired_rate_difference_ci,
     paired_test,
     rate_difference_ci,
+    summarise_tests,
     unpaired_test,
 )
 
@@ -146,8 +148,15 @@ class TestMultipleTesting:
         out = benjamini_hochberg(self._mk([0.3, 0.5, 0.7, 0.9]), 0.05)
         assert not any(t.significant for t in out)
 
-    def test_unevaluable_tests_stay_in_the_family(self):
-        # Dropping them would shrink m and make the correction look kinder.
+    def test_unevaluable_tests_stay_in_the_report_but_not_in_m(self):
+        """They are returned, flagged as unevaluated, and excluded from ``m``.
+
+        Both halves matter and they used to be conflated: a test that produced
+        no p-value stays in the output so that a planned-and-not-made
+        comparison is visible, but it has no rejection region and so does not
+        enter the denominator. See D37a - which of the two conventions the
+        pre-registration intends is open; this pins what the code does.
+        """
         tests = self._mk([0.001, 0.002])
         tests.append(TestResult("nan", 0.0, float("nan"), 0.0, "d"))
         out = benjamini_hochberg(tests, 0.05)
@@ -156,8 +165,123 @@ class TestMultipleTesting:
         # m is 2 (the evaluable ones), so the smallest q is p * 2 / 1.
         assert out[0].q_value == pytest.approx(0.002, abs=1e-9)
 
+    def test_none_p_value_is_treated_as_missing_not_as_a_crash(self):
+        """``None`` and ``nan`` both mean "no p-value" and must behave alike.
+
+        A result round-tripped through JSON comes back with ``None``, because
+        the writer has no ``nan`` to serialise. ``np.isfinite(None)`` raises,
+        so the two spellings used to diverge: one was excluded, the other
+        brought the whole correction down.
+        """
+        tests = self._mk([0.001, 0.002])
+        tests.append(TestResult("none", 0.0, None, 0.0, "d"))
+        out = benjamini_hochberg(tests, 0.05)
+        assert out[-1].q_value is None and out[-1].significant is None
+        # Identical to the nan case above: m = 2, not 3.
+        assert out[0].q_value == pytest.approx(0.002, abs=1e-9)
+
+    def test_m_counts_evaluable_tests_only(self):
+        """``m`` tracks the evaluable count, not the length of the family.
+
+        Adding unevaluable members must not change any q-value. This is the
+        behaviour D37a leaves open at the *reporting* level; the test asserts
+        what the implementation does so that a change to it is deliberate.
+        """
+        base = benjamini_hochberg(self._mk([0.01, 0.02, 0.03]), 0.05)
+        qs = [t.q_value for t in base]
+
+        padded = self._mk([0.01, 0.02, 0.03])
+        padded += [TestResult(f"u{i}", 0.0, float("nan"), 0.0, "d")
+                   for i in range(6)]
+        out = benjamini_hochberg(padded, 0.05)
+        assert [t.q_value for t in out[:3]] == pytest.approx(qs)
+        # Had the nine-member family been used, the smallest q would be
+        # 0.01 * 9 / 1 = 0.09 rather than 0.01 * 3 / 1 = 0.03.
+        assert out[0].q_value == pytest.approx(0.03, abs=1e-12)
+
+    def test_worked_example_q_values_and_rejections(self):
+        """A hand-checkable family, including the step-down monotonicity.
+
+        p = 0.001, 0.008, 0.039, 0.041, 0.9 with m = 5 gives raw p*m/i of
+        0.005, 0.020, 0.065, 0.05125, 0.9. BH enforces monotonicity from the
+        largest down, so the third is pulled down to the fourth's 0.05125 -
+        without that step-down it would read 0.065 and the pair would be
+        reported inconsistently.
+        """
+        out = benjamini_hochberg(self._mk([0.001, 0.008, 0.039, 0.041, 0.9]), 0.05)
+        qs = [t.q_value for t in out]
+        assert qs[0] == pytest.approx(0.005)
+        assert qs[1] == pytest.approx(0.020)
+        assert qs[2] == pytest.approx(0.05125)
+        assert qs[3] == pytest.approx(0.05125)
+        assert qs[4] == pytest.approx(0.9)
+        assert [t.significant for t in out] == [True, True, False, False, False]
+
+    def test_summarise_reports_the_m_that_was_used(self):
+        """The artifact has to be enough to reproduce the q-values (D38)."""
+        tests = self._mk([0.001, 0.002])
+        tests.append(TestResult("nan", 0.0, float("nan"), 0.0, "d"))
+        summary = summarise_tests(benjamini_hochberg(tests, 0.05))
+        assert summary["n_tests"] == 3
+        assert summary["bh_family_size"] == 2
+        assert summary["n_planned_but_unevaluable"] == 1
+        assert summary["bh_family_convention"] == "evaluable_tests"
+        assert summary["n_significant"] == 2
+
+    def test_the_planned_family_sensitivity_is_always_reported(self):
+        """Both conventions exist in the artifact; only the framing is a choice.
+
+        With two evaluable tests of three planned, the primary correction uses
+        m = 2 and the sensitivity uses m = 3, so the same p-values give
+        q = 0.002 and q = 0.003. Reporting both means the D38 decision cannot
+        change any number, only which one is foregrounded.
+        """
+        tests = self._mk([0.001, 0.002])
+        tests.append(TestResult("nan", 0.0, float("nan"), 0.0, "d"))
+        summary = summarise_tests(benjamini_hochberg(tests, 0.05), 0.05)
+        sens = summary["q_values_at_planned_family_size"]
+        assert sens["family_size"] == 3
+        assert summary["tests"][0]["q_value"] == pytest.approx(0.002)
+        assert sens["q_values"]["t0"]["q_value"] == pytest.approx(0.003)
+        assert summary["verdict_is_robust_to_family_convention"] is True
+
+    def test_the_sensitivity_flags_a_verdict_that_is_not_robust(self):
+        """The case that actually needs the author's decision.
+
+        p = 0.02 with m = 2 gives q = 0.04 and rejects; with m = 5 it gives
+        0.10 and does not. When this flag is False the choice of convention
+        decides a finding, which is exactly when it must be stated rather
+        than assumed.
+        """
+        tests = self._mk([0.02, 0.9])
+        tests += [TestResult(f"u{i}", 0.0, float("nan"), 0.0, "d")
+                  for i in range(3)]
+        summary = summarise_tests(benjamini_hochberg(tests, 0.05), 0.05)
+        assert summary["n_significant"] == 1
+        assert summary["q_values_at_planned_family_size"]["n_significant"] == 0
+        assert summary["verdict_is_robust_to_family_convention"] is False
+
+    def test_the_sensitivity_never_uses_a_family_smaller_than_its_tests(self):
+        tests = self._mk([0.01, 0.02, 0.03])
+        out = bh_at_family_size(tests, 1, 0.05)
+        assert out["family_size"] == 3
+
+    def test_the_sensitivity_does_not_mutate_the_results(self):
+        tests = benjamini_hochberg(self._mk([0.001, 0.5]), 0.05)
+        before = [(t.q_value, t.significant) for t in tests]
+        bh_at_family_size(tests, 20, 0.05)
+        assert [(t.q_value, t.significant) for t in tests] == before
+
     def test_empty_family(self):
         assert benjamini_hochberg([], 0.05) == []
+
+    def test_family_with_no_evaluable_member_is_returned_unflagged(self):
+        tests = [TestResult("a", 0.0, float("nan"), 0.0, "d"),
+                 TestResult("b", 0.0, None, 0.0, "d")]
+        out = benjamini_hochberg(tests, 0.05)
+        assert len(out) == 2
+        assert all(t.q_value is None for t in out)
+        assert summarise_tests(out)["bh_family_size"] == 0
 
 
 class TestPairedBinaryTest:
@@ -193,11 +317,51 @@ class TestPairedBinaryTest:
         assert one.p_value == pytest.approx(0.125)
         assert thrice.p_value < one.p_value   # which is why units must be unique
 
-    def test_no_discordant_pairs_is_not_a_result(self):
+    def test_no_discordant_pairs_is_p_one_not_a_missing_result(self):
+        """Maximal agreement is a tested null, not absent evidence (D38).
+
+        Conditioning on zero discordant pairs leaves a single possible table,
+        so the exact two-sided p-value is 1.0. Returning nan instead dropped
+        the test from the BH denominator precisely when its null held
+        perfectly - the one exclusion that correlated with the effect.
+        """
         t = paired_binary_test("t", [True, False, True], [True, False, True])
-        assert "skipped" in t.notes
-        assert np.isnan(t.p_value)
+        assert t.p_value == 1.0
         assert t.notes["n_discordant"] == 0
+        assert t.notes["zero_discordant"] is True
+        assert "skipped" not in t.notes, "it was conducted, not skipped"
+        assert "interpretation" in t.notes
+        # Still reported as uninformative: nothing could have rejected.
+        assert t.notes["smallest_attainable_p"] == 1.0
+        # The rate-difference interval is still the informative part.
+        assert t.interval is not None
+
+    def test_a_zero_discordant_test_enters_the_bh_denominator(self):
+        """The consequence that motivated the fix."""
+        real = paired_binary_test("real", [True, True, False], [False, False, False])
+        tied = paired_binary_test("tied", [True, False], [True, False])
+        out = benjamini_hochberg([real, tied], 0.05)
+        assert summarise_tests(out)["bh_family_size"] == 2
+        # m = 2, so the real test's q is its p * 2 / 1 rather than p * 1 / 1.
+        assert out[0].q_value == pytest.approx(real.p_value * 2)
+
+    def test_smallest_attainable_p_separates_underpowered_from_null(self):
+        """A design diagnostic the p-value alone does not give.
+
+        Four discordant pairs can do no better than 0.125 however they fall,
+        so a comparison resting on four of them could not have cleared a
+        corrected threshold of 0.01 in either direction. That is a fact about
+        the design, computable with no simulation.
+        """
+        four = paired_binary_test("t", [True] * 2 + [False] * 2 + [True] * 5,
+                                  [False] * 2 + [True] * 2 + [True] * 5)
+        assert four.notes["n_discordant"] == 4
+        assert four.notes["smallest_attainable_p"] == pytest.approx(0.125)
+        assert four.notes["smallest_attainable_p"] > 0.01
+
+        eight = paired_binary_test("t", [True] * 8, [False] * 8)
+        assert eight.notes["n_discordant"] == 8
+        assert eight.notes["smallest_attainable_p"] <= 0.01
 
     def test_direction_is_recoverable_from_the_counts(self):
         t = paired_binary_test("t", [True, True, False], [False, False, False])

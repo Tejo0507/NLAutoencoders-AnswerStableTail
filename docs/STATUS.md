@@ -1,7 +1,13 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-11.
+Last reviewed 2026-10-12.
+
+**Main run in progress: 116 of 250 traces** as of 09:49 on 2026-10-12, 0
+failures, 0 malformed, 0 duplicates. Throughput degraded sharply after a
+restart at 02:48 — see [`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) §5 for the
+diagnosis and the two things that would restore it. Everything downstream of
+`traces` is blocked on it.
 
 **One-line status:** the pilot has run **to completion** — all thirteen
 stages on all 24 configured problems, including the released autoencoder,
@@ -147,19 +153,31 @@ than nothing to see. Read with the positional-floor finding above, a readout
 that matches a predictor largely reading position is not obviously reading
 more than position either.
 
-The convergence comparison is **not** a sample-size limit. Its score is 1.0
-once the last `window` answers agree and 0.0 otherwise, so its curve has three
-operating points at any corpus size, and its two savings of 0.407 and 0.885
-straddle the shared budget window without entering it. No amount of data fixes
-that; a graded score would. See [`DECISIONS.md`](DECISIONS.md) D31.
+The convergence comparison is **unevaluable on this corpus**: its operating
+points straddle the shared budget window without entering it. Swept over its
+own window `w` as the pre-registration leaves free (D36), the rule reaches
+eight distinct savings on the pilot, of which the two bracketing the window of
+0.632–0.675 are 0.407 at `w = 2` and 0.855 at `w = 1`. `w` is an integer, so
+nothing is reachable between them.
+
+Whether a **larger** corpus would make the comparison evaluable is an open
+question, not a settled no. The earlier claim that no corpus size could help
+was argued from a binary score that D36 replaced; `granularity_limited` is now
+`false`. Both quantities that decide it move with the data: the achieved
+savings are means over problems, and the window is the intersection of every
+rule's reachable range, pinned on the pilot by the NLA arm. See
+[`DECISIONS.md`](DECISIONS.md) D31 (superseded in part), D36 and D37.
 
 Both of the previously "unevaluable" comparisons were partly an artefact of
 sweeping 25 evenly spaced thresholds, which samples the score axis rather than
 the rule. The probe's scores saturate, so the linear grid found 5 operating
 points; swept at the observed values the same problems give 86 and match at
-every budget (D30). The unevaluable test stays in the pre-registered family
-rather than being dropped, so the Benjamini–Hochberg correction is not
-flattered by its absence.
+every budget (D30). The unevaluable test stays in the **report** rather than
+being dropped, so a comparison that was planned and could not be made stays
+visible. It produces no p-value, so it does not enter the Benjamini–Hochberg
+denominator: that correction is over the five evaluable tests, not the nine
+pre-registered ones, and the pre-registration does not settle which of the two
+it should be (D37).
 
 ### RQ2: the claims are reconstruction-dependent and not noise
 
@@ -204,19 +222,35 @@ edits nothing, and the screen reports a broken independent variable rather
 than a negative result. **Not yet validated on GPU.** The numbers below are
 from the pre-fix run and describe arms that did nothing.
 
-**The behavioural readout also never moved.** Not one of the twenty rechecking
-markers occurs in any of the 24 traces — this model writes clean step-by-step
-derivations with no "wait", "actually" or "let me check". With a constant
-outcome every comparison in the Zhang & Nanda gate fails trivially, so the
-gate returns `supported: null` with the reason rather than `false`, and the
-two control comparisons as null. A constant outcome is no evidence either way.
+**The behavioural readout also never moved, and now we know it will not.**
+Measured across the pilot's 24 traces *and* the 116 main-run traces available
+on 2026-10-12 — 140 traces in all — there is exactly **one** marker
+occurrence: the word "confirming", once, in one trace. Not one of the other
+nineteen markers appears anywhere. The pooled rate is 1/140 = **0.0071**, 95%
+exact CI **[0.0002, 0.0392]**.
 
-So RQ3 had neither a working independent variable nor a varying dependent one.
-The handoff recorded only the second. Candidate readouts are now screened for
-variation and arm separation on every run, with the pre-registered marker
-delta still the one the verdict uses, so a readout with power can be
-pre-registered rather than chosen after the fact ([`DECISIONS.md`](DECISIONS.md)
-D34, D35).
+Projected onto the 60-problem causal arm, that is **0.43** marker-bearing
+problems expected at the point rate and **2.35** at the interval's upper
+bound, against a `MIN_PAIRS` of 3. So the dependent variable cannot support
+the comparison **at any corpus size this study can reach**: the binding
+constraint is that Qwen2.5-7B-Instruct writes clean step-by-step derivations
+without rechecking language, not that N is too small. This is a finding about
+the model, not a defect in the design.
+
+With a constant outcome every comparison in the Zhang & Nanda gate fails
+trivially, so the gate returns `supported: null` with the reason rather than
+`false`, and both control comparisons as null. That is no evidence either way.
+
+So RQ3 had neither a working independent variable nor a varying dependent one,
+and the second is now established rather than suspected. The construct
+*is* registered — `Project_Review_II.md` line 122 asks whether ablation
+"selectively changes verification-like behaviour" — so a readout may be
+amended only if it measures that construct. `continuation_tokens` does not; it
+measures output length, and was rejected for that reason rather than adopted
+because it happens to vary. Candidate readouts are screened for variation and
+arm separation on every run, no readout is flagged pre-registered, and the
+verdict's readout is named as a choice ([`DECISIONS.md`](DECISIONS.md) D34,
+D35, D40, **D41**).
 
 What the behavioural arms *do* show, after fixing an off-by-one that had them
 truncating one chunk too early: **stopping at the tail start changes no answer
@@ -323,17 +357,24 @@ itself forced.
   the NLA arm (D32). `scripts/size_o3_corpus.py` recomputes it from any run.
   Note that this is no longer what blocks *two* of three head-to-heads — one
   was a threshold-grid artefact and is now evaluable (D30), and one is
-  unevaluable at any N (D31).
+  unevaluable on the corpora measured, for a reason that is a property of
+  where the rule fires rather than of N (D31 superseded in part, D36, D37b).
 - **A GPU validation of the fixed direction interventions.** They were no-ops
   for the whole pilot (D34). The fix is unit-tested but the causal stage has
-  not been re-run, because the traces stage holds the GPU.
-- **A behavioural readout for RQ3 that varies on this model.** The marker list
-  is empty on every trace, so the causal gate has no outcome to judge. Readouts
-  are now screened for variation and arm separation rather than chosen after
-  the fact (D35), with `continuation_tokens` the leading candidate. Whether
-  anything separates the arms cannot be known until the arms do something. The
-  direction *is* fittable (38 tail / 32 pre-stabilisation vectors from 11 train
-  problems).
+  not been re-run, because the traces stage holds the GPU. The RQ3 family test
+  now refuses a p-value unless a non-zero edit is demonstrated, so an
+  identical-arms result under a no-op can no longer read as a tested null.
+- **An in-construct behavioural readout for RQ3 with range on this model.**
+  This is now a *measured* dead end rather than an open search: 1 marker
+  occurrence in 140 traces, projecting to 0.43 marker-bearing problems in the
+  60-problem causal arm (§RQ3 above). `continuation_tokens` varies but
+  measures output length, not verification-like behaviour, and the registered
+  construct is the latter — so it is **not** the candidate it was previously
+  recorded as (D41). Routes out are to register a validated in-construct
+  measure, e.g. a judge-scored rubric with inter-rater agreement, before any
+  confirmatory run; or to amend RQ3's question itself and say so. The
+  direction *is* fittable (38 tail / 32 pre-stabilisation vectors from 11
+  train problems), so the independent variable is not the obstacle.
 
 ---
 

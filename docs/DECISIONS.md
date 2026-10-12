@@ -744,3 +744,505 @@ and a question about how much further the model writes rather than about what
 the text means, which section 2.1.6 of `Project_Review_II.md` rules out.
 Whether it separates the arms cannot be known until the arms do something,
 which needs D34's fix and a GPU pass.
+
+---
+
+## D37. Two decisions the pre-registration does not settle
+
+Recorded as **open**, with the implementation's current behaviour stated so
+that no result is reported under an unstated convention. Neither was chosen to
+favour an outcome; both were found by reading the implementation against
+PROJECT_PLAN.md, and on the pilot neither changes a verdict.
+
+### 37a. The Benjamini–Hochberg family: evaluable or pre-registered?
+
+**What the pre-registration says.** F9, in full: *"Multiple testing | Pre-
+registered family; Benjamini–Hochberg at q=0.05."* That fixes **which** tests
+may be corrected over — the pre-registered set, not a post-hoc selection — and
+is silent on a test that runs and yields no p-value.
+
+**What the implementation does.** `benjamini_hochberg` takes
+`m = len(usable)`, the tests with a finite p-value. On the pilot nine tests
+were pre-registered and five were evaluable, so `m = 5`.
+
+**Why the two readings differ by a factor of 1.8.** Reading "family" as the
+pre-registered count gives `m = 9`. Every q-value scales with `m`, so the
+pilot's RQ2 q of 8.96e-119 and F10's 0.0229 would become 1.61e-118 and 0.0413.
+No pilot verdict flips — F10's tail-vs-matched-position result stays
+significant at 0.0413 and the O3 comparison clears neither — but on a larger
+corpus it could decide one.
+
+**Three places had claimed the opposite of what the code does**, stating that
+unevaluable tests remain in the family so the correction "is not flattered by
+their absence": `benjamini_hochberg`'s docstring, a comment in
+`aggregate_results.py`, and the execution report's own prose. All three are
+corrected to describe `m = len(usable)`; the report now prints the factor by
+which the other convention would change its q-values.
+
+**The argument for the implementation's choice**, which is why it was left
+alone rather than changed: an unevaluable test has no rejection region, so
+including it in `m` tightens every other test's threshold on the strength of a
+test that could never have rejected. That is not conservatism, it is a
+penalty paid for nothing. Excluding it is also the standard reading of BH.
+
+**The argument against**, which is why this is open rather than closed: the
+pre-registered family is what guards against choosing the denominator after
+seeing which tests worked, and "evaluable" is itself determined by the data.
+A reader could reasonably hold that the family was fixed in advance at nine.
+
+**Resolved by D38**, which found that one of the four exclusions was not
+independent of the effect under test, fixed it, and settles the convention on
+that basis. The paragraph below records what was in place before that.
+
+`summarise_tests` reports `bh_family_size`, `n_planned_but_unevaluable` and
+`bh_family_convention` explicitly, so every q-value is reproducible from the
+artifact. `size_o3_corpus.py` kept `DEFAULT_FAMILY_SIZE = 5` — the pilot's
+evaluable count — and warned when the run being sized corrected over a
+different `m`.
+
+### 37b. D31's "no corpus size will help" is withdrawn
+
+D36 already corrected this in substance; D37 records where the stale claim
+survived and what replaced it.
+
+The claim was argued from the binary convergence score (`d = 2`, three
+operating points at any N). D36 replaced that score with the agreement run
+length, an **unbounded count**, so the resolution bound is computed from the
+run lengths *observed* and rises with the corpus: 8 on the pilot's 24 traces,
+10 on the first 86 traces of the main run. `granularity_limited` is now
+`false`, and the O3 stage already reported the weaker, correct reason — *"the
+two curves do not come within tolerance of a shared budget on this corpus
+rather than the sweep having missed a point"*.
+
+The stale claim survived in `SESSION_HANDOFF.md` §3 and §8, `docs/STATUS.md`,
+`granularity_bound`'s docstring and summary line, `agreement_run_length`'s
+closing paragraph, the `baselines` stage's warning, the O3 `reason` string and
+the execution report's prose. All are corrected to scope the statement to the
+corpus measured.
+
+**What is observed**, measured with the project's own sweep functions over all
+usable traces:
+
+| corpus | `w = 2` | `w = 1` | gap |
+|---|---|---|---|
+| pilot, 24 traces | 0.464 | 0.861 | 0.398 |
+| main, first 86 traces | 0.395 | 0.886 | 0.491 |
+| main, first 100 traces | 0.419 | 0.882 | 0.464 |
+
+The gap is wider on the main run than on the pilot at both checkpoints. It is
+**not monotone** — 0.398, 0.491, 0.464 — so this is a noisy quantity observed
+three times, not a trend, and the caution above was warranted. The mechanism
+for it being wider at all is intelligible: in a longer trace the first parsed
+answer arrives relatively earlier while the first *repeated* answer arrives
+relatively later. But **100 traces is not 250, and no projection is made.**
+Two quantities decide the full-corpus outcome and neither is known yet:
+
+1. The achieved savings are **means over problems** and move with the corpus.
+2. The window is the intersection of every rule's reachable range
+   (`budget_grid`) and on the pilot was pinned by the NLA arm, whose band is
+   narrow because it is scored only at sampled windows and carried forward.
+   Where that band lands on `main` is unknown until the `nla` stage runs.
+
+**No claim is made, in either direction, about whether the full corpus will
+make this comparison evaluable.** The structural part of the finding — that no
+operating point exists *between* adjacent integer `w` — stands at any corpus
+size and is unaffected by the above.
+
+---
+
+## D38. Zero discordant pairs is a tested null, and that settles the BH family
+
+D37a left the Benjamini–Hochberg denominator open: correct over the evaluable
+tests (`m = 5` on the pilot) or over the pre-registered family (`m = 9`)? F9
+says only "pre-registered family; Benjamini–Hochberg at q=0.05".
+
+The question turned out to be answerable, because the right question is not
+"how many tests were planned" but **"is each exclusion independent of the
+effect being tested?"** That is what F9's "pre-registered family" protects:
+not a particular integer, but the analyst's inability to pick the denominator
+after seeing which tests came out well. BH controls `E[V/R]` over the
+hypotheses actually tested, and a hypothesis that yields no p-value can be
+neither a rejection nor a false one — so excluding it costs no error control,
+*provided the exclusion rule does not correlate with the effect*.
+
+### The four ways a planned test can yield no p-value
+
+The pilot's nine-member family contains all four, and they are not alike:
+
+| test | why no p-value | correlated with the effect? |
+|---|---|---|
+| RQ1 tail fraction, correct vs incorrect | fewer than 3 problems with an incorrect final answer | No — set by accuracy, not by the tail fractions compared |
+| O3 vs convergence | no matched budget exists | No — set by the token-saving curves, not by safe rates |
+| RQ3 marker change | the readout is identically zero, so Mann–Whitney has no variance | No — an instrument floor, not the arms' means |
+| **O3 vs probe** | **zero discordant pairs** | **Yes** |
+
+The last one is the defect. Zero discordance means both rules preserved the
+verified outcome on *exactly* the same problems — which is the null holding
+perfectly. Dropping that test shrank `m` **because a null was true**, and a
+smaller `m` makes every other q-value smaller. The family was therefore
+contracting in an effect-dependent way, in the liberal direction, under a
+procedure whose entire purpose is to be conservative about multiplicity.
+
+### The fix
+
+`paired_binary_test` returned `nan` at `n_discordant == 0`. That is wrong as
+arithmetic, not just as framing. McNemar's exact test is *conditional* on the
+number of discordant pairs; conditioning on `d = 0` leaves a sample space with
+one point, `b = 0`, so `P(as extreme or more) = 1` and the two-sided exact
+p-value **is** 1.0. The test was conducted and not rejected.
+
+It now returns `p = 1.0` with `notes['zero_discordant'] = True` and an
+`interpretation` note saying the comparison is *uninformative* rather than
+*unevaluable* — nothing could have rejected, because there was nothing to
+assign. The rate-difference interval, which is the informative part, was
+already being returned and still is.
+
+**Effect on the pilot, replayed from its own p-values without re-running it:**
+
+| | before | after |
+|---|---|---|
+| `m` | 5 | **6** |
+| significant at q=0.05 | 3 | **3** |
+| RQ2 | 8.96e-119 | 1.08e-118 |
+| F10 tail vs matched_position | 0.0229 | **0.0275** (still significant) |
+| F10 tail vs matched_length | 0.372 | 0.446 |
+| F10 tail vs gaussian_control | 3.45e-34 | 4.14e-34 |
+| O3 vs semantic entropy | 0.156 | 0.188 |
+| O3 vs probe | *absent* | **q = 1.0, reported** |
+
+Every q-value rose — the fix is strictly conservative and cannot manufacture
+a finding — and **no verdict changed**. The comparison that used to vanish is
+now on the table as a null.
+
+### The convention, and what is still the author's call
+
+With the effect-correlated exclusion removed, every remaining exclusion is
+outcome-independent, so **correct over the evaluable tests** is the primary
+convention. It is implemented, and the sizing script now reads `m` from the
+run's own analysis instead of a constant, so the power target cannot drift
+from the correction.
+
+`summarise_tests` additionally reports `q_values_at_planned_family_size` — the
+same p-values corrected over every pre-registered test — plus
+`verdict_is_robust_to_family_convention`. On the pilot that flag is **true**:
+three findings either way. So the choice changes no conclusion there, and both
+sets of numbers are in the artifact regardless.
+
+**What needs approval:** which of the two to foreground in the paper. The
+recommendation is evaluable-as-primary with the pre-registered count as a
+stated sensitivity, for the FDR argument above. If the main corpus returns
+`verdict_is_robust_to_family_convention = false`, the choice decides a
+finding and must be stated explicitly in the Results rather than assumed —
+the flag exists so that case cannot pass unnoticed.
+
+### A second thing this exposed, now reported
+
+`notes['smallest_attainable_p']` is the p-value a comparison's discordant-pair
+count would give if every pair fell the same way — the best it could possibly
+have done. It separates *no difference was found* from *no difference could
+have been found*, with no simulation. On the pilot's four discordant pairs it
+is 0.125, against a corrected target near 0.01: **that comparison could not
+have reached significance whichever way the pairs fell.** Eight discordant
+pairs is the minimum that can, which is what `size_o3_corpus.py` independently
+reports and is unchanged at `m = 6` (target 0.0083).
+
+---
+
+## D39. The two RQ3 controls are matched on different things, and that is reported
+
+The concern raised was that the candidate's span (`tail_tokens + 64`) is
+longer than the matched-position control's (`≈ tail_tokens`), confounding
+*where* the edit happened with *how much* was edited. Measured against the
+pilot's own recorded spans and generation lengths, the premise is wrong in two
+ways and the real asymmetry runs the other way.
+
+**The `+ 64` never binds.** The candidate's span is a median of 148 tokens,
+but the regenerated continuation is a median of 35.5, and the editor can only
+edit positions the forward pass actually produces. So the candidate edits a
+median of **35.5** positions — the whole continuation — and the 64-token slack
+is a non-binding safety margin, not an extent. Trimming it would change
+nothing.
+
+**The control edits about twice as many positions, not fewer.** The
+matched-position window lives inside the *prompt* (the prefix is fed as
+prompt, so the pre-stabilisation window is prompt context), which arrives in a
+single forward pass, so the control edits its whole span: a median of **72**.
+The window is the pre-registered matched-length one — the same number of
+chunks as the tail — and the original tail is longer than its regeneration,
+which is where the 2x comes from.
+
+**The two controls therefore do different jobs, and only one is extent-matched
+— by construction, not by accident:**
+
+| contrast | holds constant | varies | matched on extent? |
+|---|---|---|---|
+| `ablate_dir` vs `random_dir` | span, dose, position | the direction | **Yes, exactly** — same span object |
+| `ablate_dir` vs `matched_position` | direction, dose | the position | **No** — and it cannot be, see below |
+
+The direction-specificity test, which is the one carrying "a tail direction
+exists", is clean. The location test is not, and the difference is not only
+extent: the candidate edits the representation of tokens *as they are
+generated*, so its edit compounds into what gets written next, while the
+control edits already-fixed context that influences generation only through
+attention. Those are structurally different interventions. Matching the counts
+would not make them the same experiment.
+
+**The three options considered.**
+
+- **A — match the edited-position counts.** Cannot be done by trimming
+  `+ 64`, since it never binds. It would require setting the control window
+  from the *realised* generation length, which is unknown until after
+  generating: a two-pass design. Changes the control from the pre-registered
+  matched-length window to a post-hoc matched-count window.
+- **B — keep the candidate span and grow the control to match.** Feasible
+  without contaminating the candidate region, since the control extends
+  backwards into the prompt and the candidate starts at `prompt_tokens`. But
+  it abandons the pre-registered "window of length L" definition, and matches
+  the control to a *span* the candidate never actually fills.
+- **C — keep both and report the asymmetry.** The spans stay faithful to §5:
+  the candidate covers the generated tail, the control is the registered
+  matched-length window.
+
+**C is implemented**, because A and B both redefine a pre-registered control
+to fix a confound that B does not remove (the online/static difference
+remains) and that is now measurable instead of hidden. `screen_outcomes`
+reports `edit_extent_by_arm`, `extent_matched_candidate_vs_random` and
+`extent_ratio_matched_position_over_candidate`, so a reader comparing the two
+arms sees the extent beside the means.
+
+**The inferential limitation, stated for the write-up.** A difference between
+`ablate_dir` and `matched_position` cannot be attributed to position alone:
+the control also edits roughly twice as many positions, and edits context
+rather than generation. Note the direction of that bias — the control is the
+*larger* edit — so if the candidate nonetheless moves the readout further,
+the extent difference works against the candidate and the conclusion is
+conservative. If the control moves it further, extent is a live alternative
+explanation and the comparison does not support the location claim. **This
+asymmetry should be stated in the Results, and option A or B would need a
+pre-registration amendment.**
+
+---
+
+## D40. RQ3 has no pre-registered dependent variable, and `marker_delta` was falsely flagged as one
+
+**What the pre-registration fixes.** §2's table: "Causal sequence:
+truncation, tail replacement with neutral filler, matched-position and
+matched-random-direction comparisons, per Zhang & Nanda". §5: the five arms,
+and "the claim 'a tail direction exists' requires `ablate_dir` to beat
+**both** `random_dir` and `matched_position`, with a dose–response curve over
+projection coefficient."
+
+So the arms, both required comparisons, the conjunction and the dose-response
+requirement are all registered. **"Beat" is not defined, and no dependent
+variable is named anywhere** — not in PROJECT_PLAN.md, and not in
+`Project_Review_I.md` or `Project_Review_II.md`, where the only occurrences of
+"marker" are about end-of-thinking tokens in unrelated prior work.
+
+**The defect.** `screen_outcomes` set `pre_registered: True` on
+`marker_delta`, and its note said "the verdict is computed from the
+pre-registered `marker_delta`". Both asserted a commitment that was never
+made: the twenty-item lexical rechecking list is an implementation default.
+Recording it as registered is exactly the error the screen exists to prevent,
+pointed the other way — instead of choosing a readout after seeing the data,
+it backdated the one chosen before it.
+
+Fixed: no outcome is flagged registered, `preregistered_outcome` is `None`,
+and the readout the gate reads is identified as `verdict_outcome` /
+`is_verdict_outcome` — a choice, labelled as one. `VERDICT_OUTCOME` is now a
+module constant so the gate and the screen cannot disagree about it.
+
+**A second defect, in the gate itself.** `monotone_dose_response` was computed
+from `marker_delta` but, unlike `beats_random_direction` and
+`beats_matched_position`, was not gated on the readout varying. "Non-decreasing
+in |delta|" is vacuously true of a constant, so an identically-zero readout
+reported `monotone_dose_response: true` — and the pilot's `summary.json` says
+exactly that, next to `outcome_varies: false`. One of the four conditions
+appeared met when none was testable. It is now `None` when the readout does
+not vary, and additionally requires the curve to move (`len(set(deltas)) > 1`)
+rather than merely not to go down: a dose-response claim needs a response.
+`answers_preserved` is deliberately *not* gated this way, because it is
+measured on a different variable; its own vacuity under a no-op intervention
+is what `interventions_were_no_ops` reports.
+
+Verified that the gate can still be satisfied: on the positive fixture all
+four conditions and the conjunction remain `True`, so only vacuous truths were
+removed.
+
+**What is still needed, and it is a scientific decision.** RQ3 cannot produce
+a valid test until a dependent variable is registered. The amendment needs
+four things, and the screen is built to supply the evidence for the first:
+
+1. **Outcome.** `continuation_tokens` is the leading candidate — already
+   recorded, continuous, and a question about how much further the model
+   writes rather than about what its text means, which
+   `Project_Review_II.md` §2.1.6 rules out. It is **not** designated here.
+2. **Direction.** Which way ablation is predicted to move it, stated before
+   the data are seen. Without this the "beat" test is two-tailed on an
+   undirected quantity and `abs()` comparisons are uninterpretable.
+3. **Comparisons.** Both are already registered: beat `random_dir` *and*
+   `matched_position`, conjunctively, read at the controls' dose
+   (`compare_at`), with D39's extent caveat on the second.
+4. **Dose-response criterion.** Currently "non-decreasing in |outcome| over
+   the dose sweep, with at least three doses and a curve that moves". That is
+   the implementation's reading and should be registered explicitly, including
+   whether it is required conjunctively or reported alongside.
+
+Until that amendment exists, `screen_outcomes` should be run on the GPU
+validation pass as a **screening** step — to find which candidate readouts
+vary and separate the arms at all — and the registered choice made from that
+*before* any confirmatory run. Picking the readout from the run that is then
+reported is what the screen's own note forbids.
+
+---
+
+## D41. RQ3's construct *is* registered; only its operationalisation is not
+
+This supersedes part of D40 and **reverses the direction D40 was leaning in.**
+D40 recorded that RQ3 "names no dependent variable" and treated
+`continuation_tokens` as the leading candidate to register. Re-reading the
+contemporaneous materials shows the first half was too strong and the second
+half was a construct error.
+
+### What is actually registered
+
+`Project_Review_II.md` line 122, in the proposal's own statement of the
+research question:
+
+> **RQ3.** Under matched-control interventions, do tail-window states carry a
+> direction whose ablation **selectively changes verification-like behaviour**
+> without changing final answers?
+
+So the **construct is registered**: verification-like behaviour, changed
+selectively, with final answers preserved. `PROJECT_PLAN.md` §5 then registers
+the five arms, both control comparisons, their conjunction and the
+dose-response requirement. What no document supplies is an **operationalisation**
+— how verification-like behaviour is to be measured, and what numerical
+relation counts as "beat".
+
+That is a narrower gap than D40 claimed, and it constrains the remedy. An
+amendment may supply a *measure of the registered construct*. It may not
+substitute a different construct and keep RQ3's name.
+
+### Why `continuation_tokens` is not the answer
+
+`continuation_tokens` is how many tokens the model generates after the
+intervention. That is **output length**, not verification. It kept being
+proposed because it has variance where the marker count has none, and because
+it needs no judgement about what the text means — both true, and neither makes
+it a measure of verification-like behaviour. A model can write more because it
+is rechecking, or because it is repeating itself, degenerating, or padding.
+Adopting it would answer "does ablating this direction change how much the
+model writes?" under the heading of a question about verification.
+
+Choosing a readout because it is the one that moves is also precisely the
+failure mode `screen_outcomes` exists to prevent, approached from the other
+side: not picking the outcome that gives the nicest answer, but picking the one
+that gives *any* answer.
+
+`OUTCOME_CONSTRUCT` now records what each readout measures,
+`ELIGIBLE_OUTCOMES` is the subset measuring the registered construct, and
+`_assert_eligible` raises if the verdict is asked for an out-of-construct
+readout. `continuation_tokens` stays in `OUTCOMES` as a screening candidate and
+is reported, but cannot become the verdict outcome by editing a constant.
+
+### The decision
+
+**`marker_delta` is retained as the operationalisation**, and RQ3's
+confirmatory claim is **left blocked on this model**. Reasoning:
+
+- It is the face-valid measure of the registered construct: a count of
+  rechecking markers, scored on the generated text, compared between arms. The
+  code already documents that it is a behavioural readout and not a claim to
+  read text as a log of the computation, which `Project_Review_II.md` §2.1.6
+  rules out.
+- Its defect is a **floor effect**, not a construct mismatch. That is a
+  statement about measurement power, and the honest response is to report RQ3
+  as unevaluable on this model rather than to swap the construct.
+- Widening the marker lexicon until it moves would be tuning the instrument
+  against the data, which is the same error in a different coat.
+
+So: **no amendment to the dependent variable is made.** The gap is documented,
+the construct is cited, and the claim stays blocked. This is the "strongest
+valid alternative" rather than a manufactured answer.
+
+### The floor effect, measured at scale rather than asserted
+
+The pilot's 24 traces were too few to distinguish "this model does not
+recheck" from "we have not seen enough traces". Re-measured across the
+pilot **and the 116 main-run traces available on 2026-10-12** — 140 traces,
+5.8x the pilot:
+
+| corpus | traces with any marker | total marker occurrences | rate | 95% exact CI |
+|---|---|---|---|---|
+| pilot | 0 / 24 | 0 | 0.0000 | [0.0000, 0.1425] |
+| main so far | 1 / 116 | 1 | 0.0086 | [0.0002, 0.0471] |
+| **pooled** | **1 / 140** | **1** | **0.0071** | **[0.0002, 0.0392]** |
+
+The single occurrence is the word "confirming", once, in one trace. Not one of
+the other nineteen markers appears anywhere in 140 traces.
+
+**What that implies for the causal arm**, which runs on `causal.max_problems`
+= 60 problems. At the pooled rate, the expected number of marker-bearing
+problems in that arm is **0.43**; at the *upper* bound of the 95% interval it
+is **2.35**, and the probability of even one is 0.35. `MIN_PAIRS` is 3, and a
+paired test with any power needs far more. So the dependent variable cannot
+support the comparison on this model **at any corpus size this study can
+reach** — the binding constraint is the model's writing style, not N.
+
+This is the evidence that converts "blocked, pending more data" into
+**"blocked, and more data will not help"**. It is a finding about Qwen2.5-7B-
+Instruct's output — it writes clean step-by-step derivations without
+rechecking language — and not a defect in the study design. Reported as such.
+
+### What this costs, stated plainly
+
+RQ3 cannot return a positive or negative result on this model with this
+readout. Three independent reasons, all now reported rather than inferred:
+
+1. **The dependent variable has no variance** (floor effect, above).
+2. **The independent variable is unvalidated.** D34's fix has never executed on
+   a GPU, so no run has demonstrated a non-zero edit. The RQ3 family test now
+   refuses to report a p-value unless the candidate arm is *demonstrated* to
+   have edited a position, so an identical-arms result under a no-op can no
+   longer be mistaken for a tested null.
+3. **The location contrast is confounded with extent** (D39), which the report
+   now states along with the direction of the bias.
+
+### Routes out, for a later study rather than this one
+
+- **Register an in-construct measure with better range.** A validated
+  verification-behaviour measure — for example a rubric scored by a judge
+  model, with inter-rater agreement reported — would measure the registered
+  construct without a lexical floor. It needs instrument validation that is out
+  of scope here, and it must be registered *before* the confirmatory run.
+- **Amend RQ3 itself.** If output length is the quantity of interest, say so in
+  the question. That is a change to the research question, not to its
+  measurement, and must be dated and justified as one. This decision record
+  does not make it.
+
+### Separation of roles, for the write-up
+
+- **Originally registered:** the construct (Review II line 122), the five arms,
+  both control comparisons, the conjunction, the dose-response requirement
+  (PROJECT_PLAN.md §5).
+- **Not registered, chosen in implementation:** the operationalisation
+  (`marker_delta`), the "beat" relation, `alpha`, `MIN_PAIRS`, `MIN_DOSES`, and
+  the 0.2 answer-change ceiling. All are now named constants in one module so
+  they are visible as choices.
+- **Exploratory:** everything `screen_outcomes` reports about which candidate
+  readouts vary and separate the arms. Screening may inform a *future*
+  registration; it may not be read as confirmatory evidence in the same run.
+- **Still necessary and not performed:** a GPU run demonstrating a non-zero
+  edit, and — only if an in-construct readout with range is registered first —
+  a separate confirmatory run. Reusing a screening run as its own confirmation
+  is the thing this record exists to prevent.
+
+### "Beat" is now defined, which it was not
+
+Independently of the outcome question, the relation was indefensible: the gate
+compared two arm *means*, so a candidate at 0.30 against a control at 0.29
+satisfied it on ten problems with no test. It is now a Wilcoxon signed-rank
+test paired over the problems the arms share, requiring both the right
+direction and `alpha = 0.05`, read at the controls' dose. This is the
+correction D29 made to the primary O3 comparison; the two are now consistent.
+Nothing about this weakens a gate — it replaces no test with a test.

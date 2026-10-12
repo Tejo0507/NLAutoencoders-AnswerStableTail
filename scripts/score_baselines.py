@@ -171,15 +171,22 @@ def main() -> int:
             continue
         thresholds = threshold_grid(scores, rule)
         curves[rule] = sweep_threshold(per_problem, thresholds, higher_fires=True)
-        # How much of the budget axis this rule can ever reach. A score with
-        # few distinct values has few operating points at *any* corpus size,
-        # so a comparison it cannot be matched at is not waiting for more
-        # problems. Recorded here so the O3 stage can say which it is.
+        # How much of the budget axis this rule reaches on this corpus. A score
+        # with few distinct values has few operating points, so a budget it
+        # cannot be matched at is not necessarily waiting for more problems.
+        # Recorded here so the O3 stage can say which it is - but the bound is
+        # computed from the scores *observed*, so it rises if a larger corpus
+        # widens the score's range. See ``granularity_bound``.
         vals = [s for p in scores.values() for s in p[rule]
                 if s is not None and np.isfinite(s)]
         bound = granularity_bound(vals)
         resolution[rule] = {
             "n_distinct_scores": len({float(v) for v in vals}),
+            "max_operating_points_at_observed_scores": bound,
+            # Historical name for the same number, kept so that artifacts and
+            # readers written against it keep working. It overstates what the
+            # bound means: it is not a bound at any N unless the score's range
+            # is fixed by construction.
             "max_operating_points_at_any_n": bound,
             "operating_points": len({round(p.mean_tokens_saved, 9)
                                      for p in curves[rule]}),
@@ -187,9 +194,11 @@ def main() -> int:
         }
         if resolution[rule]["granularity_limited"]:
             log.warning(
-                "rule %s has only %d distinct scores, so its curve has at most "
-                "%d operating points however many problems are added; a budget "
-                "it cannot be matched at is a property of the score, not of N",
+                "rule %s takes only %d distinct scores on this corpus, so its "
+                "curve has at most %d operating points here; a budget it cannot "
+                "be matched at is a property of the score's resolution rather "
+                "than of the threshold grid. Whether more problems would help "
+                "depends on whether they widen the score's range",
                 rule, resolution[rule]["n_distinct_scores"], bound)
 
     budgets = budget_grid(curves)
