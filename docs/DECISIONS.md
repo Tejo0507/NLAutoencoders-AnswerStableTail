@@ -1092,3 +1092,129 @@ validation pass as a **screening** step — to find which candidate readouts
 vary and separate the arms at all — and the registered choice made from that
 *before* any confirmatory run. Picking the readout from the run that is then
 reported is what the screen's own note forbids.
+
+---
+
+## D41. RQ3's construct *is* registered; only its operationalisation is not
+
+This supersedes part of D40 and **reverses the direction D40 was leaning in.**
+D40 recorded that RQ3 "names no dependent variable" and treated
+`continuation_tokens` as the leading candidate to register. Re-reading the
+contemporaneous materials shows the first half was too strong and the second
+half was a construct error.
+
+### What is actually registered
+
+`Project_Review_II.md` line 122, in the proposal's own statement of the
+research question:
+
+> **RQ3.** Under matched-control interventions, do tail-window states carry a
+> direction whose ablation **selectively changes verification-like behaviour**
+> without changing final answers?
+
+So the **construct is registered**: verification-like behaviour, changed
+selectively, with final answers preserved. `PROJECT_PLAN.md` §5 then registers
+the five arms, both control comparisons, their conjunction and the
+dose-response requirement. What no document supplies is an **operationalisation**
+— how verification-like behaviour is to be measured, and what numerical
+relation counts as "beat".
+
+That is a narrower gap than D40 claimed, and it constrains the remedy. An
+amendment may supply a *measure of the registered construct*. It may not
+substitute a different construct and keep RQ3's name.
+
+### Why `continuation_tokens` is not the answer
+
+`continuation_tokens` is how many tokens the model generates after the
+intervention. That is **output length**, not verification. It kept being
+proposed because it has variance where the marker count has none, and because
+it needs no judgement about what the text means — both true, and neither makes
+it a measure of verification-like behaviour. A model can write more because it
+is rechecking, or because it is repeating itself, degenerating, or padding.
+Adopting it would answer "does ablating this direction change how much the
+model writes?" under the heading of a question about verification.
+
+Choosing a readout because it is the one that moves is also precisely the
+failure mode `screen_outcomes` exists to prevent, approached from the other
+side: not picking the outcome that gives the nicest answer, but picking the one
+that gives *any* answer.
+
+`OUTCOME_CONSTRUCT` now records what each readout measures,
+`ELIGIBLE_OUTCOMES` is the subset measuring the registered construct, and
+`_assert_eligible` raises if the verdict is asked for an out-of-construct
+readout. `continuation_tokens` stays in `OUTCOMES` as a screening candidate and
+is reported, but cannot become the verdict outcome by editing a constant.
+
+### The decision
+
+**`marker_delta` is retained as the operationalisation**, and RQ3's
+confirmatory claim is **left blocked on this model**. Reasoning:
+
+- It is the face-valid measure of the registered construct: a count of
+  rechecking markers, scored on the generated text, compared between arms. The
+  code already documents that it is a behavioural readout and not a claim to
+  read text as a log of the computation, which `Project_Review_II.md` §2.1.6
+  rules out.
+- Its defect is a **floor effect**, not a construct mismatch: on this model the
+  twenty markers occur in none of the pilot's 24 traces. That is a statement
+  about measurement power, and the honest response is to report RQ3 as
+  unevaluable on this model rather than to swap the construct.
+- Widening the marker lexicon until it moves would be tuning the instrument
+  against the data, which is the same error in a different coat.
+
+So: **no amendment to the dependent variable is made.** The gap is documented,
+the construct is cited, and the claim stays blocked. This is the "strongest
+valid alternative" rather than a manufactured answer.
+
+### What this costs, stated plainly
+
+RQ3 cannot return a positive or negative result on this model with this
+readout. Three independent reasons, all now reported rather than inferred:
+
+1. **The dependent variable has no variance** (floor effect, above).
+2. **The independent variable is unvalidated.** D34's fix has never executed on
+   a GPU, so no run has demonstrated a non-zero edit. The RQ3 family test now
+   refuses to report a p-value unless the candidate arm is *demonstrated* to
+   have edited a position, so an identical-arms result under a no-op can no
+   longer be mistaken for a tested null.
+3. **The location contrast is confounded with extent** (D39), which the report
+   now states along with the direction of the bias.
+
+### Routes out, for a later study rather than this one
+
+- **Register an in-construct measure with better range.** A validated
+  verification-behaviour measure — for example a rubric scored by a judge
+  model, with inter-rater agreement reported — would measure the registered
+  construct without a lexical floor. It needs instrument validation that is out
+  of scope here, and it must be registered *before* the confirmatory run.
+- **Amend RQ3 itself.** If output length is the quantity of interest, say so in
+  the question. That is a change to the research question, not to its
+  measurement, and must be dated and justified as one. This decision record
+  does not make it.
+
+### Separation of roles, for the write-up
+
+- **Originally registered:** the construct (Review II line 122), the five arms,
+  both control comparisons, the conjunction, the dose-response requirement
+  (PROJECT_PLAN.md §5).
+- **Not registered, chosen in implementation:** the operationalisation
+  (`marker_delta`), the "beat" relation, `alpha`, `MIN_PAIRS`, `MIN_DOSES`, and
+  the 0.2 answer-change ceiling. All are now named constants in one module so
+  they are visible as choices.
+- **Exploratory:** everything `screen_outcomes` reports about which candidate
+  readouts vary and separate the arms. Screening may inform a *future*
+  registration; it may not be read as confirmatory evidence in the same run.
+- **Still necessary and not performed:** a GPU run demonstrating a non-zero
+  edit, and — only if an in-construct readout with range is registered first —
+  a separate confirmatory run. Reusing a screening run as its own confirmation
+  is the thing this record exists to prevent.
+
+### "Beat" is now defined, which it was not
+
+Independently of the outcome question, the relation was indefensible: the gate
+compared two arm *means*, so a candidate at 0.30 against a control at 0.29
+satisfied it on ten problems with no test. It is now a Wilcoxon signed-rank
+test paired over the problems the arms share, requiring both the right
+direction and `alpha = 0.05`, read at the controls' dose. This is the
+correction D29 made to the primary O3 comparison; the two are now consistent.
+Nothing about this weakens a gate — it replaces no test with a test.
