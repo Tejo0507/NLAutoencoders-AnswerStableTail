@@ -3,6 +3,34 @@
 Sections that can be written before the main run finishes, and what each one
 is still waiting on.
 
+## Assembling it
+
+[`REPORT.md`](REPORT.md) is the whole report in one file, **generated** by
+`scripts/assemble_paper.py` — do not edit it; edit a section and re-run:
+
+```powershell
+.venv\Scripts\python.exe scripts\assemble_paper.py
+.venv\Scripts\python.exe scripts\assemble_paper.py --check   # state only
+```
+
+The review was submitted as a single Word document rendered from a single
+Markdown file, so the report needs the same shape. The assembler adds the title
+page, the table of contents and the bibliography, lifts each section's drafting
+note out of the submission text, and writes **a named placeholder for every
+section that does not exist yet** rather than omitting it — a reader of the
+draft should be able to see what is missing without consulting this file. It
+exits 2 while anything is pending and 0 when every declared section is present,
+so it is also the check for whether the report is submission-ready. It is not:
+the Abstract, Results and Discussion are absent by design, and §4 and §8 are
+drafted but still need the main run's numbers.
+
+The bibliography is read from `../Project_Review_II.md` §References rather than
+copied, so the two documents cannot drift. Two things that surfaced on first
+assembly: it holds **27** entries rather than the 26 stated below, and `[27]`
+(Madaan et al., *Self-refine*) is **not cited by any drafted section** — it is
+marked as such in the generated references rather than dropped, and needs
+either a citation in the Results or Discussion or removal before submission.
+
 **Nothing here reports a result.** No section states an outcome of the main
 run, and the Results and Abstract are deliberately absent rather than
 stubbed — writing them now would require assuming numbers that do not exist.
