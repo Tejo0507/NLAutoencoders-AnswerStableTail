@@ -1175,24 +1175,41 @@ pilot **and the 116 main-run traces available on 2026-10-12** — 140 traces,
 | corpus | traces with any marker | total marker occurrences | rate | 95% exact CI |
 |---|---|---|---|---|
 | pilot | 0 / 24 | 0 | 0.0000 | [0.0000, 0.1425] |
-| main so far | 1 / 116 | 1 | 0.0086 | [0.0002, 0.0471] |
-| **pooled** | **1 / 140** | **1** | **0.0071** | **[0.0002, 0.0392]** |
+| main at 116 traces | 1 / 116 | 1 | 0.0086 | [0.0002, 0.0471] |
+| pooled at 140 traces | 1 / 140 | 1 | 0.0071 | [0.0002, 0.0392] |
+| **pooled at 200 traces** (2026-10-15) | **1 / 200** | **1** | **0.0050** | **[0.0001, 0.0275]** |
 
 The single occurrence is the word "confirming", once, in one trace. Not one of
-the other nineteen markers appears anywhere in 140 traces.
+the other nineteen markers appears anywhere in 200 traces. Re-measure it with
+`scripts/measure_rq3_readout_floor.py`, which is read-only and CPU-only.
 
 **What that implies for the causal arm**, which runs on `causal.max_problems`
-= 60 problems. At the pooled rate, the expected number of marker-bearing
-problems in that arm is **0.43**; at the *upper* bound of the 95% interval it
-is **2.35**, and the probability of even one is 0.35. `MIN_PAIRS` is 3, and a
-paired test with any power needs far more. So the dependent variable cannot
-support the comparison on this model **at any corpus size this study can
-reach** — the binding constraint is the model's writing style, not N.
+= 60 problems:
+
+| measured over | expected marker-bearing problems in the arm | at the interval's upper bound |
+|---|---|---|
+| 140 traces | 0.43 | 2.35 |
+| **200 traces** | **0.30** | **1.65** |
+
+`MIN_PAIRS` is 3, and a paired test with any power needs far more.
+
+**The projection has moved against the readout as the corpus has grown, not
+for it.** The count stays at one while N rises, so the interval's upper bound
+falls — 0.0392 to 0.0275 — and with it the most optimistic number of usable
+problems: 2.35 to 1.65. At 200 traces, three marker-bearing problems are not
+expected until the arm holds about **109** problems *even at the top of the
+interval*, against a configured 60 and roughly 130 eval-split tailed problems
+to draw from. This is the sense in which finishing the corpus cannot help:
+each additional clean trace tightens the bound downwards.
 
 This is the evidence that converts "blocked, pending more data" into
 **"blocked, and more data will not help"**. It is a finding about Qwen2.5-7B-
 Instruct's output — it writes clean step-by-step derivations without
 rechecking language — and not a defect in the study design. Reported as such.
+
+**It is also the one claim in this study that is already settled before the
+run finishes.** Every other blocked question waits on the corpus; this one is
+decided by a base rate the corpus is still lowering.
 
 ### What this costs, stated plainly
 

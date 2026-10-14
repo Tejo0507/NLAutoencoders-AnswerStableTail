@@ -255,19 +255,35 @@ than a negative result. **Not yet validated on GPU.** The numbers below are
 from the pre-fix run and describe arms that did nothing.
 
 **The behavioural readout also never moved, and now we know it will not.**
-Measured across the pilot's 24 traces *and* the 116 main-run traces available
-on 2026-10-12 — 140 traces in all — there is exactly **one** marker
+Measured across the pilot's 24 traces *and* the 176 main-run traces available
+on 2026-10-15 — **200 traces in all** — there is exactly **one** marker
 occurrence: the word "confirming", once, in one trace. Not one of the other
-nineteen markers appears anywhere. The pooled rate is 1/140 = **0.0071**, 95%
-exact CI **[0.0002, 0.0392]**.
+nineteen markers appears anywhere. The pooled rate is 1/200 = **0.0050**, 95%
+exact CI **[0.0001, 0.0275]**.
 
-Projected onto the 60-problem causal arm, that is **0.43** marker-bearing
-problems expected at the point rate and **2.35** at the interval's upper
+Projected onto the 60-problem causal arm, that is **0.30** marker-bearing
+problems expected at the point rate and **1.65** at the interval's upper
 bound, against a `MIN_PAIRS` of 3. So the dependent variable cannot support
 the comparison **at any corpus size this study can reach**: the binding
 constraint is that Qwen2.5-7B-Instruct writes clean step-by-step derivations
 without rechecking language, not that N is too small. This is a finding about
 the model, not a defect in the design.
+
+**Growing the corpus has moved this against the readout, not for it.** The
+count stays at one while N rises, so the interval's upper bound falls — it was
+[0.0002, 0.0392] at 140 traces — and with it the most optimistic number of
+usable problems, from 2.35 to 1.65. Three marker-bearing problems are not
+expected until the arm holds about **109**, even at the top of the interval,
+against a configured 60. Re-measure with
+
+```powershell
+.venv\Scripts\python.exe scripts\measure_rq3_readout_floor.py
+```
+
+which is read-only and CPU-only, so it is safe to run mid-generation. This is
+the one blocked claim in the study that is already settled before the run
+finishes: every other one waits on the corpus, and this one is decided by a
+base rate the corpus is still lowering.
 
 With a constant outcome every comparison in the Zhang & Nanda gate fails
 trivially, so the gate returns `supported: null` with the reason rather than
@@ -401,8 +417,9 @@ itself forced.
   identical-arms result under a no-op can no longer read as a tested null.
 - **An in-construct behavioural readout for RQ3 with range on this model.**
   This is now a *measured* dead end rather than an open search: 1 marker
-  occurrence in 140 traces, projecting to 0.43 marker-bearing problems in the
-  60-problem causal arm (§RQ3 above). `continuation_tokens` varies but
+  occurrence in 200 traces, projecting to 0.30 marker-bearing problems in the
+  60-problem causal arm, and 1.65 at the interval's upper bound against a
+  `MIN_PAIRS` of 3 (§RQ3 above). `continuation_tokens` varies but
   measures output length, not verification-like behaviour, and the registered
   construct is the latter — so it is **not** the candidate it was previously
   recorded as (D41). Routes out are to register a validated in-construct

@@ -14,17 +14,22 @@ inferred.
 
 **The dependent variable has no range on this model.** The registered
 construct is verification-like behaviour (§3.8), and its face-valid measure is
-a count of rechecking markers in the generated text. Across **140 traces** —
-the pilot's 24 plus the first 116 of the main run — there is exactly **one**
+a count of rechecking markers in the generated text. Across **200 traces** —
+the pilot's 24 plus the first 176 of the main run — there is exactly **one**
 marker occurrence: the word "confirming", once, in one trace. None of the
-other nineteen markers appears anywhere. Pooled rate 1/140 = 0.0071, 95% exact
-interval [0.0002, 0.0392]. Projected onto the 60-problem causal arm that is
-0.43 marker-bearing problems expected, or 2.35 at the interval's upper bound,
+other nineteen markers appears anywhere. Pooled rate 1/200 = 0.0050, 95% exact
+interval [0.0001, 0.0275]. Projected onto the 60-problem causal arm that is
+0.30 marker-bearing problems expected, or 1.65 at the interval's upper bound,
 against a minimum of three paired problems before a contrast is attempted.
 
-**More data would not fix this.** The binding constraint is that this model
-writes clean step-by-step derivations without rechecking language, so the
-quantity the construct names barely occurs. That is a finding about
+**More data would not fix this, and the evidence for that is that more data
+has already made it worse.** The count stayed at one as the corpus grew from
+140 traces to 200, so the interval's upper bound fell from 0.0392 to 0.0275
+and the most optimistic yield from 2.35 marker-bearing problems to 1.65. Three
+are not expected until the arm holds roughly 109 problems even at the top of
+the interval, against a configured 60. The binding constraint is that this
+model writes clean step-by-step derivations without rechecking language, so
+the quantity the construct names barely occurs. That is a finding about
 Qwen2.5-7B-Instruct's output, not a defect in the design, and it means no
 corpus size reachable by this study would make the comparison possible.
 
