@@ -364,6 +364,32 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
           f"give a different curve; this study does not claim to have found the "
           f"best one.")
         A("")
+        # What the arm's score is a mean *over*. The two exclusions mean
+        # opposite things - the control arm is dropped by design, a gate
+        # failure is a sample the verbaliser got wrong - so a single total
+        # would not say whether the arm is sound.
+        ex = nla_info.get("exclusions") or {}
+        if ex.get("n_samples_total"):
+            A(f"It is a mean over the **{ex['n_samples_used']}** of "
+              f"{ex['n_samples_total']} reconstruction samples that survive two "
+              f"exclusions: {ex['n_samples_excluded_as_control']} are the "
+              f"Gaussian noise control, which is not a readout, and "
+              f"{ex['n_samples_excluded_by_integrity_gate']} failed the "
+              f"integrity gate "
+              f"({_fmt(ex.get('integrity_exclusion_rate'))} of the "
+              f"activation-driven samples). Read that rate beside the `nla` "
+              f"stage's own: a gate rate that climbs makes this arm a mean "
+              f"over a different and smaller thing.")
+            A("")
+            if ex.get("n_problems_scored") != ex.get("n_problems_with_usable_samples"):
+                missing = (ex.get("problems_dropped_no_usable_trace") or []) + (
+                    ex.get("problems_dropped_no_chunks") or [])
+                A(f"{ex['n_problems_scored']} of "
+                  f"{ex['n_problems_with_usable_samples']} problems with usable "
+                  f"samples could be scored; the rest have no usable trace row "
+                  f"or no chunks and are named in `analysis/results.json` "
+                  f"(`{'`, `'.join(missing[:6])}`).")
+                A("")
 
     # ---------------------------------------------------------------- RQ2
     A("## RQ2 - claim-level faithfulness")
