@@ -1,11 +1,13 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-14.
+Last reviewed 2026-10-15.
 
-**Main run in progress: 157 of 250 traces** as of 20:21 on 2026-10-14, 0
-failures, 0 unparseable records, 0 duplicates (94 GSM8K / 63 MATH). The run had
-stopped and was relaunched at 20:20; it resumed from problem 158. Throughput
+**Main run in progress: 187 of 250 traces** as of 03:11 on 2026-10-15, under
+the process relaunched at 20:20 on 2026-10-14 (157 on disk at relaunch; 30 of
+the remaining 93 written since, ~12–14 h to go at the current ETA). The
+2026-10-14 figures: 0
+failures, 0 unparseable records, 0 duplicates (94 GSM8K / 63 MATH) at 157. Throughput
 varied sharply across launches — GSM8K medians of 5.1, 20.6 and 9.5 minutes —
 and the cause is the machine's memory state rather than anything in the code or
 data; see [`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) §5 for the launch

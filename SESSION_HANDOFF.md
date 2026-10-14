@@ -12,7 +12,7 @@ the science.
 
 **Added after the sections below, which are kept as written.** Six branches
 merged to `main` through pull requests #13–#19; `traces` was not touched and
-advanced from 157 to 177 of 250 under the same process (PID 4192) throughout.
+advanced from 157 to 187 of 250 (as of 03:11 on 2026-10-15) under the same process (PID 4192) throughout.
 Test suite **582 → 665 passing** (`-m "not slow and not integration"`); the
 GPU tests were not run, and nothing in these changes touches a GPU path.
 
@@ -86,7 +86,7 @@ All CPU-only, no model, safe to run mid-generation.
 
 Unchanged by this session, and nothing here can unblock them:
 
-- **everything downstream of `traces`** — the run is at 177 of 250
+- **everything downstream of `traces`** — the run is at 187 of 250
 - **the causal GPU validation** ([#8](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/8)) — needs the VRAM `traces` holds
 - **the convergence head-to-head** — needs `baselines` and `nla` on `main`
 - **F8** — needs a 15.3 GB download the user has not authorised

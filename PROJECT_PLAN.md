@@ -268,6 +268,17 @@ execution report for it. The `main` configuration in §2's sizing has not been
 attempted: at the pilot's measured throughput it is over 50 hours on this
 machine, and §2 already states that the achieved N is what gets reported.
 
+**Update 2026-10-15.** The `main` run is now executing: `env`, `data` and
+`models` are complete and `traces` stands at 187 of 250 (resumable per problem;
+any prefix is a proportional sample). Everything downstream is blocked on it
+or on the GPU. An analysis audit (DECISIONS D42–D44, merged via PRs #13–#20)
+fixed four summary/comparison defects and found the pilot's published q-values
+stale (primary comparison q = 0.1875, not 0.156; no conclusion changes).
+Three read-only auditors were added: `check_run_consistency.py`,
+`measure_rq3_readout_floor.py`, `assemble_paper.py`. RQ3 is already known
+unevaluable on this model (1 marker in 200 traces). The report exists as
+drafts (`paper/`); Abstract, Results and Discussion await the main run.
+
 Four things in this plan the run changed the reading of, all recorded in
 `docs/DECISIONS.md` rather than edited into the text above:
 
