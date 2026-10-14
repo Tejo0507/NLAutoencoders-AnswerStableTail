@@ -22,3 +22,10 @@ __pycache__/
 # Derived artefacts: the .docx is tracked, intermediate renders are not.
 *.pdf
 output/**/*.zip
+
+# Working documents kept locally, not published: session notes, the review
+# submissions, the implementation plan and the docs/ folder.
+SESSION_HANDOFF.md
+PROJECT_PLAN.md
+Project_Review_*
+docs/
