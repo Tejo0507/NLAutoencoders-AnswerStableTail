@@ -22,6 +22,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
@@ -113,6 +115,63 @@ class TestDistribution:
         assert s["tail_rate"] == 0.0
         assert s["nontrivial_tail_rate"] == 0.0
         assert s["final_boundary_qualifies_rate"] == 0.0
+
+    def test_the_median_is_the_median_at_an_even_count(self):
+        """The middle element of a sorted list is not the median.
+
+        Four tailed problems at fractions 0.1, 0.2, 0.8, 0.9 have a median of
+        0.5. Indexing the sorted list at ``len // 2`` returns 0.8 - the upper
+        of the two central values - which is a different and larger statistic
+        reported under the median's name. The pilot's 21 tailed problems made
+        the two agree; any even count makes them differ.
+        """
+        s = summarise([row("p0", 10, 9), row("p1", 10, 8),
+                       row("p2", 10, 2), row("p3", 10, 1)])
+        assert s["n_with_tail"] == 4
+        assert s["median_tail_fraction"] == pytest.approx(0.5)
+        assert s["median_tail_fraction"] < s["max_tail_fraction"]
+
+    def test_the_median_still_works_at_an_odd_count(self):
+        s = summarise([row("p0", 10, 9), row("p1", 10, 5), row("p2", 10, 1)])
+        assert s["median_tail_fraction"] == pytest.approx(0.5)
+
+
+class TestTailTokenShareDenominator:
+    """The tail's token share has two denominators and they are not close.
+
+    `tail_token_share` divides by the tokens generated in traces that *have* a
+    tail, which is the right denominator for "how much of a tailed trace is
+    tail". It is not the share of all generated tokens, and the traces without
+    a tail are not a random sample of the corpus: they are the ones that hit
+    the generation cap, so they are the longest. Excluding them therefore
+    raises the ratio, and the two numbers were reported under one name.
+    """
+
+    def test_both_denominators_are_reported(self):
+        # Two tailed traces of 100 tokens, half of each a tail, and one
+        # 800-token trace with no tail at all.
+        rows = [row("p0", 10, 5, total_tokens=100),
+                row("p1", 10, 5, total_tokens=100),
+                row("p2", 10, None, status="no_stable_point", total_tokens=800)]
+        s = summarise(rows)
+        assert s["total_tail_tokens"] == 100
+        assert s["total_tokens"] == 200
+        assert s["total_tokens_all_traces"] == 1000
+        assert s["tail_token_share"] == pytest.approx(0.5)
+        assert s["tail_token_share_all_traces"] == pytest.approx(0.1)
+
+    def test_the_narrow_denominator_never_understates_the_share(self):
+        rows = [row("p0", 10, 5, total_tokens=100),
+                row("p1", 10, None, status="no_stable_point", total_tokens=500)]
+        s = summarise(rows)
+        assert s["tail_token_share"] >= s["tail_token_share_all_traces"]
+        assert "tail_token_share_all_traces" in s["tail_token_share_denominator"]
+
+    def test_the_two_agree_when_every_trace_has_a_tail(self):
+        rows = [row("p0", 10, 5, total_tokens=100),
+                row("p1", 10, 5, total_tokens=100)]
+        s = summarise(rows)
+        assert s["tail_token_share"] == pytest.approx(s["tail_token_share_all_traces"])
 
 
 class TestDeterminacyVersusStatement:
@@ -346,3 +405,38 @@ class TestConvergenceComparison:
         assert c["convergence_earlier"] == 1 / 3
         assert c["same"] == 1 / 3
         assert c["convergence_later"] == 1 / 3
+
+    def test_the_signed_mean_cancels_and_is_not_the_gap(self):
+        """One problem two chunks early and one two chunks late net to zero.
+
+        `mean_gap_chunks` is signed, so on this corpus it is 0.0 - and not one
+        of the three problems has a gap of zero. Printed beside "fires earlier
+        on 33% of problems" it reads as "by 0 chunks", which is the opposite of
+        what happened. The magnitude and the per-direction means are what a
+        reader of that sentence needs.
+        """
+        rows = [row("p0", 10, 5, convergence_start=3),
+                row("p1", 10, 5, convergence_start=7),
+                row("p2", 10, 5, convergence_start=5)]
+        c = summarise(rows)["convergence_vs_ast"]
+        assert c["mean_gap_chunks"] == pytest.approx(0.0)
+        assert c["mean_abs_gap_chunks"] == pytest.approx(4 / 3)
+        assert c["mean_gap_when_earlier"] == pytest.approx(2.0)
+        assert c["mean_gap_when_later"] == pytest.approx(2.0)
+
+    def test_the_conditional_means_are_none_when_no_problem_falls_that_way(self):
+        rows = [row("p0", 10, 5, convergence_start=3),
+                row("p1", 10, 5, convergence_start=2)]
+        c = summarise(rows)["convergence_vs_ast"]
+        assert c["convergence_later"] == 0.0
+        assert c["mean_gap_when_later"] is None
+        assert c["mean_gap_when_earlier"] == pytest.approx(2.5)
+        assert c["mean_gap_chunks"] == pytest.approx(c["mean_abs_gap_chunks"])
+
+    def test_the_directions_are_distinguishable_from_the_summary_alone(self):
+        """A corpus that fires uniformly late must not look like a cancelling one."""
+        late = summarise([row("p0", 10, 5, convergence_start=7),
+                          row("p1", 10, 5, convergence_start=7)])["convergence_vs_ast"]
+        assert late["mean_gap_chunks"] == pytest.approx(-2.0)
+        assert late["mean_abs_gap_chunks"] == pytest.approx(2.0)
+        assert late["mean_gap_when_earlier"] is None
