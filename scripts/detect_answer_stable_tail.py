@@ -17,6 +17,7 @@ perturbed?) without regenerating anything.
 
 from __future__ import annotations
 
+import statistics
 import sys
 from collections import Counter
 
@@ -269,7 +270,12 @@ def summarise(rows: list[dict]) -> dict:
         tt = [r["tail_tokens"] for r in with_tail]
         out.update(
             mean_tail_fraction=sum(fr) / len(fr),
-            median_tail_fraction=sorted(fr)[len(fr) // 2],
+            # statistics.median, not the middle element of the sorted list.
+            # The latter returns the *upper* of the two central values at even
+            # n, which is not the median and biases the reported figure
+            # upwards. It happened to be right on the pilot's 21 tailed
+            # problems and would have been wrong on any even count.
+            median_tail_fraction=statistics.median(fr),
             min_tail_fraction=min(fr),
             max_tail_fraction=max(fr),
             mean_tail_tokens=sum(tt) / len(tt),
@@ -279,6 +285,23 @@ def summarise(rows: list[dict]) -> dict:
         out["tail_token_share"] = (
             out["total_tail_tokens"] / out["total_tokens"] if out["total_tokens"] else 0.0
         )
+        # Two denominators, because the difference is not negligible and the
+        # one above is the narrower of them. `tail_token_share` divides by the
+        # tokens generated in traces that *have* a tail, which is the right
+        # denominator for "how much of a tailed trace is tail". It is not the
+        # share of all generated tokens: the traces without a tail are the
+        # truncated ones, which are the longest, so excluding them raises the
+        # ratio. On the pilot it is 1885/5943 = 0.317 against 1885/7479 =
+        # 0.252 over the whole corpus. Both are reported so neither can be
+        # read as the other.
+        out["total_tokens_all_traces"] = sum(r["total_tokens"] for r in rows)
+        out["tail_token_share_all_traces"] = (
+            out["total_tail_tokens"] / out["total_tokens_all_traces"]
+            if out["total_tokens_all_traces"] else 0.0
+        )
+        out["tail_token_share_denominator"] = (
+            "tokens generated in traces that have a tail; see "
+            "tail_token_share_all_traces for the whole-corpus denominator")
     # Determinacy versus statement. See answer_stated_at() - a tail that
     # begins before the trace has said the answer contains computation, not
     # post-answer redundancy, and that changes how a verbalisation of the
@@ -328,16 +351,31 @@ def summarise(rows: list[dict]) -> dict:
     both = [r for r in rows
             if r["tail_start"] is not None and r.get("convergence_start") is not None]
     if both:
+        # Signed, so earlier and later cancel. That is the right quantity for
+        # "where does the agreement rule sit on average", and the wrong one to
+        # print beside the earlier/later shares: a corpus that fires two
+        # chunks early as often as it fires two chunks late has a signed mean
+        # of zero and no problem with a gap of zero. The magnitude and the two
+        # conditional means are reported alongside so the sentence in the
+        # report can name which it means.
+        gaps = [r["tail_start"] - r["convergence_start"] for r in both]
+        earlier = [g for g in gaps if g > 0]
+        later = [-g for g in gaps if g < 0]
         out["convergence_vs_ast"] = {
             "n": len(both),
-            "convergence_earlier": sum(1 for r in both
-                                       if r["convergence_start"] < r["tail_start"]) / len(both),
-            "same": sum(1 for r in both
-                        if r["convergence_start"] == r["tail_start"]) / len(both),
-            "convergence_later": sum(1 for r in both
-                                     if r["convergence_start"] > r["tail_start"]) / len(both),
-            "mean_gap_chunks": sum(r["tail_start"] - r["convergence_start"]
-                                   for r in both) / len(both),
+            "convergence_earlier": len(earlier) / len(both),
+            "same": sum(1 for g in gaps if g == 0) / len(both),
+            "convergence_later": len(later) / len(both),
+            "mean_gap_chunks": sum(gaps) / len(gaps),
+            "mean_abs_gap_chunks": sum(abs(g) for g in gaps) / len(gaps),
+            "mean_gap_when_earlier": (sum(earlier) / len(earlier)
+                                      if earlier else None),
+            "mean_gap_when_later": (sum(later) / len(later)
+                                    if later else None),
+            "note": ("mean_gap_chunks is signed (tail_start minus "
+                     "convergence_start), so firing early and firing late "
+                     "cancel; mean_gap_when_earlier and mean_gap_when_later "
+                     "are the magnitudes within each direction"),
         }
     return out
 
@@ -483,14 +521,21 @@ def main() -> int:
              100 * summary["final_boundary_qualifies_rate"])
     if summary["n_with_tail"]:
         log.info("tail fraction: mean %.3f, median %.3f, range %.2f-%.2f | "
-                 "tail tokens are %.1f%% of all generated tokens",
+                 "tail tokens are %.1f%% of the tokens generated in traces "
+                 "that have a tail, %.1f%% of all generated tokens",
                  summary["mean_tail_fraction"], summary["median_tail_fraction"],
                  summary["min_tail_fraction"], summary["max_tail_fraction"],
-                 100 * summary["tail_token_share"])
+                 100 * summary["tail_token_share"],
+                 100 * summary["tail_token_share_all_traces"])
     if "convergence_vs_ast" in summary:
         c = summary["convergence_vs_ast"]
         log.info("agreement rule fires earlier than the AST on %.1f%% of problems "
-                 "(mean gap %.2f chunks)", 100 * c["convergence_earlier"], c["mean_gap_chunks"])
+                 "(by %s chunks where it does), later on %.1f%%; net signed "
+                 "gap %.2f chunks",
+                 100 * c["convergence_earlier"],
+                 "n/a" if c["mean_gap_when_earlier"] is None
+                 else f"{c['mean_gap_when_earlier']:.2f}",
+                 100 * c["convergence_later"], c["mean_gap_chunks"])
 
     if args.sweep:
         write_json(out_dir / "sweep_F5.json", run_sweep(cfg, traces, log))
