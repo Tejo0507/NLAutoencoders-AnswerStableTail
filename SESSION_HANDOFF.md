@@ -17,10 +17,14 @@ measured (D37b), RQ3's "beat" relation is a paired test rather than a
 comparison of two means (D41), and the causal arms' edit extents are measured
 and reported (D39).
 
-**`traces` is at 116 of 250 and running, but roughly 3x slower than it was.**
-0 failures, 0 malformed records, 0 duplicates. The slowdown is diagnosed in §5
-and is a machine-state problem, not a code or data problem — two actions would
-restore it.
+**`traces` is at 157 of 250 and was relaunched at 20:20 on 2026-10-14.** It had
+stopped — no process was running — after a third launch (not made by this
+session) wrote 36 problems between 23:08 on 12 Oct and 06:24 on 13 Oct. The
+on-disk corpus is sound: 157 records, 157 unique ids, 0 `ok=false`, 0
+unparseable lines, and the file ends on a newline. The relaunch resumed
+correctly (`157 already done, 93 to do`; next problem `gsm8k-test-00815`) under
+an unchanged config hash `ea82fa845911b70f`. The throughput history, including
+how much of the earlier slowdown reversed on its own, is in §5.
 
 **RQ3 is now blocked for a reason that is measured rather than suspected.**
 Its registered construct's readout occurs once in 140 traces, which projects
@@ -36,10 +40,14 @@ validation, or any other GPU work alongside it. Monitoring is file reads only.
 
 | | |
 |---|---|
-| branch | `main` |
-| working tree | clean |
-| `origin/main` | synchronized — see below |
-| feature branches | `o3-complete-threshold-grid`, merged `--no-ff` and deleted |
+| branch | `main` at `86759f0`, synchronized with `origin/main` (`0 0`) |
+| working tree | clean before this update |
+| since the first push below | 18 commits on `main`, all pushed: the analysis corrections (D37–D41) and the paper drafts |
+| merged feature branches still on the remote | `analysis-corrections-bh-causal-f2` and `paper-drafts` — both fully contained in `main` (0 commits ahead); safe to delete when convenient |
+| this update | committed on a new branch rather than `main`, pushed to `origin`; merge it when reviewed |
+
+*The rest of this section records the first session's push and is kept as
+written.*
 
 **The push asked for was performed and verified.** Before anything else, the
 14 local commits were pushed to
@@ -199,12 +207,61 @@ touched the 4-bit loading paths.
 
 ## 5. The main run
 
-**Status at 09:49 on 2026-10-12: `traces` running, 116 of 250.** Relaunched
-02:48:34 on 2026-10-12 (PIDs 20856 parent / 24432 worker), detached, logging to
+**Status at 20:21 on 2026-10-14: `traces` relaunched, 157 of 250 on disk.**
+Launched 20:20:54 (PIDs 23196 parent / 23148 worker), detached, appending to
 `runs/main/traces_stage.out`. `env`, `data` and `models` are complete. Corpus
-validated read-only: **0 malformed, 0 duplicate problem ids, 0 `ok=false`, no
-missing fields**, 70 GSM8K / 46 MATH — proportional, as the interleaving
-intends. Record count and progress-line count agree at 116.
+validated read-only before the relaunch: **157 records, 157 unique problem ids,
+0 `ok=false`, 0 unparseable lines**, file ends on a newline; 94 GSM8K / 63 MATH
+(0.599 GSM8K against the configured 0.600 — proportional, as the interleaving
+intends). 93 problems remain: 56 GSM8K and 37 MATH.
+
+### Launch history — three launches, only one of them this session's
+
+`runs/main/run.log` holds every startup; `traces_stage.out` holds only the
+launches that appended to it, which is why a count of its progress lines (121)
+disagreed with the 157 records on disk until the cause was found.
+
+| launch | started | resumed from | wrote | GSM8K median | MATH median |
+|---|---|---|---|---|---|
+| 1 | 10-11 10:58 | 0 | 100 | **5.1 min** | **9.7 min** |
+| 2 | 10-12 02:48 | 100 | 21 | **20.6 min** | **32.0 min** |
+| 3 | 10-12 23:08 | 121 | 36 | 9.5 min | 11.8 min |
+| 4 | 10-14 20:20 | 157 | *running* | — | — |
+
+Launch 2 is the one whose slowdown §5 diagnoses below as memory pressure, and it
+was the slowest by a wide margin (4x GSM8K, 3.3x MATH against launch 1). **Launch
+3 recovered most of it without any change to the code or config** — 1.9x launch 1
+on GSM8K and 1.2x on MATH — which supports the memory-pressure reading over any
+code or data cause, since only the machine's state differed. Who made launch 3
+was not established; it appears in the log with the same config hash and added
+no code changes to the generation path.
+
+**Throughput at launch 4 is not yet measured.** Observed at start: GPU 68% at
+53.6 W (launch 2 drew 30 W of a 60 W limit), 5.5 GB VRAM, 3.47 GB RAM free.
+Treat the range below as an estimate, not a measurement.
+
+**Estimated time remaining, 93 problems (56 GSM8K + 37 MATH)**, from per-launch
+*median* minutes — medians understate a long-tailed distribution, so these are
+floors:
+
+| if the machine behaves like | remaining |
+|---|---|
+| launch 1 (normal) | ~10.7 h |
+| launch 3 (partly recovered) | ~16 h |
+| launch 2 (paging) | ~39 h |
+
+### Corpus statistics at 157 of 250, measured
+
+| dataset | n | truncated | rate | 95% exact CI | mean tokens | accuracy |
+|---|---|---|---|---|---|---|
+| GSM8K | 94 / 150 | 0 | 0.000 | [0.000, 0.038] | 249 | 0.915 |
+| MATH | 63 / 100 | 5 | **0.079** | **[0.026, 0.176]** | 415 | 0.873 |
+
+The MATH interval's upper bound of 0.176 still excludes the pilot's 3/10 =
+0.300 at the 512-token cap, so the 768 cap remains validated. The rate has
+drifted up from 1/24 = 0.042 at 61 problems as harder MATH problems arrived.
+That drift was the thing to watch, and it has not reached the point of changing
+the decision. **The cap stays at 768.**
 
 ```powershell
 # resumes per problem; safe to run after any interruption
@@ -212,6 +269,12 @@ intends. Record count and progress-line count agree at 116.
 ```
 
 ### The slowdown, diagnosed
+
+*Written 09:49 on 2026-10-12, when the run was at 116. Its ETA of ~54 h and its
+"101–116" row describe launch 2 only; launch 3 later recovered most of the
+throughput (table above), which is consistent with the diagnosis below — the
+cause was the machine's memory state — and is the reason the ETA no longer
+stands. The diagnosis itself is unchanged.*
 
 Per-problem medians across the run, from its own log:
 
@@ -591,7 +654,7 @@ CPU-only and cheap.
 | [#4](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/4) download the checkpoints, run the verbaliser | **closed** — F8 cosine 0.987, integrity 0.976; the D2 threat is measured |
 | [#5](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/5) decide the MATH token cap | **closed** — 768 chosen and validated; `n_math` kept at 100 |
 | [#6](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/6) grow the corpus for the supervised analyses | open — the main run unblocks it; `mlcorpus` is redundant, not rehabilitated |
-| [#7](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/7) run the main experiment, write the report | open — in progress, **116/250**, throughput degraded (§5) |
+| [#7](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/7) run the main experiment, write the report | open — in progress, **157/250**, relaunched 2026-10-14 20:20; throughput history in §5 |
 | [#8](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/8) validate the direction interventions on GPU | open — blocked on VRAM; acceptance criteria now enforced in code, not just listed |
 | [#9](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/9) graded score for the agreement rule | open — done and verified at 100 traces; the exact post-trace check is in §7 |
 | [#11](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/11) RQ3 dependent variable | open — **premise reversed by D41**; the construct *is* registered and `continuation_tokens` is ruled out. Retitle to "RQ3 is unevaluable on this model" |
