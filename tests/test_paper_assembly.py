@@ -100,6 +100,12 @@ class TestDraftingNotesDoNotReachTheDocument:
         assert "*Draft." not in markdown
 
 
+needs_review = pytest.mark.skipif(
+    not ap.REVIEW.exists(),
+    reason="Project_Review_II.md is a local working document (gitignored)")
+
+
+@needs_review
 class TestReferences:
     def test_the_bibliography_comes_from_the_review(self):
         refs = ap.references()
