@@ -1246,3 +1246,83 @@ test paired over the problems the arms share, requiring both the right
 direction and `alpha = 0.05`, read at the controls' dose. This is the
 correction D29 made to the primary O3 comparison; the two are now consistent.
 Nothing about this weakens a gate — it replaces no test with a test.
+
+---
+
+## D44. The pilot's analysis predates its own corrections, and q = 0.156 is stale
+
+**The pilot's `analysis` and `report` stages have not been re-run since D38 and
+D41 landed.** Both ran on 2026-10-11 at 12:56 UTC under commit `31a30e3`;
+`0d6d2c8` (D38, zero discordance is a tested null) and `01efa2a` (D41, the RQ3
+family test is paired) were committed the next day. So
+`runs/pilot/analysis/results.json` and `runs/pilot/report/RESULTS.md` are the
+output of the superseded code, and they are what `docs/STATUS.md`, the README
+and the paper drafts quote.
+
+**This is not a reproducibility failure.** Re-deriving the whole O3 comparison
+from `runs/pilot/` through the current code reproduces every stored field
+exactly — safe rates 0.095 and 0.286, four discordant problems of 21 all
+favouring semantic entropy, seven distinct operating points, a budget gap of
+0.00998, and the conditional-exact interval [−0.190, 0.039]. The artifacts are
+sound. What has changed is what the code *makes of* them.
+
+**One stored value differs, and it moves the family.** The probe comparison has
+zero discordant problems. The old code returned `nan` there and marked itself
+skipped; D38 established that this is the null holding exactly, so the exact
+conditional p-value is 1.0 and the test belongs in the denominator. With it,
+`m` goes from 5 to 6:
+
+| test | p | q as stored (m = 5) | q under the current code (m = 6) |
+|---|---|---|---|
+| RQ2: deletion minus paraphrase | 1.8e-119 | 9.0e-119 | 1.1e-118 |
+| F10: tail vs gaussian_control | 1.4e-34 | 3.4e-34 | 4.1e-34 |
+| F10: tail vs matched_position | 0.0138 | **0.0229** | **0.0275** |
+| **O3: readout vs semantic entropy** | 0.125 | **0.1562** | **0.1875** |
+| F10: tail vs matched_length | 0.372 | 0.372 | 0.446 |
+| O3: readout vs probe | — / 1.0 | *(absent)* | 1.000 |
+
+**No conclusion changes.** Three tests are significant either way, the primary
+comparison is non-significant either way, and its direction is unchanged. What
+changes is the number: **the primary comparison's q is 0.1875, not 0.156**, and
+F10's position control is 0.0275 rather than 0.0229. The RQ3 family test in the
+stored file is also still the unpaired Mann-Whitney over 60 rows that D41
+replaced, and `summarise_tests`'s newer fields — `bh_family_size`,
+`n_planned_but_unevaluable`, `q_values_at_planned_family_size` — are absent, so
+the D38 sensitivity cannot be read off the run at all.
+
+**What has to happen.** Re-run the two stages. They are CPU-only, read only
+saved artifacts, and take seconds:
+
+```powershell
+.venv\Scripts\python.exe scripts\aggregate_results.py --config pilot --force
+.venv\Scripts\python.exe scripts\write_run_report.py --config pilot --force
+.venv\Scripts\python.exe scripts\check_run_consistency.py --run runs\pilot
+```
+
+Then update the q-values in `docs/STATUS.md`, `README.md` and
+`paper/`. **Until that is done, every published q from the pilot is the stale
+one**, and this record is the authority on what the correct values are. They
+are not edited into the documents here, because a number in a document should
+be the one an artifact holds, not one computed in a decision record.
+
+The `baselines`, `robustness` and `report` stages are flagged by the same check
+but are **inconclusive rather than stale**: each ran from a dirty tree, so it
+may have run with the code that later became the commits that touch it. Git
+cannot distinguish that from having run with older code. Re-running them costs
+nothing and settles it.
+
+### Why this needed a tool
+
+Nothing in the run said so. The manifest records the commit per stage and the
+analysis records its p-values, so both halves of the evidence were on disk and
+neither was being read. `scripts/check_run_consistency.py` now reads them: it
+re-derives the summaries from the artifacts, recomputes the q-values from the
+stored p-values, enforces D38's invariant directly, diffs the report's prose
+against the analysis, and asks git whether each stage's code has moved since
+the stage ran. On the pilot it reports exactly one numeric mismatch — the
+probe comparison's p-value — which is the finding above, reached from the
+artifacts rather than from the history.
+
+The main run should be checked with it before any of its numbers are quoted.
+Its `traces` stage began under `ea82fa845911b70f` on 2026-10-11, so the same
+drift is possible there by the time it finishes.

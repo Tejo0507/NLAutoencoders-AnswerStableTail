@@ -33,6 +33,28 @@ weight a positive result would have had.
 > the same data give q = 0.156. See [`DECISIONS.md`](DECISIONS.md) D29. The
 > direction of every claim below is unchanged; the strength is not.
 
+> **The q-values below are stale and the primary one is 0.1875, not 0.156.**
+> The pilot's `analysis` and `report` stages last ran on 2026-10-11 under
+> commit `31a30e3`, before D38 and D41 were committed. Every number in them
+> re-derives exactly from the artifacts — the run is reproducible — but D38
+> makes the probe comparison a tested null at `p = 1.0`, which takes the
+> Benjamini–Hochberg family from five evaluable tests to six and moves every
+> q-value: the primary comparison to **0.1875** and F10's position control to
+> **0.0275** from 0.0229. No conclusion changes, three tests remain
+> significant, and the primary comparison is non-significant either way.
+> **Re-run the two stages** — they are CPU-only and take seconds — then update
+> the numbers here, in the README and in `paper/`:
+>
+> ```powershell
+> .venv\Scripts\python.exe scripts\aggregate_results.py --config pilot --force
+> .venv\Scripts\python.exe scripts\write_run_report.py --config pilot --force
+> .venv\Scripts\python.exe scripts\check_run_consistency.py --run runs\pilot
+> ```
+>
+> [`DECISIONS.md`](DECISIONS.md) D44 holds the full table and the evidence.
+> `check_run_consistency.py` is what found it and is what to run on the main
+> run before quoting any of its numbers.
+
 ---
 
 ## 1. What ran, with its result
@@ -429,6 +451,16 @@ and AR reached through junctions to `E:`), so `models` is already a no-op.
 ---
 
 ## 7. What to watch on a larger run
+
+**Run the consistency check first, then read this list.** Most of what follows
+is a field to look up; `scripts/check_run_consistency.py --run runs/main` looks
+up the mechanical half of it for you — it re-derives each summary from the
+artifacts it came from, recomputes every q-value from the stored p-values,
+enforces the invariants D38 and D43 argue for, diffs the report's prose against
+the analysis, and asks git whether any stage's code has moved since the stage
+ran. It is read-only and CPU-only, so it is safe to run mid-generation. Exit
+code 1 means something below needs reading. What it cannot judge is in this
+list.
 
 - **Verbaliser integrity.** The `nla` stage logs `ok=N/M well-formed English`.
   It held at 0.976 here; below 50% it logs an error and the arm should be
