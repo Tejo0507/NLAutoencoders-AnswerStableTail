@@ -1288,3 +1288,70 @@ None of the three changes a number already published for the pilot: the
 median agrees at odd `n`, and the other two add fields rather than redefining
 the ones that exist. What changes is that the main run cannot report them
 under the wrong name.
+
+---
+
+## D43. A head-to-head must be run on the other rule's own scores
+
+`decisions_at` decides where a rule fires by reading `row['scores']`, so the
+matched-budget comparison needs the other rule's **per-problem scores**, not
+merely its curve. The loop guarded on the curve and fell back to the NLA
+readout's rows when a rule had no re-swept ones:
+
+```python
+other_dec = decisions_at(restricted_rows.get(other, []) or nla_rows, ...)
+```
+
+That applies the baseline's threshold to the readout's own cosines and reports
+the result as a McNemar test between the two rules — a comparison of the
+readout with itself, labelled as a head-to-head, with a real p-value and no
+warning.
+
+**It is reachable per rule.** `baseline_curves_on` omits a rule that has no
+usable score on the problems the NLA arm covers while keeping the others, so a
+baseline scored corpus-wide but not on that subset — semantic entropy needs
+sampled continuations, and the probe needs activations — takes the fallback
+while its neighbours do not. It is also taken for every rule when the re-sweep
+returns nothing at all, which is the `full_corpus` basis.
+
+**No published number came from it.** All three rules were re-swept on the
+pilot (`rules_resswept` has three entries), and re-deriving the whole
+comparison from `runs/pilot/` through the corrected code reproduces every
+stored field exactly — safe rates, discordant counts, operating points, budget
+gaps and the conditional-exact intervals. The one difference is the probe
+comparison's p-value, and that is D38 rather than this (see D44).
+
+The comparison is now refused when the rule's own rows are absent, and
+recorded in `o3_unmatched` with `per_problem_scores_available: false` — an
+absent comparison rather than a tested null, so it carries no p-value and does
+not enter the BH denominator.
+
+### Two things fixed alongside it
+
+**The unevaluability diagnostics described a different corpus.** The reason
+text and `granularity_limited` were read from `curve_resolution`, which
+`score_baselines` writes over the **whole** corpus, while the comparison runs
+on the problems the NLA arm covers. The scopes differ: on the pilot the probe
+takes 272 distinct score values corpus-wide and 203 on those 21 problems, and
+semantic entropy 6 against 5. For convergence — the one rule actually
+unmatched on the pilot — they coincide at 7, which is why the stored record is
+unchanged and D37b's reading of it still stands. The diagnostics are now
+computed from the rows compared, tagged with `diagnostics_basis` and
+`n_problems_compared`, and the corpus-wide figures are kept beside them under
+`full_corpus_resolution`.
+
+**Each arm's own sample count is now recorded.** The test runs on the
+intersection of the two arms' problems, so a problem covered by only one arm
+was dropped silently and showed up only as a smaller `n_problems`.
+`n_problems_nla_arm`, `n_problems_<rule>_arm` and `n_problems_shared` make the
+loss visible.
+
+### Why the comparison was extracted from `main`
+
+It had no test of its own — it was inline in the analysis stage, so exercising
+it needed a run directory, and the only thing that ran it was the integration
+test. It is now `o3_head_to_head`, a function of its inputs, with the branches
+above pinned by unit tests: the refusal, the recorded sample counts, the
+discordant accounting, the scope of the diagnostics, and that repeating a
+budget does not multiply the evidence. The body is unchanged apart from the
+fixes named here, and the pilot reproduction above is the evidence.
