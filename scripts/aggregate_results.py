@@ -220,26 +220,69 @@ def nla_stopping_curve(cfg, log):
     if not recon:
         return None, {"available": False, "reason": "no reconstructions"}, []
 
+    # Two exclusions, both counted, and they are not the same kind. The
+    # Gaussian control is dropped by design - it is the noise arm. The
+    # integrity gate drops samples whose verbalisation is not well-formed
+    # English, and the arm's score is a mean over what survives it, so a rate
+    # that moves between runs changes what the number is a mean of.
+    #
+    # Recording only the surviving problem count hid both. The pilot excludes
+    # 132 of 378 samples here while `n_problems` stays at 21 - a problem keeps
+    # its remaining samples - and nothing said whether those 132 were 126
+    # controls and 6 gate failures (they are, a 2.4% gate rate matching the
+    # nla stage's own 0.976) or something closer to a compromised arm.
     by_problem: dict[str, dict[int, list[float]]] = {}
+    excluded = {"gaussian_control": 0, "integrity_failed": 0}
     for r in recon:
-        if r["window_kind"] == "gaussian_control" or not r.get("integrity_ok"):
+        if r["window_kind"] == "gaussian_control":
+            excluded["gaussian_control"] += 1
+            continue
+        if not r.get("integrity_ok"):
+            excluded["integrity_failed"] += 1
             continue
         by_problem.setdefault(r["problem_id"], {}).setdefault(
             int(r["chunk_index"]), []).append(float(r["cosine"]))
+    used = sum(len(v) for per in by_problem.values() for v in per.values())
+    exclusions = {
+        "n_samples_total": len(recon),
+        "n_samples_used": used,
+        "n_samples_excluded_as_control": excluded["gaussian_control"],
+        "n_samples_excluded_by_integrity_gate": excluded["integrity_failed"],
+        "integrity_exclusion_rate": (
+            excluded["integrity_failed"]
+            / (len(recon) - excluded["gaussian_control"])
+            if len(recon) - excluded["gaussian_control"] else 0.0),
+        "note": ("the Gaussian control is excluded by design - it is the noise "
+                 "arm, not a readout; the integrity gate excludes samples "
+                 "whose verbalisation is not well-formed English, so the score "
+                 "is a mean over what survived both"),
+    }
     if not by_problem:
-        return None, {"available": False, "reason": "no usable reconstructions"}, []
+        return None, {"available": False, "reason": "no usable reconstructions",
+                      "exclusions": exclusions}, []
+    if exclusions["integrity_exclusion_rate"] > 0.25:
+        log.warning("NLA stopping arm: the integrity gate excluded %.1f%% of "
+                    "activation-driven samples (%d of %d); the arm's score is "
+                    "a mean over the remainder and should be read with the "
+                    "nla stage's own integrity rate",
+                    100 * exclusions["integrity_exclusion_rate"],
+                    excluded["integrity_failed"],
+                    len(recon) - excluded["gaussian_control"])
 
     traces = {t["problem_id"]: t for t in read_jsonl(cfg.dir / "traces" / "traces.jsonl")
               if t.get("ok")}
     per_problem = []
+    dropped_no_trace, dropped_no_chunks = [], []
     for pid, per_chunk in by_problem.items():
         t = traces.get(pid)
         if t is None:
+            dropped_no_trace.append(pid)
             continue
         chunks = [Chunk(**{k: c[k] for k in ("index", "text", "char_start",
                                              "char_end", "token_end", "prefix_tokens")})
                   for c in t.get("chunks", [])]
         if not chunks:
+            dropped_no_chunks.append(pid)
             continue
         n = len(chunks)
         scores: list[float | None] = [None] * n
@@ -267,15 +310,31 @@ def nla_stopping_curve(cfg, log):
             "total_tokens": int(t.get("n_tokens", 0)),
         })
 
+    # A problem with reconstructions but no usable trace row cannot be scored.
+    # It is an exclusion like the others and is named, not merely subtracted:
+    # these are the problems the arm covers on paper and not in the comparison.
+    exclusions["n_problems_with_usable_samples"] = len(by_problem)
+    exclusions["n_problems_scored"] = len(per_problem)
+    exclusions["problems_dropped_no_usable_trace"] = sorted(dropped_no_trace)
+    exclusions["problems_dropped_no_chunks"] = sorted(dropped_no_chunks)
+    if dropped_no_trace or dropped_no_chunks:
+        log.warning("NLA stopping arm: %d of %d problems with usable samples "
+                    "could not be scored (%d without a usable trace row, %d "
+                    "without chunks)", len(by_problem) - len(per_problem),
+                    len(by_problem), len(dropped_no_trace),
+                    len(dropped_no_chunks))
+
     vals = [s for row in per_problem for s in row["scores"]
             if s is not None and np.isfinite(s)]
     if not vals:
-        return None, {"available": False, "reason": "no finite NLA scores"}, []
+        return None, {"available": False, "reason": "no finite NLA scores",
+                      "exclusions": exclusions}, []
     curve = sweep_threshold(per_problem, complete_threshold_grid(vals),
                             higher_fires=True)
     info = {"available": True, "n_problems": len(per_problem),
             "problem_ids": sorted(row["problem_id"] for row in per_problem),
             "score": "mean reconstruction cosine at the boundary, carried forward",
+            "exclusions": exclusions,
             "curve_resolution": {
                 "n_distinct_scores": len({float(v) for v in vals}),
                 "max_operating_points_at_any_n": granularity_bound(vals),
