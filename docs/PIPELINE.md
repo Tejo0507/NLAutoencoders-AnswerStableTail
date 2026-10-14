@@ -212,6 +212,39 @@ touching a model. **Writes** `report/RESULTS.md`, `report/figures/*.png`,
 
 ---
 
+## Auditing a finished run — `check_run_consistency.py`
+
+Not a stage. Read-only, CPU-only, no model: safe to run while another run is
+still generating. Run it after `report`, and before quoting a number anywhere.
+
+```powershell
+.venv\Scripts\python.exe scripts\check_run_consistency.py --run runs\main
+```
+
+It asks four questions, in increasing order of what they can catch:
+
+1. **Does the analysis agree with the artifacts it came from?** Re-derives the
+   `ast` summary from `ast.jsonl`, the faithfulness headline from
+   `audits.jsonl`, the reconstruction table from `reconstructions.jsonl`, and
+   the NLA arm's exclusion accounting from its own sample counts.
+2. **Does the analysis agree with itself?** Recomputes every BH q-value from
+   the stored p-values, checks the family counts, and enforces the invariants
+   `DECISIONS.md` argues for — that zero discordant problems carries `p = 1.0`
+   (D38), that an unevaluable comparison carries no q-value, that a stated
+   direction follows from the rates, and that a p-value comes with an interval.
+3. **Does the report's prose agree with the analysis?** Parses the headline
+   figures and the primary verdict table out of `RESULTS.md` and diffs them.
+4. **Do the artifacts predate the code that produced them?** The manifest
+   records the commit each stage ran under, so git can say whether that stage's
+   code has since changed. A stage that ran from a dirty tree is reported as
+   inconclusive rather than stale, because git cannot tell whether it ran with
+   the code that later became those commits.
+
+Exit code 0 when every check passes, 1 on any numeric disagreement. Missing
+fields from an older run are warnings, not failures.
+
+---
+
 ## Supplementary stages — the supervised analyses
 
 Deliberately **not** members of `stages:` in any config, and not reachable from
