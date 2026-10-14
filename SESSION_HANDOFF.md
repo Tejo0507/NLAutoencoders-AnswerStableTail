@@ -8,6 +8,92 @@ the science.
 
 ---
 
+## 0. Update — 2026-10-15: the analysis audit
+
+**Added after the sections below, which are kept as written.** Six branches
+merged to `main` through pull requests #13–#19; `traces` was not touched and
+advanced from 157 to 177 of 250 under the same process (PID 4192) throughout.
+Test suite **582 → 665 passing** (`-m "not slow and not integration"`); the
+GPU tests were not run, and nothing in these changes touches a GPU path.
+
+### The one thing to act on
+
+**`runs/pilot/analysis/results.json` and `report/RESULTS.md` predate D38 and
+D41, so the pilot's published q-values are stale.** The primary comparison's q
+is **0.1875, not 0.156**; F10's position control is 0.0275, not 0.0229. No
+conclusion changes — three tests significant either way, the primary
+comparison non-significant either way, direction unchanged. The run itself is
+sound: every stored field re-derives exactly from the artifacts. What changed
+is that D38 makes the probe comparison a tested null at `p = 1.0`, taking the
+BH family from five evaluable tests to six.
+
+Re-run the two stages — CPU-only, seconds, no GPU — then propagate the numbers
+to `docs/STATUS.md`, `README.md` and `paper/`:
+
+```powershell
+.venv\Scripts\python.exe scripts\aggregate_results.py --config pilot --force
+.venv\Scripts\python.exe scripts\write_run_report.py --config pilot --force
+.venv\Scripts\python.exe scripts\check_run_consistency.py --run runs\pilot
+```
+
+This session did **not** do it: `runs/` was out of its scope. The full table
+and the evidence are in [`docs/DECISIONS.md`](docs/DECISIONS.md) **D44**, and
+the top of `docs/STATUS.md` carries the warning.
+
+### Defects found and fixed
+
+All four were found by recomputing a stored number from the artifact it came
+from, rather than by reading prose. Decision records **D42–D44**.
+
+| | what was wrong | published number affected |
+|---|---|---|
+| `median_tail_fraction` | the upper of the two central values at even `n`, not a median | none (pilot's tailed count is 21, odd); would have hit the main run |
+| `tail_token_share` | labelled "share of all generated tokens"; divides by the tokens of **tailed traces only**, and the untailed ones are the truncated and therefore longest | 31.7% → **25.2%** over the whole corpus; both now reported |
+| `mean_gap_chunks` | signed, so early and late cancel, printed as "mean gap" | the agreement rule fires earlier by **5.5** chunks, not 2.43 |
+| the O3 head-to-head | fell back to the NLA readout's own rows when a baseline had no re-swept rows — the readout compared with itself, with a real p-value | none; all three rules were re-swept on the pilot |
+
+Also: the unevaluability diagnostics quoted corpus-wide score resolution to
+explain a failure on the NLA problem set (272 distinct probe scores against
+203); each arm's own problem count was not recorded, so a problem only one arm
+covered vanished into a smaller `n`; and the NLA stopping arm's exclusions
+were uncounted — the pilot drops 132 of 378 samples there, which reads as
+alarming until it is split into 126 controls and 6 gate failures.
+
+### Three read-only auditors added
+
+All CPU-only, no model, safe to run mid-generation.
+
+- **`scripts/check_run_consistency.py --run runs/main`** — run this before
+  quoting any number from the main run. Re-derives each summary from its
+  artifacts, recomputes every q-value from the stored p-values, enforces
+  D38's and D43's invariants, diffs the report's prose and primary verdict
+  table against the analysis, and asks git whether a stage's code has moved
+  since the stage ran. Exit 1 on disagreement. It is what found D44.
+- **`scripts/measure_rq3_readout_floor.py`** — RQ3's readout floor at
+  **200 traces**: 1 marker-bearing trace, rate 0.0050, CI [0.0001, 0.0275],
+  projecting to 0.30 marker-bearing problems in the 60-problem arm and 1.65
+  at the interval's top end against `MIN_PAIRS` = 3. **The projection has
+  moved against the readout as the corpus grew** (2.35 → 1.65 at the upper
+  bound), which is the sharpest form of "more data will not help": each clean
+  trace lowers the bound. §9 below and D41 are updated.
+- **`scripts/assemble_paper.py`** — the report as one submission document,
+  with the Abstract, Results and Discussion written in as named placeholders
+  rather than omitted. Exit 2 while anything is pending. Surfaced that the
+  bibliography holds 27 entries rather than 26, and that `[27]` is cited by no
+  drafted section.
+
+### Still blocked, and on what
+
+Unchanged by this session, and nothing here can unblock them:
+
+- **everything downstream of `traces`** — the run is at 177 of 250
+- **the causal GPU validation** ([#8](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/issues/8)) — needs the VRAM `traces` holds
+- **the convergence head-to-head** — needs `baselines` and `nla` on `main`
+- **F8** — needs a 15.3 GB download the user has not authorised
+- **Results, Discussion, Abstract** — need the main run
+
+---
+
 ## 1. One-line state
 
 **The analysis corrections are merged to `main`.** Nineteen files, 2820
