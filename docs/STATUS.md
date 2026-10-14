@@ -1,13 +1,20 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-12.
+Last reviewed 2026-10-14.
 
-**Main run in progress: 116 of 250 traces** as of 09:49 on 2026-10-12, 0
-failures, 0 malformed, 0 duplicates. Throughput degraded sharply after a
-restart at 02:48 — see [`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) §5 for the
-diagnosis and the two things that would restore it. Everything downstream of
-`traces` is blocked on it.
+**Main run in progress: 157 of 250 traces** as of 20:21 on 2026-10-14, 0
+failures, 0 unparseable records, 0 duplicates (94 GSM8K / 63 MATH). The run had
+stopped and was relaunched at 20:20; it resumed from problem 158. Throughput
+varied sharply across launches — GSM8K medians of 5.1, 20.6 and 9.5 minutes —
+and the cause is the machine's memory state rather than anything in the code or
+data; see [`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) §5 for the launch
+history and the time-remaining range. Everything downstream of `traces` is
+blocked on it.
+
+MATH truncation at the 768-token cap is **5 of 63 (0.079, 95% CI [0.026,
+0.176])**, against the pilot's 3 of 10 at 512 tokens; the upper bound still
+excludes the pilot's 0.300, so the cap stands.
 
 **One-line status:** the pilot has run **to completion** — all thirteen
 stages on all 24 configured problems, including the released autoencoder,
@@ -102,7 +109,9 @@ so forcing an answer from it reproduces the final answer and continuations from
 it restate the same answer: both criteria are close to tautological there. The
 quantity that carries information is how *much* of the trace the tail covers:
 mean tail fraction **0.356** (median 0.308, range 0.15–0.62), and tail tokens
-are **31.7%** of all generated tokens. No tail is trivial.
+are **31.7%** of the tokens generated in traces that *have* a tail — **25.2%**
+of all generated tokens, since the three traces without a tail are the three
+that hit the generation cap and so are the longest. No tail is trivial.
 
 The three problems without a tail are exactly the three traces that hit the
 512-token cap, where the "final" answer is not final. That is the token-cap
@@ -131,8 +140,9 @@ same prefix reached the final answer. 19 of 24 problems are affected.
 
 So the detected tail is a floor. Counting those boundaries as satisfying
 criterion 1 gives the other end: mean tail fraction **0.356 → 0.486**, tail
-token share **31.7% → 46.3%**. The relaxed figure is not the pre-registered
-criterion and is reported only as the upper end of the interval.
+token share **31.7% → 45.0%** (both over the same 21 tailed traces). The
+relaxed figure is not the pre-registered criterion and is reported only as the
+upper end of the interval.
 
 ### The hidden-state probe is largely reading position
 
@@ -283,8 +293,11 @@ verified outcome.
 
 ### Also measured
 
-- **The cheap agreement rule fires earlier than the AST on 57.1% of problems**
-  (mean gap 2.43 chunks), later on 38.1%. Mo et al.'s concern, quantified on
+- **The cheap agreement rule fires earlier than the AST on 57.1% of problems**,
+  by **5.5 chunks** where it does, and later on 38.1% by 1.88. The net signed
+  gap is 2.43 chunks, in which the two directions cancel — it is the figure
+  previously quoted here as "mean gap" and it understates the early case by
+  more than half. Mo et al.'s concern, quantified on
   this run's own traces. Sweeping the agreement window shows how much that
   depends on its parameter: at window 1 it fires earlier on *every* problem by
   6.43 chunks; at window 3 it fires on only 14 of 24 and later on 73%.
