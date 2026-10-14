@@ -173,8 +173,17 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
               f"median {_fmt(rq1.get('median_tail_fraction'))}, range "
               f"{_fmt(rq1.get('min_tail_fraction'), 2)}-"
               f"{_fmt(rq1.get('max_tail_fraction'), 2)} of chunks")
-            A(f"- tail tokens as a share of all generated tokens: "
-              f"**{_fmt(rq1.get('tail_token_share'))}**")
+            # Two denominators, named. The headline share divides by the
+            # tokens generated in traces that *have* a tail; the traces
+            # without one are the truncated ones and so the longest, which
+            # makes the whole-corpus share materially lower. Printing one of
+            # them under the other's name reads as a stronger result than the
+            # data supports.
+            A(f"- tail tokens as a share of the tokens generated in traces "
+              f"that have a tail: **{_fmt(rq1.get('tail_token_share'))}**"
+              + (f"; as a share of all generated tokens, including the traces "
+                 f"with no tail: **{_fmt(rq1.get('tail_token_share_all_traces'))}**"
+                 if rq1.get("tail_token_share_all_traces") is not None else ""))
             A(f"- mean tail length: {_fmt(rq1.get('mean_tail_tokens'), 1)} tokens")
         A("")
         fab = rq1.get("forced_answer_budget")
@@ -206,9 +215,15 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
                   f"the upper end of the interval. Mean tail fraction: "
                   f"**{_fmt(rq1.get('mean_tail_fraction'))}** as detected, "
                   f"**{_fmt(relaxed.get('mean_tail_fraction'))}** relaxed. "
-                  f"Tail share of generated tokens: "
-                  f"**{_fmt(rq1.get('tail_token_share'))}** to "
-                  f"**{_fmt(relaxed.get('tail_token_share'))}**.")
+                  f"Tail share of the tokens generated in traces that have a "
+                  f"tail: **{_fmt(rq1.get('tail_token_share'))}** to "
+                  f"**{_fmt(relaxed.get('tail_token_share'))}**"
+                  + (f" (on {relaxed.get('n_with_tail')} tailed traces against "
+                     f"{rq1.get('n_with_tail')} as detected, so the two ends "
+                     f"do not share a denominator)"
+                     if (relaxed.get("n_with_tail") is not None
+                         and relaxed.get("n_with_tail") != rq1.get("n_with_tail"))
+                     else "") + ".")
                 A("")
                 A("The relaxed figure is not the pre-registered criterion and "
                   "is reported only as the other end of the interval. Every "
@@ -251,10 +266,21 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A("")
         cva = rq1.get("convergence_vs_ast")
         if cva:
+            # The gap is reported in magnitudes per direction, not as the
+            # signed mean. The signed mean is the net offset and earlier and
+            # later cancel in it, so printing it beside the earlier/later
+            # shares invites it to be read as "how far early".
+            earlier_by = cva.get("mean_gap_when_earlier")
+            later_by = cva.get("mean_gap_when_later")
             A(f"The cheap agreement rule fires **earlier** than the AST on "
-              f"{_fmt(cva['convergence_earlier'])} of problems, at the same point on "
-              f"{_fmt(cva['same'])}, and later on {_fmt(cva['convergence_later'])} "
-              f"(mean gap {_fmt(cva['mean_gap_chunks'], 2)} chunks). This is the "
+              f"{_fmt(cva['convergence_earlier'])} of problems"
+              + (f", by {_fmt(earlier_by, 2)} chunks where it does"
+                 if earlier_by is not None else "")
+              + f", at the same point on {_fmt(cva['same'])}, and later on "
+              f"{_fmt(cva['convergence_later'])}"
+              + (f" by {_fmt(later_by, 2)} chunks" if later_by is not None else "")
+              + f". The net signed gap is {_fmt(cva['mean_gap_chunks'], 2)} "
+              f"chunks, in which the two directions cancel. This is the "
               f"quantitative form of the concern Mo et al. raise about consensus "
               f"stopping, measured on this run's own traces.")
             A("")
