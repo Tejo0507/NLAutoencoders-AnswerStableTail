@@ -87,7 +87,9 @@ so forcing an answer from it reproduces the final answer and continuations from
 it restate the same answer: both criteria are close to tautological there. The
 quantity that carries information is how *much* of the trace the tail covers:
 mean tail fraction **0.356** (median 0.308, range 0.15–0.62), and tail tokens
-are **31.7%** of all generated tokens. No tail is trivial.
+are **31.7%** of the tokens generated in traces that *have* a tail — **25.2%**
+of all generated tokens, since the three traces without a tail are the three
+that hit the generation cap and so are the longest. No tail is trivial.
 
 The three problems without a tail are exactly the three traces that hit the
 512-token cap, where the "final" answer is not final. That is the token-cap
@@ -116,8 +118,9 @@ same prefix reached the final answer. 19 of 24 problems are affected.
 
 So the detected tail is a floor. Counting those boundaries as satisfying
 criterion 1 gives the other end: mean tail fraction **0.356 → 0.486**, tail
-token share **31.7% → 46.3%**. The relaxed figure is not the pre-registered
-criterion and is reported only as the upper end of the interval.
+token share **31.7% → 45.0%** (both over the same 21 tailed traces). The
+relaxed figure is not the pre-registered criterion and is reported only as the
+upper end of the interval.
 
 ### The hidden-state probe is largely reading position
 
@@ -268,8 +271,11 @@ verified outcome.
 
 ### Also measured
 
-- **The cheap agreement rule fires earlier than the AST on 57.1% of problems**
-  (mean gap 2.43 chunks), later on 38.1%. Mo et al.'s concern, quantified on
+- **The cheap agreement rule fires earlier than the AST on 57.1% of problems**,
+  by **5.5 chunks** where it does, and later on 38.1% by 1.88. The net signed
+  gap is 2.43 chunks, in which the two directions cancel — it is the figure
+  previously quoted here as "mean gap" and it understates the early case by
+  more than half. Mo et al.'s concern, quantified on
   this run's own traces. Sweeping the agreement window shows how much that
   depends on its parameter: at window 1 it fires earlier on *every* problem by
   6.43 chunks; at window 3 it fires on only 14 of 24 and later on 73%.

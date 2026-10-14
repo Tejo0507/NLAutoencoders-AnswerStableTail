@@ -1246,3 +1246,45 @@ test paired over the problems the arms share, requiring both the right
 direction and `alpha = 0.05`, read at the controls' dose. This is the
 correction D29 made to the primary O3 comparison; the two are now consistent.
 Nothing about this weakens a gate — it replaces no test with a test.
+
+---
+
+## D42. Three RQ1 summary statistics did not mean what they were called
+
+Found by recomputing `ast/summary.json` from `ast/ast.jsonl` rather than
+reading the prose. Every other field in that summary reproduced exactly; these
+three did not, and two of them are quoted in the README and in
+[`STATUS.md`](STATUS.md).
+
+**`median_tail_fraction` was not a median.** It was `sorted(fr)[len(fr) // 2]`,
+the *upper* of the two central values at even `n`. On the pilot's 21 tailed
+problems that coincides with the median, so the error was invisible; at 250
+problems the tailed count is as likely to be even as odd. It is now
+`statistics.median`, which is what every other median in the codebase already
+used.
+
+**`tail_token_share` has two denominators and only one was reported.** It
+divides the tail's tokens by the tokens generated in traces that *have* a
+tail. That is the right denominator for "how much of a tailed trace is tail",
+and it is not the share of all generated tokens — which is how the report, the
+README and `STATUS.md` all described it. The traces without a tail are not a
+random sample: they are the ones that hit the generation cap, so they are the
+longest. On the pilot the two are 1885/5943 = **0.317** and 1885/7479 =
+**0.252**. Both are now computed, named and printed, so neither can be read as
+the other. The relaxed-budget interval also now says when its two ends do not
+share a denominator.
+
+**`mean_gap_chunks` is signed, and was printed as a gap.** Earlier and later
+cancel in it. On the pilot the agreement rule fires earlier than the AST on
+57.1% of problems — by **5.5 chunks** where it does — and later on 38.1% by
+1.88; the signed mean of 2.43 was the figure quoted as "mean gap", and it
+understates the early case by more than half. The summary now carries
+`mean_abs_gap_chunks`, `mean_gap_when_earlier` and `mean_gap_when_later`, and
+the report names which one it is stating. This matters because the sentence it
+appears in is the study's own quantification of Mo et al.'s concern about
+consensus stopping, so understating the gap understates the concern.
+
+None of the three changes a number already published for the pilot: the
+median agrees at odd `n`, and the other two add fields rather than redefining
+the ones that exist. What changes is that the main run cannot report them
+under the wrong name.
