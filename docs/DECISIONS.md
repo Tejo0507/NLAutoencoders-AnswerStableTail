@@ -1246,3 +1246,112 @@ test paired over the problems the arms share, requiring both the right
 direction and `alpha = 0.05`, read at the controls' dose. This is the
 correction D29 made to the primary O3 comparison; the two are now consistent.
 Nothing about this weakens a gate — it replaces no test with a test.
+
+---
+
+## D42. Three RQ1 summary statistics did not mean what they were called
+
+Found by recomputing `ast/summary.json` from `ast/ast.jsonl` rather than
+reading the prose. Every other field in that summary reproduced exactly; these
+three did not, and two of them are quoted in the README and in
+[`STATUS.md`](STATUS.md).
+
+**`median_tail_fraction` was not a median.** It was `sorted(fr)[len(fr) // 2]`,
+the *upper* of the two central values at even `n`. On the pilot's 21 tailed
+problems that coincides with the median, so the error was invisible; at 250
+problems the tailed count is as likely to be even as odd. It is now
+`statistics.median`, which is what every other median in the codebase already
+used.
+
+**`tail_token_share` has two denominators and only one was reported.** It
+divides the tail's tokens by the tokens generated in traces that *have* a
+tail. That is the right denominator for "how much of a tailed trace is tail",
+and it is not the share of all generated tokens — which is how the report, the
+README and `STATUS.md` all described it. The traces without a tail are not a
+random sample: they are the ones that hit the generation cap, so they are the
+longest. On the pilot the two are 1885/5943 = **0.317** and 1885/7479 =
+**0.252**. Both are now computed, named and printed, so neither can be read as
+the other. The relaxed-budget interval also now says when its two ends do not
+share a denominator.
+
+**`mean_gap_chunks` is signed, and was printed as a gap.** Earlier and later
+cancel in it. On the pilot the agreement rule fires earlier than the AST on
+57.1% of problems — by **5.5 chunks** where it does — and later on 38.1% by
+1.88; the signed mean of 2.43 was the figure quoted as "mean gap", and it
+understates the early case by more than half. The summary now carries
+`mean_abs_gap_chunks`, `mean_gap_when_earlier` and `mean_gap_when_later`, and
+the report names which one it is stating. This matters because the sentence it
+appears in is the study's own quantification of Mo et al.'s concern about
+consensus stopping, so understating the gap understates the concern.
+
+None of the three changes a number already published for the pilot: the
+median agrees at odd `n`, and the other two add fields rather than redefining
+the ones that exist. What changes is that the main run cannot report them
+under the wrong name.
+
+---
+
+## D43. A head-to-head must be run on the other rule's own scores
+
+`decisions_at` decides where a rule fires by reading `row['scores']`, so the
+matched-budget comparison needs the other rule's **per-problem scores**, not
+merely its curve. The loop guarded on the curve and fell back to the NLA
+readout's rows when a rule had no re-swept ones:
+
+```python
+other_dec = decisions_at(restricted_rows.get(other, []) or nla_rows, ...)
+```
+
+That applies the baseline's threshold to the readout's own cosines and reports
+the result as a McNemar test between the two rules — a comparison of the
+readout with itself, labelled as a head-to-head, with a real p-value and no
+warning.
+
+**It is reachable per rule.** `baseline_curves_on` omits a rule that has no
+usable score on the problems the NLA arm covers while keeping the others, so a
+baseline scored corpus-wide but not on that subset — semantic entropy needs
+sampled continuations, and the probe needs activations — takes the fallback
+while its neighbours do not. It is also taken for every rule when the re-sweep
+returns nothing at all, which is the `full_corpus` basis.
+
+**No published number came from it.** All three rules were re-swept on the
+pilot (`rules_resswept` has three entries), and re-deriving the whole
+comparison from `runs/pilot/` through the corrected code reproduces every
+stored field exactly — safe rates, discordant counts, operating points, budget
+gaps and the conditional-exact intervals. The one difference is the probe
+comparison's p-value, and that is D38 rather than this (see D44).
+
+The comparison is now refused when the rule's own rows are absent, and
+recorded in `o3_unmatched` with `per_problem_scores_available: false` — an
+absent comparison rather than a tested null, so it carries no p-value and does
+not enter the BH denominator.
+
+### Two things fixed alongside it
+
+**The unevaluability diagnostics described a different corpus.** The reason
+text and `granularity_limited` were read from `curve_resolution`, which
+`score_baselines` writes over the **whole** corpus, while the comparison runs
+on the problems the NLA arm covers. The scopes differ: on the pilot the probe
+takes 272 distinct score values corpus-wide and 203 on those 21 problems, and
+semantic entropy 6 against 5. For convergence — the one rule actually
+unmatched on the pilot — they coincide at 7, which is why the stored record is
+unchanged and D37b's reading of it still stands. The diagnostics are now
+computed from the rows compared, tagged with `diagnostics_basis` and
+`n_problems_compared`, and the corpus-wide figures are kept beside them under
+`full_corpus_resolution`.
+
+**Each arm's own sample count is now recorded.** The test runs on the
+intersection of the two arms' problems, so a problem covered by only one arm
+was dropped silently and showed up only as a smaller `n_problems`.
+`n_problems_nla_arm`, `n_problems_<rule>_arm` and `n_problems_shared` make the
+loss visible.
+
+### Why the comparison was extracted from `main`
+
+It had no test of its own — it was inline in the analysis stage, so exercising
+it needed a run directory, and the only thing that ran it was the integration
+test. It is now `o3_head_to_head`, a function of its inputs, with the branches
+above pinned by unit tests: the refusal, the recorded sample counts, the
+discordant accounting, the scope of the diagnostics, and that repeating a
+budget does not multiply the evidence. The body is unchanged apart from the
+fixes named here, and the pilot reproduction above is the evidence.
