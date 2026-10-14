@@ -1,13 +1,20 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-12.
+Last reviewed 2026-10-14.
 
-**Main run in progress: 116 of 250 traces** as of 09:49 on 2026-10-12, 0
-failures, 0 malformed, 0 duplicates. Throughput degraded sharply after a
-restart at 02:48 — see [`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) §5 for the
-diagnosis and the two things that would restore it. Everything downstream of
-`traces` is blocked on it.
+**Main run in progress: 157 of 250 traces** as of 20:21 on 2026-10-14, 0
+failures, 0 unparseable records, 0 duplicates (94 GSM8K / 63 MATH). The run had
+stopped and was relaunched at 20:20; it resumed from problem 158. Throughput
+varied sharply across launches — GSM8K medians of 5.1, 20.6 and 9.5 minutes —
+and the cause is the machine's memory state rather than anything in the code or
+data; see [`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) §5 for the launch
+history and the time-remaining range. Everything downstream of `traces` is
+blocked on it.
+
+MATH truncation at the 768-token cap is **5 of 63 (0.079, 95% CI [0.026,
+0.176])**, against the pilot's 3 of 10 at 512 tokens; the upper bound still
+excludes the pilot's 0.300, so the cap stands.
 
 **One-line status:** the pilot has run **to completion** — all thirteen
 stages on all 24 configured problems, including the released autoencoder,
