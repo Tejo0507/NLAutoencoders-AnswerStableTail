@@ -193,6 +193,41 @@ def regression_section(run_dir: Path, s: dict) -> list[str]:
     return out
 
 
+def odds_section(odds: pd.DataFrame) -> list[str]:
+    """The odds-ratio table, described as the fit that produced it.
+
+    The unpenalised MLE gives Wald intervals and BH-corrected p-values; the
+    L2-penalised fallback, used only when the MLE fails, gives shrunk point
+    estimates with no interval and no test, and its table has no `q_value`
+    column. This used to select that column unconditionally - and always
+    called the fit "penalised" - so it crashed on exactly the fit it named,
+    and mislabelled the other.
+    """
+    if odds.empty:
+        return []
+    penalised = ("penalised_no_ci" in odds.columns
+                 and bool(odds["penalised_no_ci"].any()))
+    cols = [c for c in ("feature", "odds_ratio", "or_ci_low", "or_ci_high",
+                        "p_value", "q_value", "significant_bh")
+            if c in odds.columns]
+    return [
+        ("Odds ratios from an **L2-penalised** logistic fit on the "
+         "pre-declared interpretable subset. The unpenalised fit did not give "
+         "usable standard errors, so these are shrunk point estimates with "
+         "**no intervals and no tests**: read them as directions, not "
+         "effects. "
+         if penalised else
+         "Odds ratios from the unpenalised logistic fit on the pre-declared "
+         "interpretable subset, with Wald intervals and Benjamini-Hochberg "
+         "q-values. ")
+        + "Features are standardised, so each is the multiplicative change "
+          "in odds of being correct per SD:",
+        "",
+        markdown(odds.head(12)[cols], floatfmt="%.3f"),
+        "",
+    ]
+
+
 def classification_section(run_dir: Path, s: dict) -> list[str]:
     scores = table(run_dir, "classify_correct", "model_scores")
     blocks = table(run_dir, "classify_correct", "block_increments")
@@ -269,17 +304,7 @@ def classification_section(run_dir: Path, s: dict) -> list[str]:
         "Permutation importance as the drop in held-out AUROC.",
         "",
     ]
-    if not odds.empty:
-        out += [
-            "Odds ratios from the penalised logistic fit on the pre-declared "
-            "interpretable subset (standardised features, so each is the "
-            "multiplicative change in odds of being correct per SD):",
-            "",
-            markdown(odds.head(12)[["feature", "odds_ratio", "or_ci_low",
-                                    "or_ci_high", "p_value", "q_value",
-                                    "significant_bh"]], floatfmt="%.3f"),
-            "",
-        ]
+    out += odds_section(odds)
     out += [
         "### 2.5 Leakage check",
         "",

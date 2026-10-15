@@ -585,7 +585,8 @@ def f8_placement(log, gpu_headroom_gib: float = 1.0,
 
 
 def f8_quantisation(cfg, traces, log, subsample: int,
-                    previous: dict | None = None) -> dict:
+                    previous: dict | None = None,
+                    allow_download: bool = False) -> dict:
     """Does 4-bit quantisation move the activations the autoencoder sees?
 
     The released autoencoder was trained on bf16 activations. This study feeds
@@ -616,7 +617,16 @@ def f8_quantisation(cfg, traces, log, subsample: int,
     usable = sorted(usable, key=lambda t: t["problem_id"])[:subsample]
 
     try:
-        src = snapshot(cfg.target.repo_id, cfg.target.revision)
+        # Never download by default. The bf16 target is 15.3 GB, the cache
+        # volume has less than that free, and F8 is in every config's
+        # `enabled_tests` - so a plain `run_falsification_tests.py --config
+        # main` used to start that download whenever no earlier F8 result
+        # existed in the run, which on a fresh run is always. The pilot's
+        # measurement is a property of the checkpoint, not of the corpus, and
+        # is the one the study carries forward (STATUS.md; D20/D24). Pass
+        # `--allow-download` to re-measure deliberately.
+        src = snapshot(cfg.target.repo_id, cfg.target.revision,
+                       local_files_only=not allow_download)
     except Exception as exc:
         # F8 is the only test whose input the pipeline deliberately destroys:
         # the bf16 target has to be evicted to make room for the autoencoders.
@@ -632,7 +642,11 @@ def f8_quantisation(cfg, traces, log, subsample: int,
                                    "checkpoints; this run did not re-measure "
                                    "and did not overwrite it")}
         return {"status": "blocked",
-                "reason": f"bf16 weights unavailable: {exc!r}",
+                "reason": (f"bf16 weights not on disk and --allow-download not "
+                           f"given, so nothing was fetched: {exc!r}"
+                           if not allow_download else
+                           f"bf16 weights unavailable: {exc!r}"),
+                "download_attempted": bool(allow_download),
                 "note": ("the bf16 source was evicted to make room for the "
                          "autoencoder checkpoints; re-running needs a fresh "
                          "15 GB download")}
@@ -824,6 +838,9 @@ def main() -> int:
     p = base_parser(__doc__)
     p.add_argument("--only", nargs="*", default=None,
                    help="run only these tests (e.g. F8_quantisation)")
+    p.add_argument("--allow-download", action="store_true",
+                   help="let F8 download the 15 GB bf16 target if it is not "
+                        "already on disk; without this F8 reports 'blocked'")
     args = p.parse_args()
     cfg, manifest, log = setup(args)
 
@@ -855,7 +872,8 @@ def main() -> int:
         # repeat: its bf16 input is deliberately evicted later in the run.
         "F8_quantisation": lambda: f8_quantisation(
             cfg, traces, log, cfg.robustness.quantisation_subsample,
-            previous=results.get("F8_quantisation")),
+            previous=results.get("F8_quantisation"),
+            allow_download=args.allow_download),
         "F10_position": lambda: f10_position(cfg, log),
     }
 
