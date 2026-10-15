@@ -151,7 +151,11 @@ format [1], and reasoning-trained models lengthen it [2]. Work on
 *overthinking* treats that length as a cost to be measured: Caldarella et al.
 evaluate harmful overthinking [7], Zhai et al. quantify redundancy in
 reasoning directly [8], and Long et al. describe a self-verification dilemma
-in which checking behaviour is overused [9]. **[VERIFY]** — these three
+in which checking behaviour is overused [9]. Self-correction frameworks that
+depend on external feedback show that gains over single-pass reasoning are
+available when a reliable external signal is present [27]; the post-answer
+region of a standard reasoning trace generally has no such signal, which limits
+how much productive computation it is likely to hold. **[VERIFY]** — these four
 attributions are the review's summaries, not re-derived.
 
 The line this paper engages most closely converts the regularity into a
@@ -1061,4 +1065,4 @@ omitting the limitation.
 
 [26] A. Templeton, T. Conerly, J. Marcus, J. Lindsey, T. Bricken, B. Chen, A. Pearce, C. Citro, E. Ameisen, A. Jones, H. Cunningham, N. L. Turner, C. McDougall, M. MacDiarmid, C. D. Freeman, T. R. Sumers, E. Rees, J. Batson, A. S. Jermyn, S. Carter, C. Olah, and T. Henighan, "Scaling monosemanticity: extracting interpretable features from Claude 3 Sonnet," *Transformer Circuits Thread*, project report, 2024.
 
-[27] A. Madaan, N. Tandon, P. Gupta, S. Hallinan, L. Gao, S. Wiegreffe, U. Alon, N. Dziri, S. Prabhumoye, Y. Yang, S. Welleck, B. P. Majumder, S. Gupta, A. Yazdanbakhsh, and P. Clark, "Self-refine: iterative refinement with self-feedback," in *Advances in Neural Information Processing Systems (NeurIPS)*, 2023.  *(not yet cited)*
+[27] A. Madaan, N. Tandon, P. Gupta, S. Hallinan, L. Gao, S. Wiegreffe, U. Alon, N. Dziri, S. Prabhumoye, Y. Yang, S. Welleck, B. P. Majumder, S. Gupta, A. Yazdanbakhsh, and P. Clark, "Self-refine: iterative refinement with self-feedback," in *Advances in Neural Information Processing Systems (NeurIPS)*, 2023.

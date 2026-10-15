@@ -15,7 +15,11 @@ format [1], and reasoning-trained models lengthen it [2]. Work on
 *overthinking* treats that length as a cost to be measured: Caldarella et al.
 evaluate harmful overthinking [7], Zhai et al. quantify redundancy in
 reasoning directly [8], and Long et al. describe a self-verification dilemma
-in which checking behaviour is overused [9]. **[VERIFY]** — these three
+in which checking behaviour is overused [9]. Self-correction frameworks that
+depend on external feedback show that gains over single-pass reasoning are
+available when a reliable external signal is present [27]; the post-answer
+region of a standard reasoning trace generally has no such signal, which limits
+how much productive computation it is likely to hold. **[VERIFY]** — these four
 attributions are the review's summaries, not re-derived.
 
 The line this paper engages most closely converts the regularity into a
