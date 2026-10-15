@@ -50,8 +50,14 @@ class ResolvedModel:
 
 
 def snapshot(repo_id: str, revision: str | None = None,
-             allow_patterns: list[str] | None = None) -> Path:
-    """Download (or reuse) a HuggingFace snapshot into the model cache."""
+             allow_patterns: list[str] | None = None,
+             local_files_only: bool = False) -> Path:
+    """Download (or reuse) a HuggingFace snapshot into the model cache.
+
+    ``local_files_only`` resolves only what is already on disk and raises if
+    it is not there, so a caller that must never trigger a download - F8,
+    whose bf16 source is 15 GB - can ask without risking one.
+    """
     from huggingface_hub import snapshot_download
 
     cache = paths.model_cache()
@@ -63,6 +69,7 @@ def snapshot(repo_id: str, revision: str | None = None,
         cache_dir=str(cache / "hub"),
         allow_patterns=allow_patterns,
         max_workers=4,
+        local_files_only=local_files_only,
     )
     return Path(local)
 

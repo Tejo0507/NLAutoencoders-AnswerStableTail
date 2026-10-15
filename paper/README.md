@@ -25,11 +25,10 @@ the Abstract, Results and Discussion are absent by design, and §4 and §8 are
 drafted but still need the main run's numbers.
 
 The bibliography is read from `../Project_Review_II.md` §References rather than
-copied, so the two documents cannot drift. Two things that surfaced on first
-assembly: it holds **27** entries rather than the 26 stated below, and `[27]`
-(Madaan et al., *Self-refine*) is **not cited by any drafted section** — it is
-marked as such in the generated references rather than dropped, and needs
-either a citation in the Results or Discussion or removal before submission.
+copied, so the two documents cannot drift. It holds **27** entries, and every
+one is now cited by a drafted section: `[27]` (Madaan et al., *Self-refine*)
+was uncited on first assembly and is now cited in §2.1, carrying over the
+review's own use of it (Project_Review_II.md §2.1.9) rather than a new claim.
 
 **Nothing here reports a result.** No section states an outcome of the main
 run, and the Results and Abstract are deliberately absent rather than
@@ -54,7 +53,7 @@ pilot's and used to motivate a design choice, never as findings.
 ## Citation keys
 
 Numbered `[n]` citations refer to the bibliography in
-[`../Project_Review_II.md`](../Project_Review_II.md) §References, which has 26
+[`../Project_Review_II.md`](../Project_Review_II.md) §References, which has 27
 entries. Using that numbering keeps every citation in these drafts traceable
 to an entry that already exists in the repository rather than to one invented
 here.
