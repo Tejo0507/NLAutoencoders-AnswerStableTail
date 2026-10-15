@@ -283,6 +283,13 @@ def odds_ratio_table(columns: list[str], X: pd.DataFrame, y: np.ndarray,
 # --- Figures ---
 
 
+def odds_columns(odds: pd.DataFrame) -> list[str]:
+    """The odds-ratio table's display columns that this fit actually produced."""
+    wanted = ["feature", "odds_ratio", "or_ci_low", "or_ci_high", "p_value",
+              "q_value", "significant_bh"]
+    return [c for c in wanted if c in odds.columns]
+
+
 def _style(ax, title: str, xlabel: str, ylabel: str) -> None:
     ax.set_title(title, fontsize=10, pad=8)
     ax.set_xlabel(xlabel, fontsize=9)
@@ -529,9 +536,12 @@ def main(argv: list[str] | None = None) -> int:
                             y_train, cfg.seed, log)
     if not odds.empty:
         write_table(odds, out_dir, "odds_ratios")
+        # The penalised fallback has no p-values and so no q-values - see
+        # `odds_ratio_table` - so only the columns that exist are shown.
+        # Selecting `q_value` unconditionally crashed the stage exactly when
+        # the MLE failed to converge, which it does on the main corpus.
         log.info("strongest coefficients:\n%s",
-                 markdown(odds.head(8)[["feature", "odds_ratio", "or_ci_low",
-                                        "or_ci_high", "p_value", "q_value"]]))
+                 markdown(odds.head(8)[odds_columns(odds)]))
 
     # ---- feature analysis ----------------------------------------------
     best = {"logistic": logistic, "gbm": gbm}[reported]
