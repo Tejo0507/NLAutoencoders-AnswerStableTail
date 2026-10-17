@@ -1666,6 +1666,20 @@ Recorded so that none disappears from the record; none was run.
   the arm after seeing the O3 result would be a post-hoc increase in N, and is
   not done.
 
+**Status update 2026-10-17 (evening), from artefacts; the entry above is kept
+as written.** Each item verified against code, manifests and outputs:
+
+| item | status | evidence |
+|---|---|---|
+| F5 temperature sweep (T = 0.6, 1.0) | **deferred by decision** (researcher, 2026-10-17) — implemented, not run | `scripts/run_f5_sweep.py` + 12 tests kept; conditions from the 2026-10-06 config; 2 of 250 problems generated for T = 0.6 as a timing check (`runs/main_f5/T_0p6/evidence.jsonl`, kept); estimated 60–150 GPU-hours for the three conditions (extrapolated from 2 problems, low confidence) |
+| F5 chunker sweep (`newline`) | **deferred by decision** (same) — implemented, not run | same script; the 12-boundary scan cap binds on 164 of 250 traces under this chunker |
+| F8 bf16 headline replication | **completed — partial by decision (D55)**; the full registered replication is not implementable on this hardware | 24 problems; bf16 target activations only, verbaliser/reconstructor/behavioural arms NF4; window-score shift −0.0014 [−0.0033, 0.0005]; O3 direction vs semantic entropy unchanged; no O3 equivalence shown (D55) |
+| RQ2 independent-probe control | **completed — exploratory** (A1, D56–D57) | did not corroborate the reconstruction-dependence reading for either attribute; rule-derived labels, no human validation (A1 §12) |
+| Larger NLA arm (N = 240) | **completed — exploratory (D54)** | 240 problems; original 120 reproduced exactly; O3 vs semantic entropy −0.138 [−0.191, −0.071], vs probe −0.029 [−0.059, 0.010] (D54) |
+
+Correction to the entry above: the bf16 *target* is 15.23 GB (four shards);
+15.3 GB is the verbaliser's size (PROJECT_PLAN §2).
+
 ## D53. Which working documents are version-controlled
 
 `PROJECT_PLAN.md` and `docs/` were untracked on 2026-10-15 (1c26d0b) and are
@@ -1677,4 +1691,277 @@ re-tracking, `PROJECT_PLAN.md` §5–§6 were confirmed byte-identical to the
 scanned for credentials. `SESSION_HANDOFF.md` (session notes) and
 `Project_Review_*` (review submissions) stay local. `EXECUTION_REPORT_SUPERVISED.md`
 is tracked as the generated supervised report for `main`.
+
+## D54. The larger NLA arm is a post-hoc, exploratory extension (recorded before it ran)
+
+**Recorded 2026-10-17, before any extension output existed.** The researcher
+authorised running the larger arm on 2026-10-17 (D5 had been left open, "not
+recommended"). This entry fixes what is run and how it is read, so the
+extension cannot be shaped by its own result.
+
+**Why it is post-hoc.** No NLA-arm N was pre-registered. `main.yaml` set
+`nla.max_problems: 80`; the arm ran at 120 under a `--set` override (stage
+config hash `0bb33cf4c468a3f6`, D48). The O3 result at N = 120 has been seen
+(vs semantic entropy: 37 discordant, 13 favour the readout, p = 0.099,
+q = 0.115). Any larger N is chosen after that, so the extension is
+**exploratory**. The N = 120 analysis stays the study's result for O3 and is
+not overwritten.
+
+**What runs.**
+
+- N = every problem with a detected tail: 240 (the cap no longer binds, so
+  `stratified_cap` selects nothing away). The original 120 are a subset by
+  construction - the cap takes a deterministic per-dataset prefix.
+- Separate run directory `runs/main_nla240/`. `data`, `traces`, `acts`, `ast`,
+  `baselines` and the original `nla/verbalisations.jsonl` are copied from
+  `runs/main`, byte-identical (763 files, `SOURCE_SHA256SUMS.txt`).
+- `run_autoencoder.py --config main --run-id main_nla240 --set nla.max_problems=240`.
+  The stage resumes: the 120 original problems' verbalisations are kept as they
+  were generated, and only the new problems' windows are verbalised, under the
+  stage's own seed derivation. The reconstruct phase re-scores every
+  verbalisation, so the original 120 problems' cosines are re-computed and
+  compared with `runs/main/nla/reconstructions.jsonl` as a determinism check.
+- `faithfulness` is not run on the extension: O3's NLA score is reconstruction
+  cosine from the `nla` stage alone, and RQ2 is not part of this extension.
+  `causal` is not run either. Tests that need those stages are absent from the
+  extension's analysis and must not be read from it.
+- `aggregate_results.py` unchanged, on the new directory.
+
+**How it is read.**
+
+- The quantities reported are the three O3 head-to-heads (vs semantic entropy,
+  probe, convergence) at matched budget: McNemar exact over problems, the
+  paired rate difference with its conditional-exact interval, the discordant
+  counts, and the operating points - each beside its N = 120 value.
+- Multiplicity: the BH q-values the analysis computes over the extension's own
+  evaluable family are reported, but the family differs from `main`'s (no RQ2,
+  no RQ3), so the extension's q-values are not comparable with `main`'s and no
+  confirmatory claim is made from them. The study's O3 conclusion remains the
+  N = 120 result; the extension says whether the direction and size hold at
+  twice the N.
+- One extension only. No further increase in N whatever the result.
+- Power, stated as optimistic: at the observed discordance (rate 0.308, 35%
+  favouring the readout) `size_o3_corpus.py` gives roughly 0.6-0.7 power at
+  q < 0.05 near N = 240; a power figure computed from the observed effect
+  overstates the true power and is not a reason to expect significance.
+
+**Found while preparing this: the N = 120 arm contains no MATH
+counting-and-probability problem.** `stratified_cap` stratifies by `dataset`
+(GSM8K / MATH), not by subject, and fills each stratum with a prefix of its
+sorted ids; `math-algebra-…` sorts before `math-counting_and_probability-…`,
+so the arm's 46 MATH problems are all algebra (74 GSM8K + 46 algebra). Every
+`main` result computed on the NLA arm - O3, RQ2, F10 - therefore describes
+GSM8K and MATH algebra, not the corpus's third subject. Nothing was wrong with
+the cap's stated purpose (proportional by dataset), but the subject coverage
+was not reported. The N = 240 extension has no cap, so it includes the
+counting-and-probability problems.
+
+**Result, 2026-10-17 23:12 — exploratory (N chosen after seeing N = 120).**
+`run_autoencoder.py --config main --run-id main_nla240 --set
+nla.max_problems=240` completed (stage hash `fd8ba06d29ea4f56`, 4.2 h GPU);
+1,421 windows over 240 problems (148 GSM8K, 69 algebra, 23 counting &
+probability); 4,263 reconstructions; new-sample integrity 99.4%. The 120
+original problems reproduce exactly: 709 verbalisations byte-identical, 2,127
+of 2,127 reconstruction cosines bit-identical. `aggregate_results.py` on the
+new directory (same override): exit 0; `check_run_consistency.py`: 132
+checks, 0 mismatched, 0 warnings (faithfulness, causal and report absent by
+design).
+
+| O3, NLA readout minus … | N = 120 (the study's result) | N = 240 (exploratory) |
+|---|---|---|
+| semantic entropy | 37 discordant (13 / 24); safe 0.233 vs 0.325; −0.092 [−0.184, 0.016]; p 0.099, q 0.115 | 65 discordant (16 / 49); safe 0.188 vs 0.325; −0.138 [−0.191, −0.071]; p 5.1 × 10⁻⁵ |
+| probe | 11 discordant (5 / 6); −0.008 [−0.061, 0.049]; p 1.0 | 19 discordant (6 / 13); −0.029 [−0.059, 0.010]; p 0.167 |
+| convergence | no shared budget | no shared budget |
+
+Read as fixed above: the direction against semantic entropy holds and its
+interval now excludes zero at twice the N; the comparison with the probe
+stays inconclusive. The extension's BH family (6 tests: no RQ2, no RQ3) is
+not `main`'s, so its q-values (0.0001, 0.167) are not comparable and no
+confirmatory claim is made; the study's O3 conclusion remains the N = 120
+result. No further increase in N.
+
+## D55. F8's headline replication is run in part: bf16 target activations only
+
+**Decided by the researcher 2026-10-17** ("run partial, labelled"), before the
+download or any bf16 output.
+
+§6 registers "bf16-CPU replication of the headline comparison on a
+subsample". The headline comparison is O3: the NLA readout's safe-stopping
+rate against semantic entropy and the probe at matched budget. A full bf16
+replication needs all three checkpoints in bf16 (target 15.23 GB, verbaliser
+15.3 GB, reconstructor 10.9 GB) and bf16 generation for the verbaliser and for
+every forced answer and semantic-entropy sample. On a 6 GB GPU with 15.6 GB
+of RAM that means disk-offloaded 7B decoding at seconds per token: on the
+order of 40-200 h for the verbaliser alone on the subsample, more for the
+behavioural arms. That is recorded as not implementable on this hardware.
+
+**What is run** (`scripts/run_f8_bf16_headline.py`):
+
+- Subsample: `robustness.quantisation_subsample` = 24 problems from the NLA
+  arm, drawn by the arm's own `stratified_cap` (15 GSM8K, 9 MATH algebra -
+  see D54 on subject coverage). Fixed before any bf16 output.
+- bf16 target `Qwen/Qwen2.5-7B-Instruct` at revision
+  `a09a35458c702b33eeacc393d103063234e8bc28` (the revision the NF4 checkpoint
+  was converted from), downloaded to `D:\nla_models\hf_cache` through
+  `NLAAST_MODEL_CACHE` because the configured cache volume (E:) has 12 GB
+  free. Loaded truncated to layer 20, split GPU/CPU/disk by F8's existing
+  placement rule. The same token sequences are replayed (`f8_replay_sequence`)
+  and layer 20 is read at the run's own positions.
+- Two sibling run directories, `runs/main_f8_bf16` and `runs/main_f8_nf4`,
+  identical except for the activations' source. Both run the unchanged `nla`
+  stage (NF4 verbaliser/reconstructor) on an identical task list - so batching
+  and every sampling seed match - and the unchanged `analysis` stage on the
+  same 24 problems.
+- Read: Q1 drift on these 24 problems; the paired difference in per-window
+  NLA score (bf16 minus NF4) against the sampling-noise floor (NF4 re-run
+  minus the run's original NLA output on the same windows); integrity rates;
+  and the O3 rows from both arms beside `main`'s N = 120 values.
+
+**What it can and cannot show.** It tests the specific threat D2 named - that
+off-distribution (4-bit) target activations drive the NLA readout - on the
+quantity O3 actually uses. It cannot test whether 4-bit verbaliser and
+reconstructor weights, or the 4-bit target's generations, drive the result.
+With 24 problems the O3 comparison has no power to establish a difference; the
+replication's question is whether the bf16 arm reproduces the NF4 arm's
+scores and decisions, not whether either reaches significance. F8 is reported
+as **partially replicated**, never as complete.
+
+**Result, run 2026-10-17 23:13 – 2026-10-18 00:32** (protocol unchanged,
+one GPU job at a time). bf16 activations: 3.5 min for 24 problems (placement
+3 GiB GPU / 5 GiB host / rest disk, offload cleared). Each NLA arm: 141
+windows, ~37 min. Analysis and comparison on CPU. Output
+`runs/main_f8_comparison.json`.
+
+- **Q1 on `main`'s subsample:** cosine(NF4, bf16) mean of problem means
+  0.990 (range 0.979–0.994; lowest single vector 0.956), norm ratio
+  0.983–0.997, 245 vectors, none skipped — consistent with the pilot's 0.987.
+- **Integrity:** bf16 arm 98.9% (279/282), NF4 re-run 100%, original 99.6%.
+- **NLA score per window** (the quantity O3 uses): bf16 − NF4 re-run
+  −0.0014 [−0.0033, 0.0005], r 0.964, mean |diff| 0.0084; the sampling-noise
+  floor (NF4 re-run − original NLA output, same windows) +0.0004
+  [−0.0008, 0.0016], r 0.985, mean |diff| 0.0047. No mean shift is
+  detectable; per-window disagreement is about 1.8× the noise floor
+  (descriptive, not a pre-specified test).
+- **O3 on the 24 problems** (no power; direction only): vs semantic entropy,
+  bf16 −0.042 (5 discordant, 2/3), NF4 re-run −0.125 (5 discordant, 1/4),
+  both "readout worse" as at N = 120; vs probe, the two arms matched at
+  different budgets (0.81 vs 0.70), 0 vs 6 discordant, so not comparable.
+
+**Reading.** On 24 problems, swapping the target's activations from NF4 to
+bf16 does not detectably move the NLA readout's score or reverse the O3
+direction against semantic entropy. This narrows, but does not close, the D2
+threat: the verbaliser, reconstructor and behavioural arms stayed NF4, and 24
+problems cannot show O3 equivalence.
+
+## D56. RQ2's independent-probe control is pursued through amendment A1
+
+**Decided by the researcher 2026-10-17:** the control is to be designed and
+run, not left as a recorded deviation, with the claim-content target fixed by
+a dated amendment before any evaluation.
+
+§5 fixes the control's inputs (activations, never verbalised text), its split
+policy (group-disjoint) and its leakage test, but not what a free-text claim's
+"content" is as a probe target. Amendment A1 (`docs/RQ2_PROBE_AMENDMENT.md`,
+**PROPOSED**, 2026-10-17) supplies it: content attributes with text-only
+ground truth (`answer_stated`, `domain`; `final_word` described but not
+scored), a deterministic claim→assertion rule validated against a blind
+150-claim annotation (κ ≥ 0.6 per attribute, fixed in advance), probes fitted
+on train-split boundary activations and scored only on eval-split claims, a
+between-problem label-permutation leakage control, a mismatched-activation
+specificity control, and a reading rule fixed before evaluation.
+
+Done so far, none of it an outcome: the implementation
+(`scripts/rq2_claim_probe.py`, 30 tests), the coverage counts (`describe`;
+1,476 of 3,779 eval claims assert a scored or described attribute), and the
+blind annotation sheet (`runs/main_rq2probe/annotation_sheet.csv`). No probe
+has been fitted for this control and no claim scored. The evaluation is gated
+in code on the amendment's status line and on the annotation agreement
+existing.
+
+Two side findings. The stored `independent_probe_score` is a per-activation
+correctness score and must never be read as claim-content decodability; it is
+used by no test. And 518 of the 1,413 audited explanations come from
+train-split problems, whose activations that correctness probe was fitted on.
+
+**Researcher decisions, 2026-10-17, before any evaluation** (A1 still
+PROPOSED):
+
+1. *Leakage control, option D.* `answer_stated` uses F6's registered
+   within-group shuffle (prevalence exact; relative-position AUC 0.997 →
+   0.453); `domain` keeps the across-problem swap (a within-group shuffle is
+   the identity for it); `answer_stated` gets a position-only comparator
+   (four position features, same model class), and evidence beyond position
+   requires the lower bound of the problem-cluster interval for (probe −
+   position-model accuracy) to exceed 0. That is not evidence of semantic
+   understanding. The earlier across-problem positional resampling kept
+   `answer_stated` aligned with position (AUC 0.996, prevalence 0.103) and
+   would have read a position effect as leakage.
+2. *No human annotation.* The claim→assertion rule is unvalidated; no κ is
+   computed; outputs label assertions rule-derived and ground truth
+   text-derived. One AI annotation pass (Claude, not independent of the
+   rule) is stored separately and is not used for any statistic.
+3. *`answer_stated` retained provisionally*, with its positional
+   predictability reported (0.970 stated at final boundaries vs 0.003
+   elsewhere); no claim beyond position unless the comparator is beaten.
+
+Finding recorded, not changed: the project's own F6 code
+(`baselines/probe.permute_labels`, across-groups arm) fits donor label
+sequences with `np.resize`, the tiling/truncation pattern A1 removed; it
+bears on F6's `main` result for the correctness probe. **Pending as a
+separate audit** (researcher, 2026-10-17): F6 is not modified or rerun under
+A1.
+
+Confirmed final for A1's next revision (researcher, 2026-10-17): AI annotation
+exploratory only, no κ; the four-feature position comparator is primary;
+accuracy difference with lower bound > 0 is the primary criterion, Brier
+secondary; criteria not to change after evaluation. Failing to beat the
+comparator means predictive value beyond those features was not established,
+not that the activations lack the information.
+
+## D57. Amendment A1 approved for an exploratory, CPU-only evaluation
+
+**Approved by the researcher 2026-10-17**, after the pre-approval audit (A1
+§10) found the `answer_stated = 0` reading systematically wrong, the rule was
+revised (option (a), A1 §3), and a fresh read-only audit (A1 §11) found no
+blocking issue.
+
+- Scope: the gated `rq2_claim_probe.py --phase evaluate` on `main`, CPU only.
+  Code approved at SHA-256 `80a7bc55…53b`; criteria, features, shuffles and
+  thresholds as in A1 §5–§7, not to be changed after results are seen.
+- **Exploratory.** Claim assertions are rule-derived and **not
+  independently human-validated** (Decision 2); `domain` is read as a
+  lexical subject cue; `answer_stated` readings are close to one-class
+  (533 / 28) and largely positional. No claim of semantic understanding or of
+  validated ground truth is made from the results.
+- Unchanged: the registered RQ2 primary analysis (deletion vs paraphrase);
+  F6 (its `np.resize` audit remains separate and pending).
+
+**Run 2026-10-17 22:08** (`CUDA_VISIBLE_DEVICES="" python scripts/rq2_claim_probe.py
+--config main --phase evaluate`, exit 0; `runs/main_rq2probe/evaluation.json`,
+SHA-256 `39e4b5e3…855`). CPU-only because the code path never imports torch
+(the empty `CUDA_VISIBLE_DEVICES` does not hide the GPU on this machine; see
+A1 §12). Read by A1 §7 as fixed; exploratory; rule-derived labels, not
+human-validated:
+
+- `answer_stated` (561 claims, 76 problems; eval truth is exactly "final
+  boundary", AUC 1.0): the probe decodes it (probe − majority +0.095
+  [0.087, 0.104]); no leakage (within-problem shuffled − majority −0.028
+  [−0.042, −0.015]); the position model is perfect (1.000) and the probe does
+  **not** beat it (−0.0013 [−0.0040, 0.000]). Reading: *decodable, not
+  distinguishable from boundary position* — no predictive value beyond the
+  four position features was established, which is not evidence the
+  activations lack it. M3 −0.009 [−0.023, 0.000] (taken at the same relative
+  position, so uninformative here, §10); M4 −0.103 [−0.174, −0.027]. Not
+  corroborating.
+- `domain`, read as a subject cue, two-class on eval (GSM8K 43 / algebra 33
+  problems; 75 counting & probability claims excluded, probe false-positive
+  rate on them 0.067 [0.000, 0.188]): decodes (+0.406 [0.292, 0.515]); no
+  leakage (+0.047 [−0.030, 0.124]); M3 +0.368 [0.224, 0.522]; M4 −0.034
+  [−0.089, 0.028]. Reading: the cued subject is specifically decodable from
+  the claim's own activation, but unrelated to which claims reconstruction
+  depends on — not support for RQ2's reconstruction-dependence reading.
+- Coverage: 1,233 of 3,779 eval claims (32.6%) are scored in M2–M4 (561
+  `answer_stated` + 695 `domain` − 23 scored for both). *Correction:* a
+  session report gave "1,584 of 3,779"; that counts claims asserting any
+  attribute including the unscored `final_word`. Full table: A1 §12.
 
