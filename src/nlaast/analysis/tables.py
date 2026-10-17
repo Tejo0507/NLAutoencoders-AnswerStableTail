@@ -170,8 +170,10 @@ def tests_table(tests: Sequence[Any]) -> pd.DataFrame:
         # beside a raw mean-difference CI; an odds ratio beside a rate-
         # difference CI), so it is printed with its own estimand and point
         # estimate rather than under the effect it does not bound.
+        # Empty rather than None, which the markdown renders as "nan".
         estimand = (iv.get("estimand")
-                    or (ESTIMAND_BY_EFFECT.get(d.get("effect_name")) if iv else None))
+                    or (ESTIMAND_BY_EFFECT.get(d.get("effect_name")) if iv else "")
+                    or "")
         rows.append(
             {
                 "test": d["name"],
