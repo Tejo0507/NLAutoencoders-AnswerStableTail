@@ -162,7 +162,16 @@ def main() -> int:
 
     manifest.start_stage(STAGE, n_problems=len(targets))
     out_dir = cfg.stage_dir(STAGE)
-    writer = JsonlWriter(out_dir / "interventions.jsonl", key="id")
+    rows_path = out_dir / "interventions.jsonl"
+    if args.force and rows_path.exists() and rows_path.stat().st_size:
+        # The writer resumes by row id, so --force alone would replay rows
+        # from the previous code and finish in seconds. Keep them, aside.
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(rows_path.stat().st_mtime))
+        archived = rows_path.with_name(f"interventions.superseded-{stamp}.jsonl")
+        rows_path.rename(archived)
+        log.warning("--force: archived the previous %s rows to %s and regenerating",
+                    rows_path.name, archived.name)
+    writer = JsonlWriter(rows_path, key="id")
 
     model = TargetModel(cfg)
     started = time.monotonic()
