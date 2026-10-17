@@ -595,6 +595,14 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A(tables.markdown(tables.tests_table(
             [type("T", (), {"to_dict": lambda s, d=d: d})() for d in t["tests"]])))
         A("")
+        A("`effect` and the interval are on different scales wherever "
+          "`ci_estimand` is not the effect itself: `cohens_d_paired` is "
+          "reported beside a bootstrap CI for the raw mean paired difference, "
+          "and `odds_ratio_discordant` beside a conditional-exact CI for the "
+          "paired difference in rates. `ci_estimate` is that estimand's point "
+          "value, so the interval is read against it and never against "
+          "`effect`.")
+        A("")
 
     A("## Figures")
     A("")
