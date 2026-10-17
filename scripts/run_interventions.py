@@ -172,7 +172,10 @@ def main() -> int:
 
     manifest.start_stage(STAGE, n_problems=len(targets))
     out_dir = cfg.stage_dir(STAGE)
-    writer = JsonlWriter(out_dir / "interventions.jsonl", key="id")
+    rows_path = out_dir / "interventions.jsonl"
+    if args.force:
+        archive_previous_rows(rows_path, log)
+    writer = JsonlWriter(rows_path, key="id")
 
     model = TargetModel(cfg)
     started = time.monotonic()
@@ -254,6 +257,28 @@ def summarise_only(cfg, manifest, log) -> int:
         "from": "interventions.jsonl", "rows_sha256": metrics["rows_sha256"],
         "model_loaded": False})
     return 0
+
+
+def archive_previous_rows(rows_path, log):
+    """Move a previous run's rows aside so ``--force`` regenerates them.
+
+    The writer resumes by row id, so ``--force`` alone replayed every row
+    from the previous code and finished in seconds: the pilot's D34
+    validation re-read its pre-fix no-op rows in 11 s. The old rows are kept,
+    renamed by their own modification time, never overwritten.
+    """
+    if not rows_path.exists() or not rows_path.stat().st_size:
+        return None
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(rows_path.stat().st_mtime))
+    archived = rows_path.with_name(f"interventions.superseded-{stamp}.jsonl")
+    n = 1
+    while archived.exists():
+        archived = rows_path.with_name(f"interventions.superseded-{stamp}-{n}.jsonl")
+        n += 1
+    rows_path.rename(archived)
+    log.warning("--force: archived the previous %s rows to %s and regenerating",
+                rows_path.name, archived.name)
+    return archived
 
 
 def run_problem(model, cfg, ast_row, trace, direction, writer, log) -> None:
