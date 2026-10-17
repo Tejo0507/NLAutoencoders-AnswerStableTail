@@ -27,6 +27,7 @@ expected outcome rather than a failure.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import time
@@ -196,11 +197,18 @@ def main() -> int:
 
 
 def summarise(out_dir, dir_info, log) -> dict:
-    """Build ``summary.json`` - arms, dose-response, verdict - from the rows."""
-    rows = read_jsonl(out_dir / "interventions.jsonl")
+    """Build ``summary.json`` - arms, dose-response, verdict - from the rows.
+
+    The summary names the exact bytes it was built from (``rows_sha256``), so
+    the consistency check can tell a summary rebuilt over unchanged rows from
+    one whose rows have since changed under it.
+    """
+    rows_path = out_dir / "interventions.jsonl"
+    rows = read_jsonl(rows_path)
     results = [InterventionResult(**{k: v for k, v in r.items() if k != "id"})
                for r in rows]
     metrics = {
+        "rows_sha256": hashlib.sha256(rows_path.read_bytes()).hexdigest(),
         "n_results": len(results),
         "direction": dir_info,
         "arms": {a: summarise_arm(results, a).to_dict()
@@ -243,7 +251,8 @@ def summarise_only(cfg, manifest, log) -> int:
     metrics = summarise(out_dir, dir_info, log)
     manifest.update_stage(STAGE, metrics=metrics, summary_rebuilt={
         "at": utcnow(), "git": git_commit(),
-        "from": "interventions.jsonl", "model_loaded": False})
+        "from": "interventions.jsonl", "rows_sha256": metrics["rows_sha256"],
+        "model_loaded": False})
     return 0
 
 
