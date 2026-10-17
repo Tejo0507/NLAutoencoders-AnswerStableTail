@@ -100,6 +100,29 @@ def environment() -> dict[str, Any]:
     return info
 
 
+def stage_config_hash(data: dict[str, Any], stage: str) -> tuple[str | None, str]:
+    """The config hash a stage ran under, and whether it was recorded or derived.
+
+    Stages started since per-stage recording carry ``config_hash``. For older
+    ones it is derived from ``config_hash_history``: each entry is a hash and
+    the moment a later open replaced it, so the hash active when the stage
+    started is the first one replaced after that moment, or the current hash
+    if none was. Every stage opens the manifest immediately before starting,
+    so this is exact unless two processes with *different* configurations ran
+    at once - which is why it is labelled ``derived``.
+    """
+    entry = (data.get("stages") or {}).get(stage) or {}
+    if entry.get("config_hash"):
+        return entry["config_hash"], entry.get("config_hash_source", "recorded")
+    started = entry.get("started")
+    if not started:
+        return None, "unknown"
+    for h in data.get("config_hash_history") or []:
+        if h.get("replaced") and h["replaced"] > started:
+            return h.get("hash"), "derived"
+    return data.get("config_hash"), "derived"
+
+
 @contextmanager
 def _file_lock(path: Path, timeout: float = 300.0) -> Iterator[None]:
     """An exclusive OS-level lock on ``path``, released if the process dies.
@@ -162,13 +185,25 @@ class Manifest:
     def _lock_path(self) -> Path:
         return self.path.with_name(self.path.name + ".lock")
 
+    #: Recorded into every stage this process starts. The run-level
+    #: ``config_hash`` is whatever the most recent process opened with, so on
+    #: its own it cannot say which configuration produced a given stage - on
+    #: `main`, `nla` ran under a ``--set`` override that the next stage's open
+    #: replaced, and the report then showed only the later hash.
+    _stage_context: dict[str, Any] = field(default_factory=dict, repr=False)
+
     @classmethod
     def open(cls, run_dir: Path, cfg_dict: dict[str, Any] | None = None,
-             cfg_hash: str | None = None) -> "Manifest":
+             cfg_hash: str | None = None,
+             overrides: list[str] | tuple[str, ...] | None = None) -> "Manifest":
         run_dir.mkdir(parents=True, exist_ok=True)
         p = run_dir / MANIFEST_NAME
         with _file_lock(p.with_name(p.name + ".lock")):
-            return cls._open_locked(p, run_dir, cfg_dict, cfg_hash)
+            m = cls._open_locked(p, run_dir, cfg_dict, cfg_hash)
+        if cfg_hash is not None:
+            m._stage_context["config_hash"] = cfg_hash
+            m._stage_context["config_overrides"] = list(overrides or [])
+        return m
 
     @classmethod
     def _open_locked(cls, p: Path, run_dir: Path, cfg_dict: dict[str, Any] | None,
@@ -244,6 +279,7 @@ class Manifest:
             "started": utcnow(),
             "monotonic_start": time.monotonic(),
             "git": git_commit(),
+            **self._stage_context,
             **meta,
         }
         self._touched_stages.add(stage)

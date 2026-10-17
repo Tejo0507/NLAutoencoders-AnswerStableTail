@@ -65,6 +65,57 @@ class TestStaleCopiesDoNotEraseEachOther:
         assert _on_disk(tmp_path)["stages"]["ast"]["status"] == "complete"
 
 
+class TestEachStageRecordsItsOwnConfiguration:
+    """On `main`, `nla` ran under `--set nla.max_problems=120` (hash
+    0bb33cf4c468a3f6); the next stage's open replaced the run-level hash, and
+    the report's header then attributed every stage to ea82fa845911b70f."""
+
+    def test_the_hash_and_overrides_are_recorded_per_stage(self, tmp_path):
+        a = Manifest.open(tmp_path, {"x": 1}, "base")
+        a.start_stage("acts")
+        b = Manifest.open(tmp_path, {"x": 2}, "over",
+                          overrides=["nla.max_problems=120"])
+        b.start_stage("nla")
+        c = Manifest.open(tmp_path, {"x": 1}, "base")
+        c.start_stage("faithfulness")
+        stages = _on_disk(tmp_path)["stages"]
+        assert stages["acts"]["config_hash"] == "base"
+        assert stages["acts"]["config_overrides"] == []
+        assert stages["nla"]["config_hash"] == "over"
+        assert stages["nla"]["config_overrides"] == ["nla.max_problems=120"]
+        assert stages["faithfulness"]["config_hash"] == "base"
+        assert _on_disk(tmp_path)["config_hash"] == "base"
+
+    def test_an_unrecorded_stage_is_derived_from_the_history(self):
+        """`main`'s own timeline, as its manifest stores it."""
+        from nlaast.provenance import stage_config_hash
+        data = {
+            "config_hash": "ea82",
+            "config_hash_history": [
+                {"hash": "0cf3", "replaced": "2026-10-11T05:27:00+00:00"},
+                {"hash": "ea82", "replaced": "2026-10-16T18:28:35+00:00"},
+                {"hash": "0bb3", "replaced": "2026-10-16T21:36:26+00:00"},
+            ],
+            "stages": {
+                "acts": {"started": "2026-10-16T18:21:34+00:00"},
+                "nla": {"started": "2026-10-16T18:28:39+00:00"},
+                "faithfulness": {"started": "2026-10-16T21:36:31+00:00"},
+                "env": {"started": "2026-10-11T05:27:18+00:00"},
+            },
+        }
+        assert stage_config_hash(data, "acts") == ("ea82", "derived")
+        assert stage_config_hash(data, "nla") == ("0bb3", "derived")
+        assert stage_config_hash(data, "faithfulness") == ("ea82", "derived")
+        assert stage_config_hash(data, "env") == ("ea82", "derived")
+        assert stage_config_hash(data, "absent") == (None, "unknown")
+
+    def test_a_recorded_hash_wins_over_the_history(self):
+        from nlaast.provenance import stage_config_hash
+        data = {"config_hash": "b", "config_hash_history": [],
+                "stages": {"nla": {"started": "t", "config_hash": "a"}}}
+        assert stage_config_hash(data, "nla") == ("a", "recorded")
+
+
 WORKER = textwrap.dedent("""
     import sys
     sys.path.insert(0, sys.argv[1])
