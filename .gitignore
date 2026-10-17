@@ -23,9 +23,9 @@ __pycache__/
 *.pdf
 output/**/*.zip
 
-# Working documents kept locally, not published: session notes, the review
-# submissions, the implementation plan and the docs/ folder.
+# Working documents kept locally, not published: session notes and the review
+# submissions. PROJECT_PLAN.md (the pre-registration) and docs/ (the decision
+# record, status, checklist and audit) are tracked again from 2026-10-17 (D7):
+# a reproducibility record that exists only on one disk is not one.
 SESSION_HANDOFF.md
-PROJECT_PLAN.md
 Project_Review_*
-docs/
