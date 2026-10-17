@@ -569,6 +569,55 @@ class TestAConstantOutcomeIsNotAResult:
         assert v["outcome_construct"] == v["registered_construct"]
 
 
+class TestAReadoutAtZeroWhereTheControlsAreReadIsNotAResult:
+    """The `main` run's case, which the whole-sweep check above misses.
+
+    The markers move at the high doses, so `outcome_varies` is True; but at
+    dose 1.0, where the candidate is compared with its controls, the readout
+    is zero in every arm on every problem. Every pair is then tied at 0 vs 0,
+    and that used to come out as `beats: False` and `supported: False` - a
+    refutation built from an instrument that registered nothing.
+    """
+
+    @staticmethod
+    def _zero_at_compared_dose():
+        rows = []
+        for pid in range(6):
+            rows += [
+                result("ablate_dir", 0.0, markers=0, pid=f"p{pid}"),
+                result("ablate_dir", 1.0, markers=0, pid=f"p{pid}"),
+                result("ablate_dir", 2.0, markers=2, pid=f"p{pid}"),
+                result("random_dir", 1.0, markers=0, pid=f"p{pid}", did="random_0"),
+                result("matched_position", 1.0, markers=0, pid=f"p{pid}"),
+            ]
+        return rows
+
+    def test_the_contrast_is_uncomparable_not_lost(self):
+        c = paired_arm_contrast(self._zero_at_compared_dose(),
+                                "ablate_dir", "random_dir")
+        assert c["beats"] is None
+        assert c["readout_constant_zero"] is True
+        assert "p_value" not in c
+        assert "not evidence against" in c["reason"]
+        assert c["n_pairs_tied"] == 6, "the paired evidence is still reported"
+
+    def test_the_verdict_is_untested_and_says_why(self):
+        v = direction_claim_supported(self._zero_at_compared_dose())
+        assert v["outcome_varies"] is True, "the sweep does move"
+        assert v["beats_random_direction"] is None
+        assert v["beats_matched_position"] is None
+        assert v["supported"] is None
+        assert "registered no change" in v["untestable_reason"]
+
+    def test_equal_non_zero_movement_is_unchanged_pending_d46(self):
+        """Both arms moving by the same non-zero amount is the open decision
+        (D46), not a degenerate readout, so its behaviour is left as it was."""
+        rows = TestBeatIsAPairedTest._rows([3] * 6, [3] * 6)
+        c = paired_arm_contrast(rows, "ablate_dir", "random_dir")
+        assert c["beats"] is False
+        assert "readout_constant_zero" not in c
+
+
 class TestSpanSelection:
     """The registered span arithmetic, now testable rather than only runnable.
 

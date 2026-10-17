@@ -135,12 +135,21 @@ def rq3_paired_contrast(rows: list[dict], confidence: float) -> dict[str, Any]:
     # So the test is only evaluable when the candidate demonstrably edited
     # something. An unrecorded count (pilot artifacts predate the counter)
     # counts as not demonstrated, which is the conservative reading.
-    edits = [int((r.notes or {}).get("n_positions_edited", -1)) for r in recs
-             if r.intervention == "ablate_dir"
-             and abs(r.coefficient - 1.0) < 1e-9]
+    #
+    # A problem whose continuation generated no tokens has no positions the
+    # edit could reach - the span covers the generated continuation - so its
+    # zero count says nothing about whether the editor works. It is counted
+    # and excluded from the requirement rather than allowed to void the test
+    # (on `main`, one trivial-tail problem of 60 voided it this way).
+    cand = [r for r in recs if r.intervention == "ablate_dir"
+            and abs(r.coefficient - 1.0) < 1e-9]
+    no_continuation = [r for r in cand if r.tokens_generated <= 0]
+    edits = [int((r.notes or {}).get("n_positions_edited", -1)) for r in cand
+             if r.tokens_generated > 0]
     known = [e for e in edits if e >= 0]
     out["candidate_edits_recorded"] = len(known)
     out["candidate_edits_min"] = min(known) if known else None
+    out["candidate_rows_without_continuation"] = len(no_continuation)
     out["intervention_demonstrated"] = bool(known) and all(e > 0 for e in known)
     if not out["intervention_demonstrated"]:
         out["test_result"] = TestResult(

@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from ..logging_utils import get
+from .stats import ESTIMAND_BY_EFFECT
 
 log = get(__name__)
 
@@ -165,12 +166,22 @@ def tests_table(tests: Sequence[Any]) -> pd.DataFrame:
     for t in tests:
         d = t.to_dict() if hasattr(t, "to_dict") else dict(t)
         iv = d.get("interval") or {}
+        # The interval is not necessarily on the effect's scale (Cohen's d
+        # beside a raw mean-difference CI; an odds ratio beside a rate-
+        # difference CI), so it is printed with its own estimand and point
+        # estimate rather than under the effect it does not bound.
+        # Empty rather than None, which the markdown renders as "nan".
+        estimand = (iv.get("estimand")
+                    or (ESTIMAND_BY_EFFECT.get(d.get("effect_name")) if iv else "")
+                    or "")
         rows.append(
             {
                 "test": d["name"],
                 "n": d.get("n"),
                 "effect": d.get("effect"),
                 "effect_name": d.get("effect_name"),
+                "ci_estimand": estimand,
+                "ci_estimate": iv.get("estimate"),
                 "ci_low": iv.get("low"),
                 "ci_high": iv.get("high"),
                 "p_value": d.get("p_value"),

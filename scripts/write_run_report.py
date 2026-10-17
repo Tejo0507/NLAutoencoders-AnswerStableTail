@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from _stage import base_parser, setup, should_skip
+from _stage import base_parser, provenance, setup, should_skip
 
 from nlaast.analysis import tables
 from nlaast.logging_utils import read_json, read_jsonl, write_json
@@ -135,8 +135,9 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
 
     A("## Stage status")
     A("")
-    A("| stage | status | elapsed (s) |")
-    A("|---|---|---|")
+    A("| stage | status | elapsed (s) | config hash | overrides |")
+    A("|---|---|---|---|---|")
+    other_hashes: dict[str, list[str]] = {}
     for s in cfg.stages:
         e = stages.get(s, {})
         status = e.get("status", "not run")
@@ -145,8 +146,21 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         # interrupted run.
         if s == STAGE and status == "running":
             status = "writing this report"
-        A(f"| {s} | {status} | {_fmt(e.get('elapsed_s'), 0)} |")
+        h, source = provenance.stage_config_hash(manifest.data, s)
+        if h and h != cfg.hash():
+            other_hashes.setdefault(h, []).append(s)
+        hcell = "" if not h else f"`{h}`" + ("" if source == "recorded" else f" ({source})")
+        ov = e.get("config_overrides")
+        ocell = ", ".join(f"`{o}`" for o in ov) if ov else ("none" if ov == [] else "")
+        A(f"| {s} | {status} | {_fmt(e.get('elapsed_s'), 0)} | {hcell} | {ocell} |")
     A("")
+    if other_hashes:
+        A("**Not every stage ran under the header's config hash.** "
+          + "; ".join(f"`{h}`: {', '.join(ss)}" for h, ss in other_hashes.items())
+          + ". A `derived` hash is reconstructed from the manifest's "
+          "`config_hash_history` by start time; `recovered` means it was "
+          "reconstructed after the run and verified against its log.")
+        A("")
 
     # ---------------------------------------------------------------- RQ1
     A("## RQ1 - the Answer-Stable Tail")
@@ -594,6 +608,14 @@ def build_markdown(cfg, manifest, results, robust, ast_rows, recon, audits, figs
         A("")
         A(tables.markdown(tables.tests_table(
             [type("T", (), {"to_dict": lambda s, d=d: d})() for d in t["tests"]])))
+        A("")
+        A("`effect` and the interval are on different scales wherever "
+          "`ci_estimand` is not the effect itself: `cohens_d_paired` is "
+          "reported beside a bootstrap CI for the raw mean paired difference, "
+          "and `odds_ratio_discordant` beside a conditional-exact CI for the "
+          "paired difference in rates. `ci_estimate` is that estimand's point "
+          "value, so the interval is read against it and never against "
+          "`effect`.")
         A("")
 
     A("## Figures")

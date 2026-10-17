@@ -14,10 +14,11 @@ import platform
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from . import paths
 
@@ -99,19 +100,114 @@ def environment() -> dict[str, Any]:
     return info
 
 
+def stage_config_hash(data: dict[str, Any], stage: str) -> tuple[str | None, str]:
+    """The config hash a stage ran under, and whether it was recorded or derived.
+
+    Stages started since per-stage recording carry ``config_hash``. For older
+    ones it is derived from ``config_hash_history``: each entry is a hash and
+    the moment a later open replaced it, so the hash active when the stage
+    started is the first one replaced after that moment, or the current hash
+    if none was. Every stage opens the manifest immediately before starting,
+    so this is exact unless two processes with *different* configurations ran
+    at once - which is why it is labelled ``derived``.
+    """
+    entry = (data.get("stages") or {}).get(stage) or {}
+    if entry.get("config_hash"):
+        return entry["config_hash"], entry.get("config_hash_source", "recorded")
+    started = entry.get("started")
+    if not started:
+        return None, "unknown"
+    for h in data.get("config_hash_history") or []:
+        if h.get("replaced") and h["replaced"] > started:
+            return h.get("hash"), "derived"
+    return data.get("config_hash"), "derived"
+
+
+@contextmanager
+def _file_lock(path: Path, timeout: float = 300.0) -> Iterator[None]:
+    """An exclusive OS-level lock on ``path``, released if the process dies.
+
+    ``msvcrt.locking`` on Windows, ``fcntl.flock`` elsewhere - both are tied to
+    the open handle, so a crashed stage cannot leave a stale lock behind.
+    """
+    fh = open(path, "a+b")
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"could not lock {path} within {timeout:.0f}s")
+                time.sleep(0.05)
+        yield
+    finally:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        fh.close()
+
+
 @dataclass
 class Manifest:
     """Per-run record. Written on every stage transition so a crash still
-    leaves a readable state on disk."""
+    leaves a readable state on disk.
+
+    **Several stage processes share one manifest**, and the post-trace
+    checklist runs CPU stages alongside a GPU one. Each process loads the file
+    once, so writing back its whole in-memory copy erased every entry another
+    process had added since: on `main`, `acts` overwrote the `ast`,
+    `regression_tail` and `classify_correct` records. Every write therefore
+    happens under a file lock, re-reads the file, and overlays only the stage
+    and resource entries this process changed.
+    """
 
     path: Path
     data: dict[str, Any]
+    _touched_stages: set[str] = field(default_factory=set, repr=False)
+    _touched_resources: set[str] = field(default_factory=set, repr=False)
+
+    @property
+    def _lock_path(self) -> Path:
+        return self.path.with_name(self.path.name + ".lock")
+
+    #: Recorded into every stage this process starts. The run-level
+    #: ``config_hash`` is whatever the most recent process opened with, so on
+    #: its own it cannot say which configuration produced a given stage - on
+    #: `main`, `nla` ran under a ``--set`` override that the next stage's open
+    #: replaced, and the report then showed only the later hash.
+    _stage_context: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
     def open(cls, run_dir: Path, cfg_dict: dict[str, Any] | None = None,
-             cfg_hash: str | None = None) -> "Manifest":
+             cfg_hash: str | None = None,
+             overrides: list[str] | tuple[str, ...] | None = None) -> "Manifest":
         run_dir.mkdir(parents=True, exist_ok=True)
         p = run_dir / MANIFEST_NAME
+        with _file_lock(p.with_name(p.name + ".lock")):
+            m = cls._open_locked(p, run_dir, cfg_dict, cfg_hash)
+        if cfg_hash is not None:
+            m._stage_context["config_hash"] = cfg_hash
+            m._stage_context["config_overrides"] = list(overrides or [])
+        return m
+
+    @classmethod
+    def _open_locked(cls, p: Path, run_dir: Path, cfg_dict: dict[str, Any] | None,
+                     cfg_hash: str | None) -> "Manifest":
         if p.exists():
             data = json.loads(p.read_text(encoding="utf-8"))
         else:
@@ -137,14 +233,28 @@ class Manifest:
             data["config_hash"] = cfg_hash
         data["updated"] = utcnow()
         m = cls(path=p, data=data)
-        m.flush()
+        m._write(data)
         return m
 
-    def flush(self) -> None:
-        self.data["updated"] = utcnow()
+    def _write(self, data: dict[str, Any]) -> None:
         tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self.data, indent=2, default=str), encoding="utf-8")
+        tmp.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
         tmp.replace(self.path)
+
+    def flush(self) -> None:
+        with _file_lock(self._lock_path):
+            on_disk = (json.loads(self.path.read_text(encoding="utf-8"))
+                       if self.path.exists() else {})
+            merged = on_disk or dict(self.data)
+            stages = merged.setdefault("stages", {})
+            for s in self._touched_stages:
+                stages[s] = self.data["stages"][s]
+            resources = merged.setdefault("resources", {})
+            for r in self._touched_resources:
+                resources[r] = self.data["resources"][r]
+            merged["updated"] = utcnow()
+            self._write(merged)
+            self.data = merged
 
     # -- stage bookkeeping ------------------------------------------------
 
@@ -169,8 +279,10 @@ class Manifest:
             "started": utcnow(),
             "monotonic_start": time.monotonic(),
             "git": git_commit(),
+            **self._stage_context,
             **meta,
         }
+        self._touched_stages.add(stage)
         self.flush()
 
     def finish_stage(self, stage: str, status: str = "complete", **meta: Any) -> None:
@@ -186,9 +298,24 @@ class Manifest:
                 **meta,
             }
         )
+        self._touched_stages.add(stage)
+        self.flush()
+
+    def update_stage(self, stage: str, **fields: Any) -> None:
+        """Add or replace fields on a stage's record without restarting it.
+
+        For a derived artifact rebuilt after the fact - the stage's own
+        ``started``, ``finished``, ``elapsed_s`` and ``git`` describe the run
+        that produced its data and must survive.
+        """
+        if stage not in self.data["stages"]:
+            raise KeyError(f"stage {stage!r} has no record to update")
+        self.data["stages"][stage].update(fields)
+        self._touched_stages.add(stage)
         self.flush()
 
     def record_resource(self, name: str, **meta: Any) -> None:
         """Model/dataset provenance: repo id, revision, local path, digests."""
         self.data.setdefault("resources", {})[name] = {"recorded": utcnow(), **meta}
+        self._touched_resources.add(name)
         self.flush()
