@@ -9,16 +9,17 @@ already settled — beyond what much cheaper signals already say?*
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-under%20development-orange)]()
 
-> **The main run is complete (2026-10-17); its results are being checked, not
-> yet written up.** All 250 main traces were generated and every post-trace
-> stage has run; the execution report is `runs/main/report/RESULTS.md`. A
-> post-run audit found reporting and provenance defects, fixed on the
-> `integrity-fixes` branch with no new experiment and no change to any
-> measured number: RQ3 is now reported as *untested* (its readout is zero in
-> every arm) rather than unsupported, intervals name the estimand they bound,
-> and every stage records the configuration it ran under. The
-> [Main run](#main-run) subsection lists what still needs a decision before
-> any conclusion is final. `runs/` is untracked; it is reproducible from the
+> **The main run is complete (2026-10-17) and checked; it is not yet written
+> up.** All 250 main traces were generated and every post-trace stage has run;
+> the execution report is `runs/main/report/RESULTS.md`, and
+> `scripts/check_run_consistency.py --run runs/main` passes 179 checks with no
+> warning. A post-run audit's reporting and provenance defects are fixed with
+> no new experiment and no change to any measured number: RQ3 is reported as
+> *untested* (its readout is zero in every arm) rather than unsupported,
+> intervals name the estimand they bound, and every stage records the
+> configuration it ran under. The [Main run](#main-run) subsection lists what
+> still needs a decision; [`docs/AUDIT_2026-10-17.md`](docs/AUDIT_2026-10-17.md)
+> tracks every open item. `runs/` is untracked; it is reproducible from the
 > committed config.
 >
 > **On the central question the answer is negative on both corpora:** the
@@ -129,13 +130,20 @@ runs/main` reports 159 checks, 0 mismatched.
 | **Probe baseline** | Beats an activation-free positional predictor by only 0.018 AUC; it must not be read as a correctness readout. |
 | **F8 — quantisation** | Blocked by design (no 15 GB download); the pilot's activation cosine 0.987 stands. |
 
-**Open before any conclusion is final** — each needs the researcher's decision
-or a check that has not been done: how a tie between two arms that moved by the
-same non-zero amount should be read (D46); RQ3's dependent variable (#11); F5's
-temperature and chunker sweeps, configured but never implemented; RQ2's
-independent-probe control, computed but never analysed; whether F8's bf16
-replication of the headline comparison is required; and the supervised
-analyses, whose held-out and cross-validated evidence disagree.
+**Not done, and recorded as such** (`docs/DECISIONS.md` D52): F5's
+temperature and chunker sweeps were configured but never implemented; RQ2's
+registered independent-probe control was not implemented (the stored probe
+scores are per activation, not per claim); F8's bf16 replication of the
+headline comparison was not run (only the activation-drift half, on the
+pilot). RQ3's path is the researcher's decision
+([`docs/RQ3_DECISION_BRIEF.md`](docs/RQ3_DECISION_BRIEF.md), #11).
+
+**Supervised analyses** (`EXECUTION_REPORT_SUPERVISED.md`): cheap features
+predict tail fraction at held-out R² 0.333 [0.19, 0.44] and final-answer
+correctness at held-out AUROC 0.818 [0.73, 0.90]. Cross-validation inside the
+small training split does not corroborate either (it is too unstable at 97
+rows, and has 6 incorrect answers for the classifier), so each is one estimate
+on one split (D51).
 
 ### Pilot
 
@@ -164,8 +172,9 @@ NF4 and run.
 
 The pilot table above predates the main run and describes the pilot only. Its
 RQ3 row describes the pre-fix causal run; the fixed interventions have since
-been validated on the pilot on GPU (every non-zero dose edited positions), and
-its `analysis` and `report` still need regenerating against them.
+been re-run on the pilot (every non-zero dose edited positions on 10 of 10
+problems), and `runs/pilot/report/RESULTS.md` is regenerated from them: RQ3 is
+*not tested* there too, for the same zero readout.
 
 **Not done**
 
