@@ -9,22 +9,23 @@ already settled — beyond what much cheaper signals already say?*
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-under%20development-orange)]()
 
-> **Pilot complete; the main run is in progress.** The pipeline has been run
-> end to end at pilot scale — 24 problems, all 13 stages, the released
-> autoencoder, and the full nine-test falsification battery. The findings below
-> are real and come from that run. **Twenty-four problems is a pilot**: every
-> interval is wide, no primary comparison reaches significance, and nothing
-> here is a claim about language models in general. Section
-> [Current state](#current-state) says what ran and what it found;
-> [`docs/STATUS.md`](docs/STATUS.md) gives the detail and
-> `runs/pilot/report/RESULTS.md` is the execution report. `runs/` itself is
-> untracked — it is reproducible from the committed config.
+> **The main run is complete (2026-10-17); its results are being checked, not
+> yet written up.** All 250 main traces were generated and every post-trace
+> stage has run; the execution report is `runs/main/report/RESULTS.md`. A
+> post-run audit found reporting and provenance defects, fixed on the
+> `integrity-fixes` branch with no new experiment and no change to any
+> measured number: RQ3 is now reported as *untested* (its readout is zero in
+> every arm) rather than unsupported, intervals name the estimand they bound,
+> and every stage records the configuration it ran under. The
+> [Main run](#main-run) subsection lists what still needs a decision before
+> any conclusion is final. `runs/` is untracked; it is reproducible from the
+> committed config.
 >
-> **On the central question the answer is negative:** the verbalised readout
-> does not beat the cheap signals at matched token budget; where the comparison
-> can be made, it loses. That was named as an acceptable outcome before any
-> data was collected, and it is reported with the weight a positive result
-> would have had.
+> **On the central question the answer is negative on both corpora:** the
+> verbalised readout does not beat the cheap signals at matched token budget,
+> and where the comparison can be made it is directionally worse, though not
+> significantly. That was named as an acceptable outcome before any data was
+> collected.
 
 ---
 
@@ -111,6 +112,33 @@ Methodology: [`docs/SUPERVISED_ANALYSES.md`](docs/SUPERVISED_ANALYSES.md).
 
 ## Current state
 
+### Main run
+
+250 problems (150 GSM8K, 100 MATH), 250 traces with no failures, final-answer
+accuracy 0.88. Every number below is read from `runs/main/analysis/results.json`
+and `runs/main/report/RESULTS.md`; `scripts/check_run_consistency.py --run
+runs/main` reports 159 checks, 0 mismatched.
+
+| | |
+|---|---|
+| **RQ1 — the tail** | Detected on 240 of 250 (non-trivial on 0.948); mean tail fraction 0.378. Tail fraction is higher on correct final answers (Cliff's δ +0.295, q = 0.036). |
+| **Primary question (O3)** | 120 problems in the NLA arm (`--set nla.max_problems=120`, config hash `0bb33cf4c468a3f6`). Against the probe: 11 discordant problems, 6 favour the probe, q = 1.0. Against semantic entropy: 37 discordant, 24 favour semantic entropy, q = 0.115. Against the agreement rule: no shared budget, so not compared. |
+| **RQ2 — claim faithfulness** | 6,007 claims: 0.750 reconstruction-dependent, 0.002 reproduced from noise. |
+| **F10 — position** | Tail windows reconstruct slightly *worse* than position-matched ones (cosine 0.873 vs 0.878, Cliff's δ −0.203). |
+| **RQ3 — causal** | **Untested.** The edits were applied (59 of 60 problems; the 60th generated nothing to edit), but the registered rechecking-marker readout is zero in every arm at the compared dose, so no contrast could be made. This is not evidence against a tail direction. |
+| **Probe baseline** | Beats an activation-free positional predictor by only 0.018 AUC; it must not be read as a correctness readout. |
+| **F8 — quantisation** | Blocked by design (no 15 GB download); the pilot's activation cosine 0.987 stands. |
+
+**Open before any conclusion is final** — each needs the researcher's decision
+or a check that has not been done: how a tie between two arms that moved by the
+same non-zero amount should be read (D46); RQ3's dependent variable (#11); F5's
+temperature and chunker sweeps, configured but never implemented; RQ2's
+independent-probe control, computed but never analysed; whether F8's bf16
+replication of the headline comparison is required; and the supervised
+analyses, whose held-out and cross-validated evidence disagree.
+
+### Pilot
+
 The pilot ran to completion: 24 problems (14 GSM8K, 10 MATH), 24 traces with no
 failures, activations at layers 14/20/24 with **zero positional drift and zero
 clamped positions**, the Answer-Stable Tail detected, all three baselines
@@ -134,15 +162,15 @@ NF4 and run.
 | **The hidden-state probe is largely reading position.** | Grouped-CV AUC **0.996** — but the same model on activation-free positional features alone reaches **0.962**. A 0.034 margin. And layer 20 is not special: 0.995 at layer 14, 0.994 at layer 24. Its label becomes true once the answer is worked out and stays true, so it is ordered by position. One of the baselines the primary question is scored against. |
 | **Cheap surface features do not explain the tail.** | Tail-fraction regression on question- and trace-surface features reaches R² ≈ 0.003 against a mean baseline of −0.415. The redundancy is not a surface-form phenomenon. |
 
+The pilot table above predates the main run and describes the pilot only. Its
+RQ3 row describes the pre-fix causal run; the fixed interventions have since
+been validated on the pilot on GPU (every non-zero dose edited positions), and
+its `analysis` and `report` still need regenerating against them.
+
 **Not done**
 
-- **The main configuration** (`configs/main.yaml`, 250 problems) has not been
-  attempted. At the pilot's measured throughput that is over 50 hours on this
-  machine.
-- **The two `scripts/predict_*.py` analyses refuse at this sample size** — they
-  require 30 train / 20 eval rows and the pilot has 24 problems. The
-  root-level `regression.py` / `classification.py` do run, and write a
-  `provenance.json` recording the corpus.
+- **The two `scripts/predict_*.py` analyses refuse at the pilot's sample size**
+  — they require 30 train / 20 eval rows. They have run on the main corpus.
 - **`runs/mlcorpus`** holds 33 traces from before the chunker and parser fixes.
   They are not poolable with the pilot's and are refused automatically.
 - **A second annotator** for inter-rater reliability, which the review already
