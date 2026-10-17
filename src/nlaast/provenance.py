@@ -301,6 +301,19 @@ class Manifest:
         self._touched_stages.add(stage)
         self.flush()
 
+    def update_stage(self, stage: str, **fields: Any) -> None:
+        """Add or replace fields on a stage's record without restarting it.
+
+        For a derived artifact rebuilt after the fact - the stage's own
+        ``started``, ``finished``, ``elapsed_s`` and ``git`` describe the run
+        that produced its data and must survive.
+        """
+        if stage not in self.data["stages"]:
+            raise KeyError(f"stage {stage!r} has no record to update")
+        self.data["stages"][stage].update(fields)
+        self._touched_stages.add(stage)
+        self.flush()
+
     def record_resource(self, name: str, **meta: Any) -> None:
         """Model/dataset provenance: repo id, revision, local path, digests."""
         self.data.setdefault("resources", {})[name] = {"recorded": utcnow(), **meta}
