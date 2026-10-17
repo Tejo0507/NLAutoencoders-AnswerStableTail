@@ -1987,3 +1987,60 @@ follow-up refit that `docs/F6_RESIZE_AUDIT.md` left to the researcher.
   `runs/main/robustness/robustness.json` SHA-256 `45701a51…d5ed`. The
   diagnostic is exploratory and descriptive and gives no leakage verdict.
 
+## D59. F6's length-correct diagnostic: implementation recorded, not run
+
+**Recorded 2026-10-18.** The researcher approved the implementation of the
+D58 protocol for commit, after a review against the protocol and four
+corrections. `scripts/diag_f6_length_correct.py`, SHA-256 of its LF-normalised
+text (`\r\n` folded to `\n`, the committed blob):
+`45c7807b3b7c99b8c4d6e137e2693e723f4a148ede9754e5ab37734da7d2fdf9`. Its
+preflight refuses to run unless this hash appears here and the script, the
+protocol and this file are committed and unmodified. Tests:
+`tests/test_diag_f6_length_correct.py`.
+
+**Corrections approved before commit.** None changes a seed, donor
+assignment, mapping, metric, estimand or sampling plan.
+
+1. The derangement assumption is enforced: the data checks require F6's
+   draw-0 permutation to have no fixed point, and the oracle raises an error
+   for a receiver that is its own donor (D_r would otherwise drop it twice).
+   No receiver is excluded or given another donor.
+2. The preflight probe-settings check includes `max_iter = 2000`.
+3. `summary.json` carries the caveats: the donor-draw 2.5–97.5 percentiles
+   describe single draws, not an interval for the mean; the oracle is a
+   position-derived reference benchmark, not a guaranteed upper bound, formal
+   null distribution or definitive leakage test; probe AUC above it is a
+   discrepancy to investigate, not proof of leakage; similar or lower probe
+   AUC neither shows that position explains the predictability nor rules out
+   leakage.
+4. Every write after the output directory is created is inside the failure
+   handler, so an early failure leaves `status: failed` and no `summary.json`.
+   The directory is still created only after the seed-12 gate passes.
+
+**Implementation readings (the protocol does not spell these out).**
+
+1. Draw 0 of the subset and S2 uses the protocol's streams
+   `[11, 0xF6, 1, 0]` and `[11, 0xF6, 2, 0]`: F6's draw-0 permutation is
+   defined on the full sample only and is not a derangement of the subset.
+2. The full sample and the subset each have their own bootstrap generator,
+   both seeded with `analysis.seed` (2024). Arms within a sample share one
+   set of resamples, so every reported difference, all of which are within
+   one sample, stays paired.
+3. The explicit-feature comparator P is fitted on the full-sample S0 and S1
+   labellings only (Question B's scope): no subset or real-label comparator
+   (confirmed by the researcher).
+4. The predeclared wording table is applied to differences only (Delta_A, E,
+   subset differences), not to AUC levels or the share-of-oracle ratio; both
+   uncertainty summaries are still reported for every statistic.
+5. Stage-0 label statistics are computed before any fit and written only
+   after the seed-12 gate passes, since a gate failure writes nothing.
+6. Problem IDs are in sorted order throughout (F6's convention, needed to
+   reproduce its draw 0); S2's strata are deranged in ascending length, one
+   generator per draw.
+
+**Not done.** Tests were synthetic and CPU-only (a fake fit function; no
+research data read). No research-data fit, preflight, seed-12 gate or
+diagnostic run has been authorised or executed, and `runs/main_f6_diag/` does
+not exist. Preflight, the gate and the full run each need separate
+authorisation.
+
