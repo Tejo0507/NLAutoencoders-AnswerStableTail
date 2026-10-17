@@ -175,13 +175,7 @@ def regression_section(run_dir: Path, s: dict) -> list[str]:
         f"{null['n_permutations']} times gives a null CV R² of "
         f"{null['null_mean']:.3f} (SD {null['null_sd']:.3f}, max "
         f"{null['null_max']:.3f}) against the observed {null['observed']:.3f}; "
-        f"p = {null['p_value']:.4f}. "
-        + ("The model collapses on destroyed labels, which is what a "
-           "leakage-free fit should do."
-           if null["p_value"] < 0.10 else
-           "**The observed score is not clearly separated from the null**, which "
-           "at this sample size is a power statement rather than evidence of "
-           "leakage - but it means the point estimate should not be leaned on."),
+        f"p = {null['p_value']:.4f}. " + shuffle_reading(null, s["n_train"]),
         "",
         markdown(sens, floatfmt="%.3f"),
         "",
@@ -226,6 +220,38 @@ def odds_section(odds: pd.DataFrame) -> list[str]:
         markdown(odds.head(12)[cols], floatfmt="%.3f"),
         "",
     ]
+
+
+#: The significance level the rest of the project tests at. The label-shuffle
+#: reading used to call p < 0.10 "separated", which on `main` described a
+#: p = 0.08 null whose maximum exceeded the observed score.
+SHUFFLE_ALPHA = 0.05
+
+
+def shuffle_reading(null: dict, n_train: int, minority: int | None = None) -> str:
+    """What the label-shuffle null does and does not say.
+
+    It is a leakage check on the *cross-validated training-split* score; it is
+    not a test of the held-out result, which stands on its own interval. When
+    the training split is small, that CV score is unstable and the check has
+    little power either way - which is a reason to state both numbers and
+    their roles, never to pick the better-looking one.
+    """
+    per_fold = n_train / 5
+    size = f"{n_train} training rows, about {per_fold:.0f} per CV fold"
+    if minority is not None:
+        size += (f", and only {minority} minority-class examples in the whole "
+                 f"training split ({minority / 5:.1f} per fold)")
+    if null["p_value"] <= SHUFFLE_ALPHA:
+        return (f"The observed CV score is separated from the null at "
+                f"α = {SHUFFLE_ALPHA}: refits on destroyed labels do not reach it, "
+                f"which is what a leakage-free fit should show.")
+    return (f"**Not separated from the null at α = {SHUFFLE_ALPHA}.** This check is "
+            f"run on the cross-validated *training-split* score, and with {size} "
+            f"that score is unstable from one fold assignment to the next, so the "
+            f"check has little power: it shows no sign of leakage, and it neither "
+            f"corroborates nor contradicts the held-out estimate above, which rests "
+            f"on its own bootstrap interval over the larger held-out split.")
 
 
 def classification_section(run_dir: Path, s: dict) -> list[str]:
@@ -312,11 +338,8 @@ def classification_section(run_dir: Path, s: dict) -> list[str]:
         f"permuted labels give a null CV AUROC of {null['null_mean']:.3f} "
         f"(SD {null['null_sd']:.3f}, max {null['null_max']:.3f}) against the "
         f"observed {null['observed']:.3f}; p = {null['p_value']:.4f}. "
-        + ("The null sits at chance and the observed score is separated from it."
-           if null["p_value"] < 0.10 else
-           "**The observed score is not clearly separated from the null.** At this "
-           "sample size that is a statement about power, not proof of leakage, but "
-           "the point estimate should not be leaned on."),
+        + shuffle_reading(null, s["n_train"], minority=round(
+            s["n_train"] * min(s["prevalence"]["train"], 1 - s["prevalence"]["train"]))),
         "",
     ]
     return out
@@ -340,6 +363,15 @@ def conclusions(reg: dict | None, clf: dict | None) -> list[str]:
                 f"Adding the answer-convergence baseline on top of the trace's "
                 f"surface form moves cross-validated R² by {conv_inc:+.3f}. ",
             ]
+        null = reg.get("label_shuffle_null") or {}
+        if null and null.get("p_value", 0) > SHUFFLE_ALPHA:
+            out += [
+                f"That figure is one estimate on one pre-existing split; "
+                f"cross-validation inside the {reg['n_train']}-row training "
+                f"split does not corroborate it (CV R² {null['observed']:.3f}, "
+                f"label-shuffle p = {null['p_value']:.2f}), because at that size "
+                f"the CV score is too unstable to say anything either way (§1.5). ",
+            ]
         out += [
             "This is the floor for falsification tests F1 and F2: whatever the "
             "verbalised readout eventually shows about the tail has to be shown "
@@ -357,9 +389,22 @@ def conclusions(reg: dict | None, clf: dict | None) -> list[str]:
             "This is the floor for the layer-20 hidden-state probe: a probe "
             "AUROC at or below this number is not evidence that correctness is "
             "decodable from activations, because it is already readable from the "
-            "text.",
-            "",
+            "text. ",
         ]
+        null = clf.get("label_shuffle_null") or {}
+        if null and null.get("p_value", 0) > SHUFFLE_ALPHA:
+            minority = round(clf["n_train"] * min(clf["prevalence"]["train"],
+                                                  1 - clf["prevalence"]["train"]))
+            out += [
+                f"The ranking claim rests on the held-out interval alone: "
+                f"cross-validation inside the training split is not separated "
+                f"from its label-shuffle null (p = {null['p_value']:.2f}) with "
+                f"only {minority} minority-class training examples, and the "
+                f"same {minority} fix the decision threshold, so threshold-based "
+                f"metrics (balanced accuracy, the confusion matrix) and "
+                f"calibration are less secure than the AUROC.",
+            ]
+        out += [""]
 
     out += [
         "**On the project's premise.** Both analyses are constructed so that a "
