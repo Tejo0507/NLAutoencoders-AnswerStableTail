@@ -1965,3 +1965,25 @@ human-validated:
   session report gave "1,584 of 3,779"; that counts claims asserting any
   attribute including the unscored `final_word`. Full table: A1 §12.
 
+## D58. F6's length-correct diagnostic: protocol approved, implementation not
+
+**Recorded 2026-10-18, before any implementation or fit.** The researcher
+approved the protocol `docs/F6_LENGTH_CORRECT_DIAGNOSTIC.md`, SHA-256
+`097cbf8a60b381b17b7973c50684153c1af85eea55b838b43b264504baf66eb1`. It is
+committed byte-identical to the approved text, so its header still reads
+"PROPOSED, not approved"; this entry is the approval record. It is the
+follow-up refit that `docs/F6_RESIZE_AUDIT.md` left to the researcher.
+
+- **Approved:** the protocol text only.
+- **Not approved:** writing `scripts/diag_f6_length_correct.py`, fitting any
+  probe, or creating `runs/main_f6_diag/`. Each needs separate authorisation;
+  the protocol's DECISIONS entry with the code SHA-256 is made at that point.
+- **Decided within the protocol:** the positional oracle's donor pool is every
+  problem except the receiver and its donor (no fold restriction); SD / sqrt(B)
+  is kept as a supplementary Monte Carlo standard error.
+- **Unchanged:** F6's registered result (real AUC 0.9460944231, across-groups
+  shuffled 0.6142873504, within-group 0.5385), its threshold,
+  `leak_suspected = false`, its interpretation and `permute_labels`;
+  `runs/main/robustness/robustness.json` SHA-256 `45701a51…d5ed`. The
+  diagnostic is exploratory and descriptive and gives no leakage verdict.
+
