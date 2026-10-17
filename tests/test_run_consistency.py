@@ -305,6 +305,136 @@ class TestStaleness:
         assert rep.failures == [] and rep.warnings == []
 
 
+class TestTheCausalLayers:
+    """PW-23: the causal stage's rows are a measurement; its summary, and the
+    analysis and report built on it, are derived. A file-level history check
+    flagged the rows as stale after a correction to the derived layer only.
+    The four cases below are now told apart from content."""
+
+    @staticmethod
+    def _rows():
+        rows = []
+        for i in range(6):
+            for arm, coeff, markers, did in (
+                    ("ablate_dir", 0.0, 0, None), ("ablate_dir", 1.0, 0, None),
+                    ("ablate_dir", 2.0, 2, None), ("random_dir", 1.0, 0, "random_0"),
+                    ("matched_position", 1.0, 0, None)):
+                rows.append({
+                    "id": f"p{i}|{arm}|{coeff}|{did}", "problem_id": f"p{i}",
+                    "intervention": arm, "coefficient": coeff, "answer": "1",
+                    "baseline_answer": "1", "gold": "1", "answer_changed": False,
+                    "correct": True, "baseline_correct": True,
+                    "tokens_generated": 20, "verification_markers": markers,
+                    "baseline_verification_markers": 0, "direction_id": did,
+                    "notes": {"n_positions_edited": 20}})
+        return rows
+
+    @pytest.fixture
+    def run(self, tmp_path):
+        import aggregate_results as agg
+        import run_interventions as ri
+        from nlaast.logging_utils import get
+
+        run = tmp_path / "run"
+        (run / "causal").mkdir(parents=True)
+        (run / "analysis").mkdir()
+        (run / "report").mkdir()
+        rows = self._rows()
+        (run / "causal" / "interventions.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        summary = ri.summarise(run / "causal", None, get())
+        basis = {k: v for k, v in agg.rq3_paired_contrast(rows, 0.95).items()
+                 if k != "test_result"}
+        results = {"rq3": {"verdict": summary["verdict"]},
+                   "rq3_family_test_basis": basis}
+        (run / "analysis" / "results.json").write_text(
+            json.dumps(results, default=str), encoding="utf-8")
+        (run / "report" / "RESULTS.md").write_text(
+            "**Direction claim: not tested.**\n", encoding="utf-8")
+        return run, results, ri
+
+    def test_valid_current_outputs_pass(self, run, rep):
+        run_dir, results, _ = run
+        crc.check_causal(run_dir, results, rep)
+        assert rep.failures == [] and rep.warnings == []
+
+    def test_changed_rows_are_a_mismatch(self, run, rep):
+        run_dir, results, _ = run
+        p = run_dir / "causal" / "interventions.jsonl"
+        lines = p.read_text(encoding="utf-8").splitlines()
+        p.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+        crc.check_causal(run_dir, results, rep)
+        assert any(f.startswith("causal.rows_sha256") for f in rep.failures)
+
+    def test_a_stale_summary_fails_and_a_rebuild_over_the_same_rows_passes(
+            self, run, rep):
+        run_dir, results, ri = run
+        from nlaast.logging_utils import get
+        path = run_dir / "causal" / "summary.json"
+        s = json.loads(path.read_text(encoding="utf-8"))
+        s["verdict"]["supported"] = False        # what the old gate wrote
+        path.write_text(json.dumps(s), encoding="utf-8")
+        crc.check_causal(run_dir, results, rep)
+        assert any("causal.summary.verdict.supported" in f for f in rep.failures)
+
+        ri.summarise(run_dir / "causal", None, get())
+        again = crc.Report()
+        crc.check_causal(run_dir, results, again)
+        assert again.failures == [] and again.warnings == []
+
+    def test_stale_downstream_analysis_and_report_fail(self, run, rep):
+        run_dir, results, _ = run
+        results["rq3"]["verdict"]["supported"] = False
+        results["rq3_family_test_basis"]["intervention_demonstrated"] = False
+        (run_dir / "report" / "RESULTS.md").write_text(
+            "**Direction claim supported: False**\n", encoding="utf-8")
+        crc.check_causal(run_dir, results, rep)
+        failed = " ".join(rep.failures)
+        assert "analysis.rq3.verdict.supported" in failed
+        assert "analysis.rq3_family_test_basis.intervention_demonstrated" in failed
+        assert "report.rq3.direction_claim" in failed
+
+    def test_a_summary_without_a_row_hash_is_a_warning(self, run, rep):
+        run_dir, results, _ = run
+        path = run_dir / "causal" / "summary.json"
+        s = json.loads(path.read_text(encoding="utf-8"))
+        del s["rows_sha256"]
+        path.write_text(json.dumps(s), encoding="utf-8")
+        crc.check_causal(run_dir, results, rep)
+        assert rep.failures == []
+        assert any(w.startswith("causal.rows_sha256") for w in rep.warnings)
+
+
+class TestRowCodeIsComparedBySymbol:
+    def test_docstrings_and_comments_do_not_count(self):
+        a = 'def f(x):\n    """Old."""\n    return x + 1\n'
+        b = 'def f(x):\n    """New words."""\n    # a comment\n    return x + 1\n'
+        assert crc._symbol_sources(a) == crc._symbol_sources(b)
+
+    def test_a_changed_body_does(self):
+        a = "def f(x):\n    return x + 1\n"
+        b = "def f(x):\n    return x + 2\n"
+        assert crc._symbol_sources(a)["f"] != crc._symbol_sources(b)["f"]
+
+    def test_constants_are_compared_too(self):
+        assert crc._symbol_sources("K = 64\n") != crc._symbol_sources("K = 32\n")
+
+    def test_head_against_itself_changes_nothing(self):
+        head = crc._git("rev-parse", "HEAD")
+        if head is None:
+            pytest.skip("not a git checkout")
+        assert crc.causal_row_code_changes(head) == []
+
+    def test_every_declared_symbol_exists_at_head(self):
+        """A renamed generator would otherwise drop out of the check silently."""
+        for path, names in crc.CAUSAL_ROW_SYMBOLS.items():
+            src = crc._git("show", f"HEAD:{path}")
+            if src is None:
+                pytest.skip("not a git checkout")
+            missing = set(names) - set(crc._symbol_sources(src))
+            assert not missing, f"{path}: {sorted(missing)}"
+
+
 class TestTheHarness:
     def test_a_nan_matches_a_nan_but_not_a_number(self):
         assert crc._same(float("nan"), float("nan"))
