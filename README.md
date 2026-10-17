@@ -128,14 +128,20 @@ runs/main` reports 159 checks, 0 mismatched.
 | **F10 — position** | Tail windows reconstruct slightly *worse* than position-matched ones (cosine 0.873 vs 0.878, Cliff's δ −0.203). |
 | **RQ3 — causal** | **Untested.** The edits were applied (59 of 60 problems; the 60th generated nothing to edit), but the registered rechecking-marker readout is zero in every arm at the compared dose, so no contrast could be made. This is not evidence against a tail direction. |
 | **Probe baseline** | Beats an activation-free positional predictor by only 0.018 AUC; it must not be read as a correctness readout. |
-| **F8 — quantisation** | Blocked by design (no 15 GB download); the pilot's activation cosine 0.987 stands. |
+| **F8 — quantisation** | Partly replicated (D55): on 24 problems, bf16 target activations match NF4 at cosine 0.990 and leave the NLA readout's score unchanged within noise (−0.0014 [−0.0033, 0.0005]); the verbaliser, reconstructor and behavioural arms stayed NF4, so this is not the full registered replication. |
 
-**Not done, and recorded as such** (`docs/DECISIONS.md` D52): F5's
-temperature and chunker sweeps were configured but never implemented; RQ2's
-registered independent-probe control was not implemented (the stored probe
-scores are per activation, not per claim); F8's bf16 replication of the
-headline comparison was not run (only the activation-drift half, on the
-pilot). RQ3's path is the researcher's decision
+**Not done, and recorded as such** (`docs/DECISIONS.md` D52, status update
+2026-10-17): F5's temperature and chunker sweeps are implemented
+(`scripts/run_f5_sweep.py`) but not run — deferred for an estimated
+60–150 GPU-hours; RQ2's
+registered independent-probe control has since been operationalised by
+amendment A1 and run as an **exploratory** analysis on unvalidated
+rule-derived claim labels — it did **not** corroborate the
+reconstruction-dependence reading for either attribute tested
+([`docs/RQ2_PROBE_AMENDMENT.md`](docs/RQ2_PROBE_AMENDMENT.md) §12, D57); F8's bf16 replication of the
+headline comparison was run only in part (bf16 target activations, 24
+problems; D55); the NLA arm was extended to 240 problems as an exploratory,
+post-hoc analysis (D54). RQ3's path is the researcher's decision
 ([`docs/RQ3_DECISION_BRIEF.md`](docs/RQ3_DECISION_BRIEF.md), #11).
 
 **Supervised analyses** (`EXECUTION_REPORT_SUPERVISED.md`): cheap features
