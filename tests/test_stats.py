@@ -9,6 +9,8 @@ import numpy as np
 import pytest
 
 from nlaast.analysis.stats import (
+    PAIRED_MEAN_DIFFERENCE,
+    PAIRED_RATE_DIFFERENCE,
     TestResult,
     benjamini_hochberg,
     bh_at_family_size,
@@ -394,3 +396,49 @@ class TestPairedRateDifference:
         for b, c in ((0, 10), (10, 0), (5, 5), (1, 9)):
             iv = paired_rate_difference_ci(b, c, 10)
             assert -1.0 <= iv.low <= iv.high <= 1.0
+
+
+class TestAnIntervalNamesWhatItBounds:
+    """`effect` and `interval` are not on one scale for two test families, and
+    the hypothesis-test table printed them side by side: an odds ratio of 0.833
+    beside a CI of [-0.061, 0.049], Cohen's d of 0.712 beside [0.031, 0.033].
+    The numbers were right; the table read as if the CI bounded the effect."""
+
+    def test_a_paired_test_bounds_the_raw_mean_difference_not_d(self):
+        t = paired_test("x", [3.0, 4.0, 5.0, 6.0, 7.0], [1.0, 1.5, 2.0, 2.5, 3.0])
+        assert t.effect_name == "cohens_d_paired"
+        assert t.interval.estimand == PAIRED_MEAN_DIFFERENCE
+        assert t.interval.estimate == pytest.approx(3.0)
+        assert t.effect != pytest.approx(t.interval.estimate)
+
+    def test_a_paired_binary_test_bounds_the_rate_difference_not_the_odds(self):
+        a = [True] * 10 + [False] * 6 + [True] * 5
+        b = [True] * 10 + [True] * 6 + [False] * 5
+        t = paired_binary_test("x", a, b)
+        assert t.effect_name == "odds_ratio_discordant"
+        assert t.interval.estimand == PAIRED_RATE_DIFFERENCE
+        assert t.interval.estimate == pytest.approx((5 - 6) / 21)
+
+    def test_the_table_prints_the_estimand_and_its_estimate(self):
+        from nlaast.analysis.tables import tests_table
+        t = paired_test("x", [3.0, 4.0, 5.0, 6.0, 7.0], [1.0, 1.5, 2.0, 2.5, 3.0])
+        row = tests_table([t]).iloc[0]
+        assert row["ci_estimand"] == PAIRED_MEAN_DIFFERENCE
+        assert row["ci_estimate"] == pytest.approx(3.0)
+        assert row["ci_low"] <= row["ci_estimate"] <= row["ci_high"]
+
+    def test_an_artifact_written_before_the_label_is_still_labelled(self):
+        """results.json files already on disk carry no estimand."""
+        from nlaast.analysis.tables import tests_table
+        old = {"name": "O3", "n": 120, "effect": 0.833,
+               "effect_name": "odds_ratio_discordant",
+               "interval": {"estimate": -0.008, "low": -0.061, "high": 0.049},
+               "p_value": 1.0, "q_value": 1.0, "significant": False}
+        row = tests_table([old]).iloc[0]
+        assert row["ci_estimand"] == PAIRED_RATE_DIFFERENCE
+
+    def test_no_interval_means_no_estimand(self):
+        from nlaast.analysis.tables import tests_table
+        row = tests_table([{"name": "F10", "effect": -0.2,
+                            "effect_name": "cliffs_delta"}]).iloc[0]
+        assert row["ci_estimand"] is None
