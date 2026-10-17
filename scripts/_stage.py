@@ -45,7 +45,8 @@ def setup(args) -> tuple:
 
     cfg.dir.mkdir(parents=True, exist_ok=True)
     log = logging_utils.setup(cfg.dir)
-    manifest = provenance.Manifest.open(cfg.dir, cfg.to_dict(), cfg.hash())
+    manifest = provenance.Manifest.open(cfg.dir, cfg.to_dict(), cfg.hash(),
+                                        overrides=args.overrides)
     config_mod.save(cfg, cfg.dir / "config.resolved.yaml")
     seeding.seed_everything(cfg.seed)
     log.info("run=%s config_hash=%s dir=%s", cfg.run_id, cfg.hash(), cfg.dir)
