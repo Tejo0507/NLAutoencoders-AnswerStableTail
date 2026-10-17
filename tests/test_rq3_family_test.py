@@ -33,12 +33,13 @@ def agg():
     return importlib.import_module("aggregate_results")
 
 
-def row(arm, coeff, pid, markers, *, baseline=0, edited=40, did=None):
+def row(arm, coeff, pid, markers, *, baseline=0, edited=40, did=None,
+        tokens=20):
     return {
         "problem_id": pid, "intervention": arm, "coefficient": coeff,
         "answer": "1", "baseline_answer": "1", "gold": "1",
         "answer_changed": False, "correct": True, "baseline_correct": True,
-        "tokens_generated": 20,
+        "tokens_generated": tokens,
         "verification_markers": markers,
         "baseline_verification_markers": baseline,
         "direction_id": did,
@@ -122,6 +123,60 @@ class TestTheInterventionHasToHaveHappened:
         out = agg.rq3_paired_contrast(
             corpus([3] * 6, [3] * 6, edited=0), 0.95)
         assert not np.isfinite(out["test_result"].p_value)
+
+
+class TestAProblemWithNothingToEditDoesNotVoidTheTest:
+    """`main`: one trivial-tail problem generated no continuation, so no arm
+    could edit it, and its zero count declared the whole arm a broken
+    independent variable although 59 of 60 problems were edited."""
+
+    @staticmethod
+    def _with_one_empty_continuation(cand, ctrl):
+        rows = corpus(cand, ctrl)
+        for r in rows:
+            if r["problem_id"] == "p0":
+                r["tokens_generated"] = 0
+                r["notes"] = {"n_positions_edited": 0}
+        return rows
+
+    def test_the_edit_is_still_demonstrated(self, agg):
+        out = agg.rq3_paired_contrast(
+            self._with_one_empty_continuation([5] * 6, [0] * 6), 0.95)
+        assert out["intervention_demonstrated"] is True
+        assert out["candidate_rows_without_continuation"] == 1
+        assert out["candidate_edits_recorded"] == 5
+        assert "broken_independent_variable" not in out["test_result"].notes
+
+    def test_zero_edits_where_tokens_were_generated_still_void_it(self, agg):
+        """The exclusion is for an empty continuation only; a no-op editor on
+        real continuations is still caught."""
+        rows = self._with_one_empty_continuation([5] * 6, [0] * 6)
+        for r in rows:
+            if r["problem_id"] == "p1":
+                r["notes"] = {"n_positions_edited": 0}
+        out = agg.rq3_paired_contrast(rows, 0.95)
+        assert out["intervention_demonstrated"] is False
+
+    def test_only_empty_continuations_demonstrate_nothing(self, agg):
+        rows = corpus([0] * 6, [0] * 6, edited=0)
+        for r in rows:
+            r["tokens_generated"] = 0
+        out = agg.rq3_paired_contrast(rows, 0.95)
+        assert out["intervention_demonstrated"] is False
+
+
+class TestADegenerateReadoutIsNotATestedNull:
+    """The readout is zero in both arms on every problem at the compared dose:
+    the instrument registered nothing, so no p-value is reported and the test
+    stays out of the BH denominator. It must not become p = 1.0."""
+
+    def test_constant_zero_with_a_real_edit_is_unevaluable(self, agg):
+        out = agg.rq3_paired_contrast(corpus([0] * 6, [0] * 6), 0.95)
+        assert out["intervention_demonstrated"] is True
+        assert out["beats"] is None
+        t = out["test_result"]
+        assert not np.isfinite(t.p_value)
+        assert "not evidence against" in t.notes["skipped"]
 
 
 @pytest.fixture(scope="module")
