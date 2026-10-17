@@ -441,4 +441,4 @@ class TestAnIntervalNamesWhatItBounds:
         from nlaast.analysis.tables import tests_table
         row = tests_table([{"name": "F10", "effect": -0.2,
                             "effect_name": "cliffs_delta"}]).iloc[0]
-        assert row["ci_estimand"] is None
+        assert row["ci_estimand"] == ""
