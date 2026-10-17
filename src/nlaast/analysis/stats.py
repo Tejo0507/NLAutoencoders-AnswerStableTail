@@ -24,6 +24,19 @@ from typing import Any, Callable, Sequence
 import numpy as np
 
 
+#: Estimand labels for the intervals the hypothesis-test family carries. "First
+#: minus second" is in the order the test's name states its two arms.
+PAIRED_MEAN_DIFFERENCE = "mean paired difference (first minus second), raw units"
+PAIRED_RATE_DIFFERENCE = "paired rate difference (first minus second), share of problems"
+#: For artifacts written before intervals named their estimand: each effect
+#: name is produced by exactly one test function, which builds exactly one
+#: kind of interval, so the estimand follows from it.
+ESTIMAND_BY_EFFECT = {
+    "cohens_d_paired": PAIRED_MEAN_DIFFERENCE,
+    "odds_ratio_discordant": PAIRED_RATE_DIFFERENCE,
+}
+
+
 @dataclass
 class Interval:
     estimate: float
@@ -32,6 +45,12 @@ class Interval:
     confidence: float
     n: int
     method: str = "percentile_bootstrap"
+    #: What the interval is an interval *for*. A test's ``effect`` and its
+    #: ``interval`` are not always on one scale - ``paired_test`` reports
+    #: Cohen's d beside a CI for the raw mean difference, and
+    #: ``paired_binary_test`` an odds ratio beside a CI for the rate
+    #: difference - so the interval names its own estimand.
+    estimand: str | None = None
 
     @property
     def excludes_zero(self) -> bool:
@@ -125,12 +144,15 @@ def paired_difference(
     mask = np.isfinite(a) & np.isfinite(b)
     d = a[mask] - b[mask]
     if d.size == 0:
-        return Interval(float("nan"), float("nan"), float("nan"), confidence, 0)
-    return bootstrap_statistic(
-        list(range(d.size)),
-        lambda idx: float(np.mean(d[np.asarray(idx, dtype=int)])),
-        n_iterations, confidence, seed,
-    )
+        iv = Interval(float("nan"), float("nan"), float("nan"), confidence, 0)
+    else:
+        iv = bootstrap_statistic(
+            list(range(d.size)),
+            lambda idx: float(np.mean(d[np.asarray(idx, dtype=int)])),
+            n_iterations, confidence, seed,
+        )
+    iv.estimand = PAIRED_MEAN_DIFFERENCE
+    return iv
 
 
 def grouped_bootstrap_difference(
@@ -227,6 +249,7 @@ def rate_difference_ci(
         low=float((p1 - p2) - np.sqrt((p1 - l1) ** 2 + (u2 - p2) ** 2)),
         high=float((p1 - p2) + np.sqrt((u1 - p1) ** 2 + (p2 - l2) ** 2)),
         confidence=confidence, n=n_a + n_b, method="newcombe",
+        estimand="rate difference (first minus second), independent proportions",
     )
 
 
@@ -248,12 +271,14 @@ def paired_rate_difference_ci(
     from scipy import stats
 
     if n == 0:
-        return Interval(float("nan"), float("nan"), float("nan"), confidence, 0)
+        return Interval(float("nan"), float("nan"), float("nan"), confidence, 0,
+                        estimand=PAIRED_RATE_DIFFERENCE)
     d = b_only + c_only
     est = (b_only - c_only) / n
     if d == 0:
         # No problem was handled differently, so the difference is exactly 0.
-        return Interval(0.0, 0.0, 0.0, confidence, n, method="conditional_exact")
+        return Interval(0.0, 0.0, 0.0, confidence, n, method="conditional_exact",
+                        estimand=PAIRED_RATE_DIFFERENCE)
     ci = stats.binomtest(b_only, d, 0.5).proportion_ci(
         confidence_level=confidence, method="exact")
     scale = d / n
@@ -262,6 +287,7 @@ def paired_rate_difference_ci(
         low=float(scale * (2 * ci.low - 1)),
         high=float(scale * (2 * ci.high - 1)),
         confidence=confidence, n=n, method="conditional_exact",
+        estimand=PAIRED_RATE_DIFFERENCE,
     )
 
 

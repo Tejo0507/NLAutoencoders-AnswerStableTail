@@ -78,6 +78,34 @@ STAGE_CODE: dict[str, tuple[str, ...]] = {
                "src/nlaast/viz/"),
 }
 
+#: The causal stage writes two layers, made by different code at different
+#: times. `interventions.jsonl` is the measurement, generated on the GPU by the
+#: symbols below; `summary.json` and everything downstream are *derived* from
+#: those rows on CPU and can be rebuilt (`run_interventions.py
+#: --summarise-only`). Both layers live in the same two files, so a file-level
+#: history check cannot separate them: a correction to the verdict made the
+#: rows look stale (PW-23). The rows are judged by the source of the code that
+#: generates them, compared symbol by symbol with docstrings and comments
+#: ignored; the derived layer is judged by recomputing it.
+CAUSAL_ROW_SYMBOLS: dict[str, tuple[str, ...]] = {
+    "scripts/run_interventions.py": ("run_problem", "fit_tail_direction",
+                                     "chunks_of"),
+    "src/nlaast/causal/interventions.py": (
+        "InterventionResult", "VERIFICATION_MARKERS", "count_verification_markers",
+        "projection_editor", "random_direction", "filler_text",
+        "SPAN_SLACK_TOKENS", "intervention_spans", "spans_are_disjoint"),
+    "src/nlaast/baselines/probe.py": ("difference_in_means_direction",),
+    "src/nlaast/data/datasets.py": ("stratified_cap",),
+}
+#: Generation dependencies with no derived code in them, checked whole.
+CAUSAL_ROW_FILES: tuple[str, ...] = (
+    "src/nlaast/models/target.py", "src/nlaast/data/answers.py",
+    "src/nlaast/trace/chunking.py", "src/nlaast/seeding.py",
+    "src/nlaast/activations/store.py")
+#: The verdict fields a stale summary or analysis would get wrong.
+VERDICT_KEYS = ("supported", "beats_random_direction", "beats_matched_position",
+                "monotone_dose_response", "answers_preserved", "outcome_varies")
+
 TOL = 1e-9
 
 
@@ -385,7 +413,133 @@ def check_o3_accounting(results: dict, rep: Report) -> None:
                         shared, n["n_problems"])
 
 
+def check_causal(run: Path, results: dict, rep: Report) -> None:
+    """The causal summary against its rows, and the analysis against both.
+
+    Three ways the derived layer can be wrong, each decided from content:
+    the rows changed after the summary was built from them (the summary names
+    their SHA-256); the summary is not what the current code derives from
+    those rows; or the analysis and report carry a verdict other than the
+    summary's. A summary rebuilt over unchanged rows passes all three.
+    """
+    rows_path = run / "causal" / "interventions.jsonl"
+    summary_path = run / "causal" / "summary.json"
+    if not rows_path.exists() or not summary_path.exists():
+        return rep.skip("causal", "no causal rows or summary")
+    import hashlib
+    from nlaast.causal.interventions import (InterventionResult,
+                                             direction_claim_supported)
+
+    summary = read_json(summary_path)
+    sha = hashlib.sha256(rows_path.read_bytes()).hexdigest()
+    built_from = summary.get("rows_sha256")
+    if built_from is None:
+        rep.warn("causal.rows_sha256",
+                 "summary.json does not name the rows it was built from, so a "
+                 "change to interventions.jsonl since cannot be ruled out; "
+                 "rebuild it with run_interventions.py --summarise-only")
+    elif built_from != sha:
+        rep.fail("causal.rows_sha256",
+                 f"interventions.jsonl has changed since summary.json was built "
+                 f"from it (built from {built_from[:12]}, now {sha[:12]}); the "
+                 f"summary and everything derived from it are stale")
+    else:
+        rep.ok("causal.rows_sha256", sha[:12])
+
+    rows = read_jsonl(rows_path)
+    derived = direction_claim_supported(
+        [InterventionResult(**{k: v for k, v in r.items() if k != "id"})
+         for r in rows])
+    stored = summary.get("verdict") or {}
+    for k in VERDICT_KEYS:
+        rep.compare(f"causal.summary.verdict.{k}", derived.get(k), stored.get(k))
+
+    # Downstream layers are held to the summary they are derived from, so a
+    # stale analysis cannot vouch for a report built on it.
+    analysed = (results.get("rq3") or {}).get("verdict")
+    if analysed is not None:
+        for k in VERDICT_KEYS:
+            rep.compare(f"analysis.rq3.verdict.{k}", stored.get(k), analysed.get(k))
+
+    basis = results.get("rq3_family_test_basis")
+    if basis is not None:
+        import aggregate_results as agg
+        again = agg.rq3_paired_contrast(rows, 0.95)
+        for k in ("n_pairs", "beats", "intervention_demonstrated",
+                  "candidate_rows_without_continuation", "readout_constant_zero"):
+            rep.compare(f"analysis.rq3_family_test_basis.{k}",
+                        again.get(k), basis.get(k))
+
+    report = run / "report" / "RESULTS.md"
+    if report.exists():
+        text = report.read_text(encoding="utf-8")
+        said = ("not tested" if "**Direction claim: not tested.**" in text else
+                (m.group(1) if (m := re.search(
+                    r"\*\*Direction claim supported: (\w+)\*\*", text)) else None))
+        if said is not None:
+            want = ("not tested" if stored.get("supported") is None
+                    else str(stored.get("supported")))
+            rep.compare("report.rq3.direction_claim", want, said)
+
+
 # --- 3. the artifacts against the code that produced them ---
+
+
+def _strip_docstrings(node: Any) -> Any:
+    import ast
+    for n in ast.walk(node):
+        body = getattr(n, "body", None)
+        if (isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                           ast.Module))
+                and body and isinstance(body[0], ast.Expr)
+                and isinstance(getattr(body[0], "value", None), ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            n.body = body[1:] or [ast.Pass()]
+    return node
+
+
+def _symbol_sources(source: str) -> dict[str, str]:
+    """Top-level definitions, keyed by name, as ASTs without docstrings.
+
+    Comments, docstrings and layout do not reach the AST, so a change to them
+    is not a change to what the code does.
+    """
+    import ast
+    out: dict[str, str] = {}
+    for node in ast.parse(source).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names = [node.name]
+        elif isinstance(node, ast.Assign):
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names = [node.target.id]
+        else:
+            continue
+        dumped = ast.dump(_strip_docstrings(node))
+        for name in names:
+            out[name] = dumped
+    return out
+
+
+def causal_row_code_changes(commit: str) -> list[str] | None:
+    """Row-generating code that differs between ``commit`` and HEAD.
+
+    None when git cannot answer. Names a symbol as ``path:name``, and a whole
+    file as its path.
+    """
+    changed: list[str] = []
+    for path, names in CAUSAL_ROW_SYMBOLS.items():
+        old, new = _git("show", f"{commit}:{path}"), _git("show", f"HEAD:{path}")
+        if old is None or new is None:
+            return None
+        before, after = _symbol_sources(old), _symbol_sources(new)
+        changed += [f"{path}:{n}" for n in names if before.get(n) != after.get(n)]
+    log = _git("log", "--oneline", f"{commit}..HEAD", "--", *CAUSAL_ROW_FILES)
+    if log is None:
+        return None
+    if log:
+        changed += [line for line in log.splitlines()]
+    return changed
 
 
 def _git(*args: str) -> str | None:
@@ -434,6 +588,27 @@ def check_staleness(run: Path, rep: Report) -> None:
         if _git("cat-file", "-e", f"{commit}^{{commit}}") is None:
             rep.warn(f"staleness[{stage}]",
                      f"commit {commit[:9]} is not in this checkout")
+            continue
+        if stage == "causal":
+            # The rows only; the derived layer is checked by recomputation in
+            # check_causal, which a code change to it cannot slip past.
+            changed = causal_row_code_changes(commit)
+            if changed is None:
+                rep.warn("staleness[causal]", "git could not compare the code")
+            elif not changed:
+                rep.ok("staleness[causal]",
+                       f"row-generating code unchanged since {commit[:9]}")
+            else:
+                detail = (f"rows generated at {commit[:9]}; the code that "
+                          f"generates them has changed since, so the rows may "
+                          f"not be what this code would now produce:\n"
+                          + "\n".join(f"               {c}" for c in changed[:8]))
+                if (record.get("git") or {}).get("dirty"):
+                    rep.warn("staleness[causal]", detail + (
+                        "\n               the tree was dirty when it ran - git "
+                        "cannot tell whether it ran with this code"))
+                else:
+                    rep.fail("staleness[causal]", detail)
             continue
         log = _git("log", "--oneline", f"{commit}..HEAD", "--", *paths)
         if log is None:
@@ -548,6 +723,7 @@ def main() -> int:
     check_rq2(run, results, rep)
     check_reconstruction(run, results, rep)
     check_nla_arm(run, results, rep)
+    check_causal(run, results, rep)
     print("\n2. the analysis against itself")
     check_test_family(results, rep)
     check_o3_accounting(results, rep)

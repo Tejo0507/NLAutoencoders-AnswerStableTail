@@ -27,6 +27,8 @@ expected outcome rather than a failure.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 import time
 
@@ -52,6 +54,7 @@ from nlaast.data import datasets
 from nlaast.data.answers import PERMISSIVE, equivalent, extract_answer
 from nlaast.logging_utils import JsonlWriter, read_jsonl, write_json
 from nlaast.models.target import TargetModel
+from nlaast.provenance import git_commit, utcnow
 from nlaast.seeding import derive, rng
 from nlaast.trace.chunking import Chunk, prefix_text
 
@@ -118,8 +121,15 @@ def chunks_of(trace: dict) -> list[Chunk]:
 
 
 def main() -> int:
-    args = base_parser(__doc__).parse_args()
+    parser = base_parser(__doc__)
+    parser.add_argument("--summarise-only", action="store_true",
+                        help="rebuild summary.json and the verdict from the "
+                             "recorded interventions.jsonl on CPU; no model is "
+                             "loaded and nothing is generated")
+    args = parser.parse_args()
     cfg, manifest, log = setup(args)
+    if args.summarise_only:
+        return summarise_only(cfg, manifest, log)
     if should_skip(manifest, STAGE, args.force, log):
         return 0
 
@@ -184,10 +194,24 @@ def main() -> int:
     finally:
         model.close()
 
-    rows = read_jsonl(out_dir / "interventions.jsonl")
+    metrics = summarise(out_dir, dir_info, log)
+    manifest.finish_stage(STAGE, status="complete", output=str(out_dir), metrics=metrics)
+    return 0
+
+
+def summarise(out_dir, dir_info, log) -> dict:
+    """Build ``summary.json`` - arms, dose-response, verdict - from the rows.
+
+    The summary names the exact bytes it was built from (``rows_sha256``), so
+    the consistency check can tell a summary rebuilt over unchanged rows from
+    one whose rows have since changed under it.
+    """
+    rows_path = out_dir / "interventions.jsonl"
+    rows = read_jsonl(rows_path)
     results = [InterventionResult(**{k: v for k, v in r.items() if k != "id"})
                for r in rows]
     metrics = {
+        "rows_sha256": hashlib.sha256(rows_path.read_bytes()).hexdigest(),
         "n_results": len(results),
         "direction": dir_info,
         "arms": {a: summarise_arm(results, a).to_dict()
@@ -206,8 +230,32 @@ def main() -> int:
              "position=%s, monotone dose=%s, answers preserved=%s)",
              v["supported"], v["beats_random_direction"], v["beats_matched_position"],
              v["monotone_dose_response"], v["answers_preserved"])
+    return metrics
 
-    manifest.finish_stage(STAGE, status="complete", output=str(out_dir), metrics=metrics)
+
+def summarise_only(cfg, manifest, log) -> int:
+    """Rebuild the verdict from the recorded rows, on CPU, with no model.
+
+    The verdict is computed once, when the GPU stage finishes, and the
+    analysis copies it forward. A correction to how the verdict reads the
+    rows therefore never reached a finished run without regenerating every
+    intervention. The rows are the measurement; this re-reads them. The
+    GPU run's own timing and commit stay on the stage record, and the rebuild
+    is recorded beside them.
+    """
+    out_dir = cfg.stage_dir(STAGE)
+    rows_path = out_dir / "interventions.jsonl"
+    if not rows_path.exists():
+        log.error("no %s to summarise", rows_path)
+        return 1
+    old = out_dir / "summary.json"
+    dir_info = (json.loads(old.read_text(encoding="utf-8")).get("direction")
+                if old.exists() else None)
+    metrics = summarise(out_dir, dir_info, log)
+    manifest.update_stage(STAGE, metrics=metrics, summary_rebuilt={
+        "at": utcnow(), "git": git_commit(),
+        "from": "interventions.jsonl", "rows_sha256": metrics["rows_sha256"],
+        "model_loaded": False})
     return 0
 
 

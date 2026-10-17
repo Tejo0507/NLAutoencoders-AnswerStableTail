@@ -114,7 +114,8 @@ def main() -> int:
         cfg = config_mod.from_mapping({**cfg.to_dict(), "run_id": args.run_id})
     cfg.dir.mkdir(parents=True, exist_ok=True)
     log = logging_utils.setup(cfg.dir, name="orchestrator")
-    manifest = provenance.Manifest.open(cfg.dir, cfg.to_dict(), cfg.hash())
+    manifest = provenance.Manifest.open(cfg.dir, cfg.to_dict(), cfg.hash(),
+                                        overrides=args.overrides)
 
     selected = list(args.stages) if args.stages else list(cfg.stages)
     unknown = [s for s in selected if s not in STAGES]

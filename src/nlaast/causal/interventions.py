@@ -516,7 +516,27 @@ def paired_arm_contrast(
     out["n_pairs_favouring_control"] = int(sum(1 for d in diffs if d < 0))
     out["n_pairs_tied"] = int(sum(1 for d in diffs if d == 0))
 
+    if all(x == 0 for x in av) and all(y == 0 for y in bv):
+        # The readout is constant at zero in both arms: the instrument
+        # registered no behaviour change anywhere, so there was nothing to
+        # beat or to fail to beat. That is no test (D27), never evidence that
+        # the direction does nothing - on this model the rechecking markers
+        # are at their floor, so silence here is a property of the readout.
+        out["beats"] = None
+        out["readout_constant_zero"] = True
+        out["reason"] = (
+            f"the readout is zero for both arms on every shared problem at "
+            f"dose {compare_at}, so the instrument registered no change in "
+            f"either arm and this contrast tests nothing; it is not evidence "
+            f"against the direction")
+        return out
+
     if all(d == 0 for d in diffs):
+        # Identical *non-zero* movement in both arms. Whether this is a
+        # determinate refusal (below) or also untested is an open
+        # researcher decision (DECISIONS.md D46); the behaviour is unchanged
+        # pending it.
+        #
         # Determinate, and False rather than None. Wilcoxon is undefined on
         # all-zero differences, but "beat" is one-sided and the substantive
         # answer does not need the test: the candidate moved the outcome by
@@ -816,11 +836,14 @@ def direction_claim_supported(
             f"problems, by a Wilcoxon signed-rank test over problems at "
             f"alpha = {alpha}, read at dose {compare_at}"),
         "untestable_reason": (
-            None if outcome_varies else
             "the behavioural readout is constant across every direction arm, "
             "so the controls cannot be beaten or missed: this corpus provides "
             "no test of the direction claim either way. On the pilot the "
             "rechecking markers the readout counts do not occur in any trace."
+            if not outcome_varies else
+            "; ".join(f"{c['control']}: {c['reason']}"
+                      for c in (contrast_random, contrast_matched)
+                      if c.get("readout_constant_zero")) or None
         ),
         "compared_at_coefficient": compare_at,
         "arms": {
