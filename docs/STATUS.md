@@ -29,6 +29,20 @@ Last reviewed 2026-10-17.
 > (SHA-256 verified). That is the same physical disk; an off-machine copy is
 > still needed and is the researcher's action (audit, "Backup").
 >
+> **Update 2026-10-18 — F6's control is sensitive to its length mapping
+> (exploratory).** A separate diagnostic (protocol D58, implementation D59,
+> result D60, [`F6_LENGTH_CORRECT_RESULTS.md`](F6_LENGTH_CORRECT_RESULTS.md))
+> refitted the probe over 100 donor draws. With the same donors, a
+> length-correct mapping gives a shuffled AUC of 0.841 against 0.602 under
+> F6's `np.resize` (**+0.240**), and shifts prevalence 0.200 → 0.228. The
+> probe stays below a position-derived oracle in every draw; that is not a
+> leakage test and rules nothing out. F6's registered result (0.946 / 0.614 /
+> 0.539), threshold, `leak_suspected = false` and interpretation are
+> unchanged, but the registered control cannot support a stronger claim; that
+> would need a new preregistered design. No further experiment is planned.
+> The other post-run analyses (F5 deferred, F8 partial, RQ2 amendment A1, the
+> N = 240 extension) are tracked in `DECISIONS.md` D52's status table.
+>
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 
 **Main run in progress: 231 of 250 traces** as of 18:53 on 2026-10-16, 0
@@ -356,7 +370,9 @@ verified outcome.
   reported as not applicable rather than as stability.
 - **F6**: no leakage. Real AUC 0.996 against 0.594 with labels permuted
   between problems and 0.472 within them; both shuffles moved labels, so both
-  are real controls.
+  are real controls. (Later finding, 2026-10-18: the between-problem arm fits
+  donor labels to length with `np.resize`, which the shuffled AUC is sensitive
+  to; see [`F6_LENGTH_CORRECT_RESULTS.md`](F6_LENGTH_CORRECT_RESULTS.md).)
 - **F7**: layer 20 is **not special** for decodability — AUC 0.995 at layer 14,
   0.996 at 20, 0.994 at 24. With the positional floor at 0.962, the probe's
   near-perfect score is a property of the task and the position, not of the
@@ -537,7 +553,11 @@ list.
   and the probe should not be described as a correctness readout. It was 0.034
   here.
 - **F6's shuffle arms.** `leak_suspected: null` means the shuffle moved no
-  labels and tested nothing, not that the probe is clean.
+  labels and tested nothing, not that the probe is clean. The across-groups
+  arm's AUC also depends on how donor labels are fitted to the receiver's
+  length (`np.resize`; +0.240 under a length-correct mapping on `main`,
+  [`F6_LENGTH_CORRECT_RESULTS.md`](F6_LENGTH_CORRECT_RESULTS.md)), so read it
+  as a property of that rule as well as of the probe.
 - **`total_clamped_positions`** in `acts/summary.json`. It was 0 here; anything
   else means an activation was read where its chunk boundary did not say.
 - **`matched` in the stopping comparison table, and `o3_unmatched` in

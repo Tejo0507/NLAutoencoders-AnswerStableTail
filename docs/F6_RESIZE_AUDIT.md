@@ -80,3 +80,27 @@ Whether to run a separate CPU-only *diagnostic refit* of the correctness
 probe under a length-correct shuffle (minutes on CPU) to measure the effect
 on the shuffled AUC — reported beside F6, not replacing it — or to leave F6
 with this audit as its caveat.
+
+## Outcome (2026-10-18; the sections above are kept as written)
+
+The researcher chose the diagnostic refit. Its protocol is
+[`F6_LENGTH_CORRECT_DIAGNOSTIC.md`](F6_LENGTH_CORRECT_DIAGNOSTIC.md) (D58), and
+its result, exploratory, is
+[`F6_LENGTH_CORRECT_RESULTS.md`](F6_LENGTH_CORRECT_RESULTS.md) (D60). It
+measured what this audit could not: over 100 donor draws, with the same donors,
+a length-correct mapping gives a shuffled AUC of 0.841 against 0.602 under
+`np.resize` — **+0.240**. The length-correct mapping also shifts prevalence
+(0.200 → 0.228), so it is a sensitivity analysis, not the definitive null.
+
+That result bears on the first bullet under *Possible, not demonstrated*. The
+bullet expected the residual position structure in `np.resize`'s labels to push
+F6's shuffled AUC *up*. The other side is now measured: `np.resize` also
+removed most of that structure (label–position AUC 0.920 → 0.683), and a
+shuffle that keeps it scores far higher. F6's 0.614, and its margin under the
+0.15 threshold, were therefore obtained under a control that had partly
+destroyed the pattern its docstring says it preserves. This is **not evidence
+of leakage**: the length-correct arm's expected AUC without leakage is not 0.5
+either, and the probe stays below the position-derived oracle in every draw.
+It does mean the registered control cannot carry a stronger claim than it
+already makes. F6's registered result, verdict and interpretation are
+unchanged; a stronger claim would need a new preregistered design.

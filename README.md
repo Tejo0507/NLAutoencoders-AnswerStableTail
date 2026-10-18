@@ -51,6 +51,7 @@ built to report that with the same weight as a positive result.
 | Stage-by-stage manual | [`docs/PIPELINE.md`](docs/PIPELINE.md) |
 | Every deviation, with reasons | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | Current state and next steps | [`docs/STATUS.md`](docs/STATUS.md) |
+| F6 control: `np.resize` audit, diagnostic protocol and result | [`docs/F6_RESIZE_AUDIT.md`](docs/F6_RESIZE_AUDIT.md), [`docs/F6_LENGTH_CORRECT_DIAGNOSTIC.md`](docs/F6_LENGTH_CORRECT_DIAGNOSTIC.md), [`docs/F6_LENGTH_CORRECT_RESULTS.md`](docs/F6_LENGTH_CORRECT_RESULTS.md) |
 | Paper drafts, and what each waits on | [`paper/README.md`](paper/README.md) |
 
 ---
@@ -143,6 +144,17 @@ headline comparison was run only in part (bf16 target activations, 24
 problems; D55); the NLA arm was extended to 240 problems as an exploratory,
 post-hoc analysis (D54). RQ3's path is the researcher's decision
 ([`docs/RQ3_DECISION_BRIEF.md`](docs/RQ3_DECISION_BRIEF.md), #11).
+
+**F6's leakage control is sensitive to its length mapping** (exploratory,
+D58–D60; [`docs/F6_LENGTH_CORRECT_RESULTS.md`](docs/F6_LENGTH_CORRECT_RESULTS.md)).
+F6's across-problem shuffle fits each donor's labels to the receiver's length
+with `np.resize` ([`docs/F6_RESIZE_AUDIT.md`](docs/F6_RESIZE_AUDIT.md)). Over
+100 donor draws, a length-correct mapping with the same donors gives a
+shuffled AUC of 0.841 against 0.602 (+0.240), while also shifting prevalence
+0.200 → 0.228. The probe stays below a position-derived oracle in every draw,
+which is not a leakage test. F6's registered result (no leak suspected) and
+interpretation are unchanged; the control cannot support a stronger claim,
+and a new preregistered design would be needed for one.
 
 **Supervised analyses** (`EXECUTION_REPORT_SUPERVISED.md`): cheap features
 predict tail fraction at held-out R² 0.333 [0.19, 0.44] and final-answer

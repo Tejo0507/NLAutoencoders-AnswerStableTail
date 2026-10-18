@@ -2070,6 +2070,14 @@ outputs. Results and their reading: `docs/F6_LENGTH_CORRECT_RESULTS.md`.
   position model exceeds it under S1, 0.916 against 0.910).
 - **Subset (246 problems, the four longest traces excluded):** S2 − S1 =
   +0.031; read for the subset only.
+- **Relation to F6's pass:** `np.resize` removed most of the label–position
+  structure (0.920 → 0.683) that a length-correct shuffle keeps and that
+  scores 0.841, so F6's 0.614 and its margin under the 0.15 threshold were
+  obtained under the structure-breaking rule. Not evidence of leakage (that
+  arm's null is not 0.5, and the probe stays below the oracle), but the
+  registered control cannot carry a stronger claim than F6 makes
+  (`docs/F6_RESIZE_AUDIT.md`, *Outcome*). Added in the cross-reference commit
+  after D60 was first committed; the result itself is unchanged.
 
 **Frozen.** The outputs stay in `runs/main_f6_diag/` (not version-controlled,
 marked read-only), with the validator, its log and the outputs' SHA-256 list

@@ -110,6 +110,15 @@ between two defensible rules with the same donors — so the registered 0.614
 cannot be read as a property of donor reassignment alone. Under every rule
 tested, the probe's shuffled AUC stays below the position-derived oracle.
 
+**Relation to F6's registered pass.** `np.resize` removed most of the
+label–position structure (0.920 → 0.683) that a length-correct shuffle keeps,
+and the shuffle that keeps it scores 0.841. F6's 0.614, and its margin under
+the 0.15 threshold, were obtained under the structure-breaking rule. This is
+not evidence of leakage — the length-correct arm's expected AUC absent
+leakage is not 0.5, and the probe stays below the oracle — but it means the
+registered control cannot support a stronger claim than F6 already makes
+(see [`F6_RESIZE_AUDIT.md`](F6_RESIZE_AUDIT.md), *Outcome*).
+
 **Does not establish:** whether any leakage exists; whether the probe's
 shuffled-label signal is entirely positional; what F6's verdict would be under
 a different control. None of these can be settled after the fact, because
