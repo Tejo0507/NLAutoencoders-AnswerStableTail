@@ -6,7 +6,9 @@ researcher 2026-10-17 as a CPU-only diagnostic. Label statistics only: no
 probe was fitted and F6 was not rerun.
 
 Script: `scripts/audit_f6_resize.py --config main` (no torch import). Output:
-`runs/main_f6_audit/f6_resize_audit.json`.
+`runs/main_f6_audit/f6_resize_audit.json`. Since 2026-10-18 (D61) the script
+refuses to overwrite that file unless given `--force`; the recorded output was
+not regenerated.
 
 ## What F6 does
 

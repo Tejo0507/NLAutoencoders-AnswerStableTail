@@ -44,9 +44,8 @@ from typing import Any
 
 import numpy as np
 
-from _stage import base_parser
+from _stage import base_parser, load_config
 
-from nlaast import config as config_mod
 from nlaast import logging_utils, provenance
 from nlaast.activations.store import ActivationStore
 from nlaast.data import datasets
@@ -81,14 +80,17 @@ def _block_extra(meta: dict) -> dict:
 
 
 def prepare(cfg, log) -> int:
+    # Both arms are checked before either is created: refusing on the second
+    # after populating the first would leave a half-prepared arm behind.
+    existing = [d for d in (arm_dir(cfg, "bf16"), arm_dir(cfg, "nf4")) if d.exists()]
+    if existing:
+        log.error("%s exists; refusing to overwrite", ", ".join(map(str, existing)))
+        return 1
     ids = select_subsample(cfg)
     src = ActivationStore(cfg.dir / "acts")
     layer = cfg.target.layer
     for arm in ("bf16", "nf4"):
         d = arm_dir(cfg, arm)
-        if d.exists():
-            log.error("%s exists; refusing to overwrite", d)
-            return 1
         d.mkdir(parents=True)
         for stage in _COPY:
             shutil.copytree(cfg.dir / stage, d / stage)
@@ -171,6 +173,7 @@ def bf16_activations(cfg, log) -> int:
             pos = meta.get("resolved_positions") or meta["positions"]
             if max(pos) >= hidden.shape[0]:
                 skipped.append({"problem_id": pid, "reason": "position out of range"})
+                log.warning("F8 bf16: skipping %s - position out of range", pid)
                 continue
             b = hidden[np.asarray(pos, dtype=int)]
             out_store.put(pid, layer, b, meta["positions"], meta["kinds"],
@@ -294,7 +297,7 @@ def main() -> int:
     p = base_parser(__doc__)
     p.add_argument("--phase", choices=["prepare", "bf16", "compare"], required=True)
     args = p.parse_args()
-    cfg = config_mod.load(args.config, args.overrides)
+    cfg = load_config(args)
     log = logging_utils.setup(arm_dir(cfg, "bf16") if args.phase != "prepare" else None)
     log.info("F8 headline (%s): run=%s config_hash=%s", args.phase, cfg.run_id, cfg.hash())
     return {"prepare": prepare, "bf16": bf16_activations, "compare": compare}[args.phase](cfg, log)

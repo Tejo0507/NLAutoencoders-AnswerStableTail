@@ -2104,3 +2104,37 @@ need a new preregistered study fixing, before any result is seen, a control
 with a defined null, a length-matching strategy, refit-inclusive uncertainty
 and a decision threshold.
 
+## D61. Post-hoc scripts honour `--run-id`, and refuse to leave or replace partial outputs
+
+**Recorded 2026-10-18.** An engineering pass after D60 found three defects in
+the scripts written for the post-run analyses. None changes a recorded number:
+no stage, diagnostic or analysis was rerun, and every file under `runs/`
+hashes the same before and after, except `runs/tiny/`, the end-to-end test's
+synthetic fixture run, which the test suite rebuilds every time it runs.
+
+- **`--run-id` was silently ignored** by `audit_f6_resize.py`,
+  `run_f5_sweep.py`, `run_f8_bf16_headline.py` and `rq2_claim_probe.py`. They
+  take `base_parser`'s arguments but loaded the overlay themselves, so
+  `--run-id X` read and wrote the overlay's own run. Every recorded invocation
+  omits the flag, so no recorded output came from the wrong run. Fixed with
+  `_stage.load_config`, which `setup()` now also uses; without `--run-id` the
+  resolved config, and its hash, are unchanged.
+- **Except `rq2_claim_probe.py`, which is left as it is.** Amendment A1
+  approved that file by SHA-256 (`80a7bc55…253b`, D57), and an edit would
+  break the link between the approved code and the recorded evaluation. Its
+  `--run-id` stays ignored; it has only been run as `--config main`, and this
+  is recorded instead of fixed.
+- **`run_f8_bf16_headline.py --phase prepare`** checked each arm's directory
+  only as it reached it, so an existing `<run>_f8_nf4/` was refused only after
+  `<run>_f8_bf16/` had been created and filled. Both are now checked first.
+  Both skip paths in the bf16 phase now log a warning.
+- **`audit_f6_resize.py`** overwrote `runs/<run>_f6_audit/f6_resize_audit.json`,
+  the file `docs/F6_RESIZE_AUDIT.md` quotes, on every rerun. It now refuses
+  unless given `--force`. Its check that the donor reconstruction matches
+  `permute_labels` was an `assert`, which `python -O` removes; it raises
+  instead.
+
+Regression tests: `tests/test_f8_headline.py` (6) and
+`tests/test_audit_f6_resize.py` (16); the refusal test fails on the previous
+`prepare`. Neither script had a test before.
+
