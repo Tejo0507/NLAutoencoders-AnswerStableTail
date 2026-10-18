@@ -2247,3 +2247,88 @@ is made explicit.
 - **Issue #11** was closed on D62 with a comment (2026-10-18T15:49:59Z,
   state `COMPLETED`).
 
+## D65. Local paths are sanitised in the release copy only; one is retained
+
+**Decided 2026-10-18; replaces D64's "kept and disclosed".** D64 shipped the
+runs' local absolute paths unedited. Path by path they turn out to be of
+three kinds:
+
+- **Provenance whose meaning is the path's location in the repository or the
+  model store:**
+  - stage output directories, `run_dir`, data source files, the interpreter,
+    and file paths in one logged traceback (all under the repository);
+  - model and checkpoint directories, with snapshot revisions (all under the
+    model store).
+- **Incidental machine detail:** which drive held which directory.
+- **Potentially sensitive:** `main/env/environment.json`
+  `disks.model_cache.path`, a cache folder inside an **unrelated local
+  project**.
+
+Model identity never depends on these paths: repository ids and revisions are
+recorded separately.
+
+**Decision.** `scripts/build_results_release.py` rewrites, in the staged
+copy only, the root of every local absolute path:
+- a path inside the repository becomes `<repo>` plus its repository-relative
+  part;
+- any other local path becomes `<local>` plus everything below the first
+  directory under the drive (below `Users`/`home`, the user's folder goes
+  too);
+- a bare root that is a whole value becomes `<repo>` or `<local>`.
+
+This keeps the meaningful part of every path and removes the drive, the local
+folder names and the unrelated project. `runs/`, the backups, `paper/`,
+`output/` and `figures/` are untouched.
+
+**What is recorded.** `TRANSFORMS.json` in the package lists each changed
+file with:
+- its original SHA-256 (as in `runs/` and the backups);
+- its released SHA-256;
+- the JSON fields or log lines changed;
+- the number of replacements.
+
+The release README says that these files are release-transformed and not
+byte-identical. A checksum list inside a run that names a sanitised file
+must be checked against `original_sha256`. This applies to two entries of
+`main_nla240/SOURCE_SHA256SUMS.txt`.
+
+**Result on the draft.**
+- 41 files and 475 path roots changed; the other 1,893 run files are
+  byte-identical.
+- `check_run_consistency.py` gives the same result on the sanitised copies as
+  on the originals: `main` 179, pilot 173 (1 historical warning), `main_nla240`
+  132, `main_f8_bf16` 133 and `main_f8_nf4` 132 checks, 0 mismatched. So the
+  checks find nothing in the sanitised paths that they read.
+- The unrelated project's folder name occurs nowhere in the package or the
+  decompressed archive.
+
+**Retained, for the researcher's decision.**
+`main_f6_diag_validation/validate_f6_diag.py` is released unmodified: its
+constant `R` holds the repository root it ran from (drive letter and the
+public repository name). It is the independent validator's source, and that
+run's own `SHA256SUMS.txt` lists its hash (`7a9562bf…8115`). Rewriting it
+would publish code that never ran. The builder pins it to that hash, so any
+other content, or any non-path finding in it, fails the build. The other
+choice, to sanitise it as well and accept a released validator that differs
+from the hashed one, is a publication gate (`release/PUBLISHING.md`, gate 6).
+
+**Gate and scanner.** The builder now runs the scan over the staged package
+and refuses to archive it if anything is found beyond the retained file. Two
+gaps in the scanner were found and fixed:
+- a bare root (drive and one directory) was not detected; it is now, where it
+  is a whole value;
+- `.npz` metadata was read through `repr()`, which doubled backslashes and
+  could hide an escaped path; it is now read as strings.
+
+Re-scanned with the fix, no activation file's metadata holds a path. The
+scanner's documented coverage excludes UNC paths, relative paths, numeric
+arrays and secret formats it does not list.
+
+**Draft:** `D:\NLAutoencoders-release\data-runs-DRAFT-2026-10-18-sanitised\`,
+pinned to `b385233`.
+- 1,943 files; archive 145,402,825 bytes, SHA-256 `dabda9a1…6adb`, identical
+  when rebuilt.
+- The D64 draft (`f422070b…770b`) is superseded, marked `SUPERSEDED.txt`, and
+  must not be used.
+- Tests: `tests/test_results_release.py`, 26.
+
