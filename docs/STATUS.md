@@ -31,11 +31,13 @@ Last reviewed 2026-10-17.
 > `runs-2026-10-18-post-experiments` and `runs-2026-10-18-f6-diagnostic`
 > (all four re-verified on both volumes 2026-10-18). C:, D: and E: are
 > partitions of **one** NVMe disk, so these are not independent physical
-> copies. The researcher reported on 2026-10-18 that a backup was copied to
-> Google Drive; which snapshot it holds, and its contents, have not been
-> verified from this machine (no Drive is mounted here). Until that is
-> checked, treat the off-machine copy as unconfirmed, and note that the F6
-> diagnostic snapshot was created after that report (audit, "Backup").
+> copies. **Off-machine copy: confirmed by the researcher, 2026-10-18** — the
+> complete `runs/` directory (including `main_f6_diag` and
+> `main_f6_diag_validation`) is backed up to Google Drive and to
+> `E:\NLAutoencoders-backups\runs\`. The E: copy was checked file by file
+> against the live tree (2,041 of 2,041 identical); the Google Drive copy is
+> researcher-confirmed and was not verified from this machine (audit,
+> "Backup").
 >
 > **Update 2026-10-18 — F6's control is sensitive to its length mapping
 > (exploratory).** A separate diagnostic (protocol D58, implementation D59,

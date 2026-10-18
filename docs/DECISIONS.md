@@ -2086,7 +2086,11 @@ in `runs/main_f6_diag_validation/`. They are not in any existing backup.
 the snapshot `D:\NLAutoencoders-backups\runs-2026-10-18-f6-diagnostic\`
 (archive SHA-256 `661ad710…51a5`, 30 files verified, git head `6a42a69`),
 mirrored to E:. Both volumes are one physical disk; no off-machine copy of
-this snapshot is verified.
+this snapshot is verified. *Later the same day:* the researcher confirmed
+that the complete `runs/` directory, these outputs included, is backed up to
+Google Drive and to `E:\NLAutoencoders-backups\runs\`; the E: copy was checked
+file by file (2,041 of 2,041 identical), the Drive copy is
+researcher-confirmed and not verified from this machine.
 
 **Unchanged.** F6's registered values (0.9460944231 / 0.6142873504 / 0.5385),
 its threshold, `leak_suspected = false` and its interpretation;
