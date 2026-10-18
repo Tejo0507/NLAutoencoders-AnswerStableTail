@@ -1,10 +1,14 @@
 # Publishing the run artifacts (D63, D64)
 
 The package is built from `runs/` by `scripts/build_results_release.py`,
-using this directory's README template, `NOTICE.md` and `licences/`. It is
-published only when every gate below holds. A draft was built and verified on
-2026-10-18 (`docs/AUDIT_2026-10-17.md`, PW-27); it is **not** published,
-because the write-up is not frozen.
+using this directory's README template, `NOTICE.md` and `licences/`. The
+builder sanitises local path roots in the staged copy only and refuses to
+archive anything its scan still finds (D65). The package is published only
+when every gate below holds. The current draft,
+`D:\NLAutoencoders-release\data-runs-DRAFT-2026-10-18-sanitised\`, was built
+and verified on 2026-10-18 (`docs/AUDIT_2026-10-17.md`, PW-28). It is
+**not** published, because the write-up is not frozen. The earlier
+unsanitised draft beside it is marked `SUPERSEDED.txt` and must not be used.
 
 ## Gates, all required
 
@@ -15,14 +19,19 @@ because the write-up is not frozen.
    `runs/` is classified, and every released run is present.
 4. Inside the package, `sha256sum -c SHA256SUMS.txt` passes, and the
    archive's `.sha256` verifies.
-5. `scan_release.py` on the package directory **and** on the archive shows
-   no finding other than the provenance paths the package README discloses
-   and the repository URL in the release documents.
-6. The researcher accepts that disclosure: the local absolute paths kept in
-   `env/`, the manifests, `models/` and the logs, one of which names an
-   unrelated local project folder (`main/env/environment.json`, the model
-   cache path).
-7. The release notes match the archive actually built.
+5. `scan_release.py` on the package directory **and** on the archive
+   reports exactly one finding: `abs_windows_root` in
+   `runs/main_f6_diag_validation/validate_f6_diag.py`, the retained validator
+   (the builder pins it to its SHA-256). Any other finding blocks publication.
+6. The researcher accepts that one retained path. It is the F6 validator's
+   repository-root constant, `R`, a drive letter and the public repository
+   name, kept so that the published validator is the code that ran. The
+   alternative is to add the file to the sanitisation and accept that the
+   released validator differs from the hashed original (D65).
+7. `TRANSFORMS.json` lists 41 sanitised files (or the researcher has
+   reviewed a different count). Every untransformed run file is identical
+   to `runs/`.
+8. The release notes match the archive actually built.
 
 ## Commands
 
