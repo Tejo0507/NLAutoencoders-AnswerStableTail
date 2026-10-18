@@ -119,7 +119,9 @@ Methodology: [`docs/SUPERVISED_ANALYSES.md`](docs/SUPERVISED_ANALYSES.md).
 250 problems (150 GSM8K, 100 MATH), 250 traces with no failures, final-answer
 accuracy 0.88. Every number below is read from `runs/main/analysis/results.json`
 and `runs/main/report/RESULTS.md`; `scripts/check_run_consistency.py --run
-runs/main` reports 159 checks, 0 mismatched.
+runs/main` reports 179 checks, 0 mismatched, 0 warnings (re-run 2026-10-18; it
+was 159 before PW-23 added separate checks of the causal stage's rows and
+summary).
 
 | | |
 |---|---|
