@@ -60,8 +60,9 @@ Last reviewed 2026-10-17.
 > `runs/` is unchanged apart from the test suite's own fixture run
 > `runs/tiny/`; the audit register is reconciled with D52–D60 (PW-24,
 > PW-25). Read-only validation commands: README, *Checking the recorded
-> results*. RQ3 is closed as untested (D62); release plan D63, not yet
-> executed.
+> results*. RQ3 is closed as untested (D62; issue #11 closed). The run-artifact
+> release is **prepared and verified as a draft, not published** (D64): it
+> waits for the write-up freeze. Steps and gates: `release/PUBLISHING.md`.
 >
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 

@@ -2202,3 +2202,48 @@ fixes how the release is done.
 - **Executing it** is a separate, explicit step for the researcher: tag, create
   the release with the archive, and enable the repository in Zenodo.
 
+## D64. The release is prepared and verified as a draft; publication waits for the freeze
+
+**Recorded 2026-10-18.** Carries out D63 as far as it can go before the
+write-up is frozen. D63's policy is unchanged; one detail of its mechanism
+is made explicit.
+
+- **The write-up is not frozen.** No freeze record, tag or release exists,
+  and `paper/README.md` states that the Abstract, Results and Discussion are
+  absent. Publication is therefore blocked; nothing was published.
+- **The package is built by code.** `scripts/build_results_release.py` copies
+  the classified runs byte for byte, adds `release/`'s README, notices and
+  licence texts, writes `SHA256SUMS.txt` and a reproducible archive.
+  `scripts/scan_release.py` scans the package and the archive. Neither
+  writes under `runs/`. Tests: `tests/test_results_release.py` (8).
+- **Draft:** `D:\NLAutoencoders-release\data-runs-DRAFT-2026-10-18\`, outside
+  the repository and the backups, pinned to `c3154de`. 1,942 files (1,934
+  run files and 8 release documents); archive 145,397,152 bytes, SHA-256
+  `f422070b…770b`, identical when rebuilt. Every run file is identical to its
+  source. Checksums, archive structure and contents were all verified (PW-27).
+- **Local paths are kept and disclosed, not edited.** 41 files record local
+  absolute paths: the repository, the model directory, a cache directory,
+  and, in `main/env/environment.json`, a model-cache path inside an
+  unrelated local project folder. They are part of each stage's provenance,
+  and editing them would break byte identity with the runs and their
+  backups. The scan found no token, key, credential, e-mail address, user
+  name or host name. Accepting the disclosure is a publication gate for the
+  researcher (`release/PUBLISHING.md`).
+- **Licences, read from the upstream files:**
+  - Qwen2.5-7B-Instruct: Apache-2.0 (its LICENSE file and model card).
+  - `kitft/nla-qwen2.5-7b-L20-av` and `-ar`: Apache-2.0, per their model
+    cards, which state no use restriction. Their training-data attribution
+    (WildChat-1M under ODC-BY; Ultra-FineWeb) is repeated in `NOTICE.md`,
+    though none of that data ships.
+  - GSM8K and MATH: MIT (dataset cards and upstream LICENSE files). Their
+    text is included, so the MIT notices go with it.
+
+  No redistribution question is left open. This is a reading of the
+  licences, not legal advice.
+- **Zenodo:** upload the archive to a Zenodo *Dataset* record directly. The
+  GitHub integration is documented as archiving the tag's source snapshot,
+  and it was not confirmed that it also archives attached release assets.
+  The GitHub release still carries the archive, as D63 says.
+- **Issue #11** was closed on D62 with a comment (2026-10-18T15:49:59Z,
+  state `COMPLETED`).
+
