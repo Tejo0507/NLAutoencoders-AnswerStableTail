@@ -146,7 +146,9 @@ headline comparison was run only in part (bf16 target activations, 24
 problems; D55); the NLA arm was extended to 240 problems as an exploratory,
 post-hoc analysis (D54). RQ3 is closed as *not tested* on this model
 (D62, option A of [`docs/RQ3_DECISION_BRIEF.md`](docs/RQ3_DECISION_BRIEF.md));
-the run artifacts will be released with the write-up (D63).
+the run artifacts will be released with the write-up (D63). A draft package
+is built and verified, but not published until the write-up is frozen (D64;
+[`release/PUBLISHING.md`](release/PUBLISHING.md)).
 
 **F6's leakage control is sensitive to its length mapping** (exploratory,
 D58–D60; [`docs/F6_LENGTH_CORRECT_RESULTS.md`](docs/F6_LENGTH_CORRECT_RESULTS.md)).
@@ -277,7 +279,7 @@ $env:NLAAST_QUANT_DIR = "<volume>/nf4"  # 4-bit checkpoints, ~15 GB
 .venv/Scripts/python.exe scripts/run_pipeline.py --config pilot     # 24 problems
 ```
 
-On 2026-10-18 the whole suite gave 942 passed, 3 skipped on the RTX 4050, the
+On 2026-10-18 the whole suite gave 950 passed, 3 skipped on the RTX 4050, the
 5 GPU tests included (the skips need the released autoencoder sidecars in the
 local Hugging Face cache). The end-to-end test deletes and rebuilds
 `runs/tiny/`, a synthetic run the supervised analyses refuse to pool; no other
