@@ -95,7 +95,8 @@ a length-correct mapping gives a shuffled AUC of 0.841 against 0.602 under
 That result bears on the first bullet under *Possible, not demonstrated*. The
 bullet expected the residual position structure in `np.resize`'s labels to push
 F6's shuffled AUC *up*. The other side is now measured: `np.resize` also
-removed most of that structure (label–position AUC 0.920 → 0.683), and a
+removed most of that structure (label–position AUC 0.920 → 0.686 in F6's
+own draw, as in the table above; 0.683 averaged over the 100 draws), and a
 shuffle that keeps it scores far higher. F6's 0.614, and its margin under the
 0.15 threshold, were therefore obtained under a control that had partly
 destroyed the pattern its docstring says it preserves. This is **not evidence
