@@ -2082,6 +2082,11 @@ outputs. Results and their reading: `docs/F6_LENGTH_CORRECT_RESULTS.md`.
 **Frozen.** The outputs stay in `runs/main_f6_diag/` (not version-controlled,
 marked read-only), with the validator, its log and the outputs' SHA-256 list
 in `runs/main_f6_diag_validation/`. They are not in any existing backup.
+*Backup update, 2026-10-18 (after this entry was written):* they are now in
+the snapshot `D:\NLAutoencoders-backups\runs-2026-10-18-f6-diagnostic\`
+(archive SHA-256 `661ad710…51a5`, 30 files verified, git head `6a42a69`),
+mirrored to E:. Both volumes are one physical disk; no off-machine copy of
+this snapshot is verified.
 
 **Unchanged.** F6's registered values (0.9460944231 / 0.6142873504 / 0.5385),
 its threshold, `leak_suspected = false` and its interpretation;

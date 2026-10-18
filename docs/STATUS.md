@@ -25,9 +25,17 @@ Last reviewed 2026-10-17.
 > [`RQ3_DECISION_BRIEF.md`](RQ3_DECISION_BRIEF.md). Those files supersede the
 > "what has not run" list in §5 below, which predates the main run.
 >
-> Run artifacts are archived at `D:\NLAutoencoders-backups\runs-2026-10-17\`
-> (SHA-256 verified). That is the same physical disk; an off-machine copy is
-> still needed and is the researcher's action (audit, "Backup").
+> Run artifacts are archived in `D:\NLAutoencoders-backups\`, each snapshot a
+> `.tar.gz` with `SHA256SUMS.txt` and `VERIFICATION.json` and mirrored to
+> `E:\NLAutoencoders-backups\`: `runs-2026-10-17`, `runs-2026-10-17-pre-experiments`,
+> `runs-2026-10-18-post-experiments` and `runs-2026-10-18-f6-diagnostic`
+> (all four re-verified on both volumes 2026-10-18). C:, D: and E: are
+> partitions of **one** NVMe disk, so these are not independent physical
+> copies. The researcher reported on 2026-10-18 that a backup was copied to
+> Google Drive; which snapshot it holds, and its contents, have not been
+> verified from this machine (no Drive is mounted here). Until that is
+> checked, treat the off-machine copy as unconfirmed, and note that the F6
+> diagnostic snapshot was created after that report (audit, "Backup").
 >
 > **Update 2026-10-18 — F6's control is sensitive to its length mapping
 > (exploratory).** A separate diagnostic (protocol D58, implementation D59,

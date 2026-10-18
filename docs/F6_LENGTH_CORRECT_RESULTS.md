@@ -14,6 +14,7 @@ descriptive summary.
 | Run | `--phase run` at `27c131a`, 2026-10-17 21:07–22:05 UTC, exit 0, `status: complete` |
 | Outputs | `runs/main_f6_diag/` (not version-controlled; read-only); hashes in `runs/main_f6_diag_validation/SHA256SUMS.txt` |
 | Validation | `runs/main_f6_diag_validation/VALIDATION_LOG.txt`: 27 independent checks, 0 failed |
+| Backup | snapshot `runs-2026-10-18-f6-diagnostic` in `D:\` and `E:\NLAutoencoders-backups\` (archive SHA-256 `661ad710…51a5`); one physical disk, no verified off-machine copy |
 | Registered artifact | `runs/main/robustness/robustness.json` SHA-256 `45701a51…d5ed`, unchanged before, during and after |
 
 ## What ran
