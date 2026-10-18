@@ -288,6 +288,16 @@ independent-probe control for RQ2. Status and decisions:
 lists every §6 item not run: F5's `T`/chunker sweeps, F8's bf16 replication,
 RQ2's independent-probe control).
 
+**Update 2026-10-18.** The two items above, and F8's replication and the
+NLA arm's size, have since been settled by decision and recorded without
+editing §5–§6: RQ2's independent-probe control ran as exploratory amendment A1
+(D56–D57; it did not corroborate); F8's replication ran in part, bf16 target
+activations only (D55); the NLA arm was extended to 240 problems as a post-hoc,
+exploratory analysis (D54); F5's sweeps are implemented and deferred (D52).
+F6's control was found sensitive to its length mapping in an exploratory
+diagnostic (D58–D60); its registered result stands. RQ3's path (D1) is still
+the researcher's. Current register: `docs/AUDIT_2026-10-17.md`.
+
 Four things in this plan the run changed the reading of, all recorded in
 `docs/DECISIONS.md` rather than edited into the text above:
 

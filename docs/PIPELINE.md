@@ -5,7 +5,8 @@ where it is. The scientific specification is `Project_Review_II.md`; the
 implementation plan is `PROJECT_PLAN.md`; this file is the operational manual.
 
 Every stage below is written, tested, and has **run** — at pilot scale, 24
-problems, including the three that need the released autoencoder.
+problems, including the three that need the released autoencoder, and on
+`main`, 250 problems (complete 2026-10-17; the NLA arm at 120 problems).
 [`STATUS.md`](STATUS.md) reports what each one produced. The test suite also
 runs every stage script against tiny randomly initialised stand-ins
 (`configs/tiny.yaml`, `tests/test_end_to_end_tiny.py`), which is how the

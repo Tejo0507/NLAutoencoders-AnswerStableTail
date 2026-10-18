@@ -53,6 +53,15 @@ Last reviewed 2026-10-17.
 > The other post-run analyses (F5 deferred, F8 partial, RQ2 amendment A1, the
 > N = 240 extension) are tracked in `DECISIONS.md` D52's status table.
 >
+> **Update 2026-10-18 — engineering pass, no new experiment.** Three defects
+> in the post-hoc scripts fixed with regression tests (D61: ignored
+> `--run-id`, a half-prepared F8 arm, an overwritable F6 audit output). Every
+> recorded check was re-run read-only and still passes, and every file under
+> `runs/` is unchanged apart from the test suite's own fixture run
+> `runs/tiny/`; the audit register is reconciled with D52–D60 (PW-24,
+> PW-25). Read-only validation commands: README, *Checking the recorded
+> results*.
+>
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 
 **Main run in progress: 231 of 250 traces** as of 18:53 on 2026-10-16, 0
