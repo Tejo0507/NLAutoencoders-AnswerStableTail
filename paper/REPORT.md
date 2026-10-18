@@ -1007,6 +1007,35 @@ second trained annotator was not obtained, so annotation is single-rater and
 **no reliability coefficient is reported**. We state the absence rather than
 omitting the limitation.
 
+## 8.10 The probe-leakage control depends on how labels are fitted to length
+
+Falsification test F6 controls for probe leakage by giving each problem
+another problem's label sequence. Problems have different numbers of
+boundaries, so the implementation fits each donor sequence to the receiver's
+length with `np.resize`, which tiles a shorter sequence from its start and
+truncates a longer one. That breaks most of the labels' association with
+boundary position (relative-position AUC 0.920 → 0.686) and lowers their
+prevalence (0.200 → 0.152) in F6's own shuffle.
+
+An exploratory diagnostic, run after F6 under its own approved protocol,
+refitted the probe over 100 donor draws. With the same donors, a mapping that
+fits each donor sequence to the receiver's length along relative position
+raises the shuffled AUC from 0.602 to 0.841 (+0.240; single draws +0.196 to
++0.278, problem-bootstrap interval +0.233 to +0.247, no refitting variability
+included). That mapping also shifts prevalence, to 0.228, so it is a
+sensitivity analysis rather than a definitive null. In every draw, the probe
+scored below a position-derived benchmark that is neither an upper bound nor a
+leakage test.
+
+F6's registered result — real AUC 0.946, shuffled AUC 0.614, no leakage
+suspected under its threshold of |AUC − 0.5| > 0.15 — is reported as
+registered. Its shuffled AUC, and so its margin under the threshold, depends on
+the length-fitting rule, and none of the alternative arms has a null centred at
+0.5. The control therefore cannot support a stronger claim than "no leakage
+suspected under this control"; ruling leakage out would need a new
+preregistered design with a defined null, a fixed length-matching strategy and
+uncertainty that includes refitting.
+
 ---
 
 ## References
