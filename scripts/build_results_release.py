@@ -1,11 +1,38 @@
-"""Build the run-artifact release (D63): stage, checksum and archive.
+"""Build the run-artifact release (D63): stage, sanitise, checksum and archive.
 
-Reads ``runs/`` and never writes there. Copies the agreed directories
-byte-for-byte into a fresh output directory, adds ``release/``'s README,
-notices and licence texts, writes ``SHA256SUMS.txt`` over every staged file,
-and builds a deterministic ``.tar.gz`` (sorted members, fixed mtime, owner and
-mode, regular files only), so the same commit and the same ``runs/`` give the
-same archive SHA-256.
+Reads ``runs/`` and never writes there. Copies the agreed directories into a
+fresh output directory, adds ``release/``'s README, notices and licence
+texts, writes ``SHA256SUMS.txt`` over every staged file, and builds a
+deterministic ``.tar.gz`` (sorted members, fixed mtime, owner and mode,
+regular files only), so the same commit and the same ``runs/`` give the same
+archive SHA-256.
+
+**Release-only path sanitisation (D65).** The runs record the absolute paths
+of the machine they ran on (stage outputs, data sources, the interpreter,
+model and cache directories). In the *staged copy only*, the root of each
+local absolute path is replaced and the rest is kept:
+
+* a path inside the repository -> ``<repo>`` + its repository-relative part
+  (``<repo>\\runs\\main\\traces``);
+* any other local path -> ``<local>`` + everything below the first directory
+  under the drive (``<local>\\nf4\\<model dir>``); below ``Users``/``home``
+  the user's directory is removed too.
+
+A bare root (a drive and one directory) becomes ``<repo>`` or ``<local>``
+where it is a whole value. What a path points at stays readable; which disk
+and which local folder it was on does not. Files in ``RETAINED`` are
+released unmodified, each pinned to its exact SHA-256 and justified there. Every file that is changed is listed in ``TRANSFORMS.json``
+with its original and released SHA-256, the JSON fields or log lines
+changed and the number of replacements, so a released file can be matched to
+its original (and to any original checksum list such as
+``main_nla240/SOURCE_SHA256SUMS.txt``). Every other file is byte-identical
+to its source. Files in ``runs/`` are never modified.
+
+**Gate.** After staging, ``scan_release.scan`` runs over the package; any
+remaining local path, home directory, local identity, e-mail address or
+token stops the build (exit 1) before an archive exists. Content the
+transformation cannot reach, such as metadata inside ``.npz`` files, is
+caught by that scan rather than shipped.
 
 Every entry under ``runs/`` must be classified below, as released or as
 excluded; a new run directory stops the build until it is. The output
@@ -15,7 +42,7 @@ directory must not exist.
     python scripts/build_results_release.py --out <dir> --status final                         # after the freeze
 
 ``--status final`` refuses a dirty working tree, because the README pins the
-release to ``HEAD``. Publishing is a separate, manual step (D63, D64).
+release to ``HEAD``. Publishing is a separate, manual step (D63-D65).
 """
 
 from __future__ import annotations
@@ -26,6 +53,7 @@ import gzip
 import hashlib
 import io
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +62,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / "release"
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import scan_release  # noqa: E402
 
 #: name -> (classification, description, decision record)
 RELEASED = {
@@ -69,6 +100,127 @@ LICENCES = {  # release/licences/<file> -> path in the package
 TOP = "nlaast-runs"
 FIXED_MTIME = 1760745600  # 2025-10-18T00:00:00Z; any fixed value makes the archive reproducible
 
+# --- sanitisation -----------------------------------------------------------
+
+#: Names the repository's directory had when the runs were made (the public
+#: repository name) and has now; a path through one of them maps to <repo>.
+REPO_DIR_NAMES = {"NLAutoencoders-AnswerStableTail", ROOT.name}
+#: A directory whose child is a user's own folder, which goes too.
+HOME_DIRS = {"users", "home"}
+#: Files released unmodified although they hold a local path, each pinned to
+#: its exact SHA-256 so that any other content fails the gate (D65).
+RETAINED = {
+    "runs/main_f6_diag_validation/validate_f6_diag.py": {
+        "sha256": "7a9562bf682803b0157653edc58f3068275514d4cdcbc3f22baae2aeeef78115",
+        "reason": "The independent F6 validator's source, listed by hash in that run's own "
+                  "SHA256SUMS.txt. Its only local path is the repository root it ran from "
+                  "(drive letter and the public repository name), in the constant R. "
+                  "Rewriting it would publish validator code that never ran.",
+    },
+}
+#: Files sanitised as text; anything else is only scanned.
+TEXT_EXT = {".json", ".jsonl", ".log", ".out", ".err", ".txt", ".yaml", ".yml", ".md",
+            ".csv", ".py"}
+_COMP = r"[^\\/\"'\s<>|:*?]+"
+#: In JSON text a real backslash is written ``\\``; a lone ``\`` starts an
+#: escape such as ``\n``, which must never be read as a separator (model text
+#: contains "s:\n" thousands of times). Elsewhere one or two backslashes.
+_SEP = {"json": r"(?:\\\\|/)", "text": r"(?:\\\\|\\|/)"}
+
+
+def _path_rx(kind: str) -> re.Pattern:
+    sep = _SEP[kind]
+    return re.compile(rf"(?<![A-Za-z0-9])(?P<drive>[A-Za-z]):(?P<s1>{sep})(?P<c1>{_COMP})"
+                      rf"(?P<s2>{sep})(?P<c2>{_COMP})")
+
+
+_RX = {k: _path_rx(k) for k in _SEP}
+#: A bare root - a drive and one directory, e.g. a disk-usage record of the
+#: repository itself. Matched only where it is a whole value (a complete JSON
+#: string, or a token delimited by quotes, whitespace or brackets), because a
+#: drive-like fragment inside model text ("s:\\frac") must stay untouched.
+_ROOT_RX = {
+    "json": re.compile(rf'(?<=")(?P<drive>[A-Za-z]):{_SEP["json"]}(?P<c1>{_COMP})(?=")'),
+    "text": re.compile(rf"(?<=[\"'\s=(])(?P<drive>[A-Za-z]):{_SEP['text']}(?P<c1>{_COMP})"
+                       rf"(?=[\"'\s),]|$)", re.M),
+}
+
+
+def _replace(m: re.Match) -> str:
+    """The root of one local path, replaced; the rest of the path is kept."""
+    c1, s2, c2 = m["c1"], m["s2"], m["c2"]
+    if c1 in REPO_DIR_NAMES:
+        return f"<repo>{s2}{c2}"
+    if c1.lower() in HOME_DIRS:
+        return "<local>"            # drops the user's own folder (c2) as well
+    return f"<local>{s2}{c2}"
+
+
+def _replace_root(m: re.Match) -> str:
+    return "<repo>" if m["c1"] in REPO_DIR_NAMES else "<local>"
+
+
+def sanitise_text(text: str, kind: str) -> tuple[str, int]:
+    text, n = _RX[kind].subn(_replace, text)
+    text, k = _ROOT_RX[kind].subn(_replace_root, text)
+    return text, n + k
+
+
+def _string_fields(obj, key: str = ""):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _string_fields(v, f"{key}.{k}" if key else str(k))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _string_fields(v, f"{key}[{i}]")
+    elif isinstance(obj, str):
+        yield key, obj
+
+
+def changed_fields(before: str, after: str, jsonl: bool) -> list[str]:
+    """The JSON fields whose value the sanitisation changed (row index first for JSONL)."""
+    if jsonl:
+        out = []
+        for i, (a, b) in enumerate(zip(before.splitlines(), after.splitlines())):
+            if a != b:
+                out += [f"[row {i}].{f}" for f in changed_fields(a, b, False)]
+        return out
+    a = dict(_string_fields(json.loads(before)))
+    b = dict(_string_fields(json.loads(after)))
+    if a.keys() != b.keys():
+        raise SystemExit("sanitisation changed a JSON document's structure")
+    return [k for k in a if a[k] != b[k]]
+
+
+def sanitise_file(path: Path) -> dict | None:
+    """Sanitise one staged file in place; a record of the change, or None."""
+    if path.suffix.lower() not in TEXT_EXT:
+        return None
+    raw = path.read_bytes()
+    text = raw.decode("utf-8")
+    kind = "json" if path.suffix.lower() in {".json", ".jsonl"} else "text"
+    new, n = sanitise_text(text, kind)
+    if not n:
+        return None
+    rec = {"original_sha256": hashlib.sha256(raw).hexdigest(), "replacements": n}
+    if kind == "json":
+        rec["fields"] = changed_fields(text, new, path.suffix.lower() == ".jsonl")
+        if path.suffix.lower() == ".json":
+            json.loads(new)
+        else:
+            for line in new.splitlines():
+                if line.strip():
+                    json.loads(line)
+    else:
+        rec["lines"] = [i + 1 for i, (a, b) in enumerate(zip(text.splitlines(), new.splitlines()))
+                        if a != b]
+    path.write_bytes(new.encode("utf-8"))
+    rec["released_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return rec
+
+
+# --- build ------------------------------------------------------------------
+
 BANNERS = {
     "draft": ("> **DRAFT — NOT FOR PUBLICATION.** Prepared {date} under decision D63 of\n"
               "> the code repository. Publication is blocked until the write-up is frozen;\n"
@@ -102,8 +254,8 @@ def classify(runs: Path) -> None:
         raise SystemExit(f"released entries missing from {runs}: {sorted(missing)}")
 
 
-def stage_runs(runs: Path, stage: Path) -> list[dict]:
-    table = []
+def stage_runs(runs: Path, stage: Path) -> tuple[list[dict], dict[str, dict]]:
+    table, transforms = [], {}
     for name, (cls, what, rec) in RELEASED.items():
         src = runs / name
         files = [src] if src.is_file() else sorted(p for p in src.rglob("*") if p.is_file())
@@ -111,18 +263,49 @@ def stage_runs(runs: Path, stage: Path) -> list[dict]:
         if links:
             raise SystemExit(f"symbolic link in a released run: {links[0]}")
         kept = [p for p in files if p.name not in SKIP_NAMES]
+        n_changed = 0
         for p in kept:
-            dst = stage / "runs" / p.relative_to(runs)
+            rel = p.relative_to(runs).as_posix()
+            dst = stage / "runs" / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(p, dst)
             if sha256(p) != sha256(dst):
                 raise SystemExit(f"copy differs from its source: {p}")
+            if f"runs/{rel}" in RETAINED:
+                continue
+            change = sanitise_file(dst)
+            if change:
+                if change["original_sha256"] != sha256(p):
+                    raise SystemExit(f"sanitised a file that is not its source: {p}")
+                transforms[f"runs/{rel}"] = change
+                n_changed += 1
         table.append({"path": f"runs/{name}", "classification": cls, "description": what,
                       "decision_record": rec, "n_files": len(kept),
-                      "n_bytes": sum(p.stat().st_size for p in kept),
+                      "n_files_sanitised": n_changed,
+                      "n_bytes_original": sum(p.stat().st_size for p in kept),
                       "skipped": sorted(p.relative_to(runs).as_posix()
                                         for p in files if p.name in SKIP_NAMES)})
-    return table
+    return table, transforms
+
+
+#: Scan categories a RETAINED file may show; anything else in it still fails.
+_PATH_CATEGORIES = {"abs_windows_path", "abs_windows_root"}
+
+
+def gate(stage: Path, identities: set[str]) -> None:
+    """Refuse to archive a package in which the scan still finds anything.
+
+    A RETAINED file passes only with its pinned content and only for local
+    path findings.
+    """
+    _, findings = scan_release.scan(stage, identities)
+    for name, rule in RETAINED.items():
+        if name in findings and set(findings[name]) <= _PATH_CATEGORIES \
+                and sha256(stage / name) == rule["sha256"]:
+            del findings[name]
+    if findings:
+        lines = [f"  {name}: {', '.join(sorted(cats))}" for name, cats in sorted(findings.items())]
+        raise SystemExit("sensitive-data scan failed after sanitisation:\n" + "\n".join(lines))
 
 
 def write_archive(stage: Path, archive: Path) -> None:
@@ -139,30 +322,50 @@ def write_archive(stage: Path, archive: Path) -> None:
             gz.write(raw.getvalue())
 
 
-def build(runs: Path, out: Path, status: str, commit: str, date: str, archive_name: str) -> dict:
+def build(runs: Path, out: Path, status: str, commit: str, date: str, archive_name: str,
+          identities: set[str] | None = None) -> dict:
     if out.exists():
         raise SystemExit(f"{out} exists; refusing to overwrite")
     classify(runs)
     stage = out / TOP
     (stage / "runs").mkdir(parents=True)
-    table = stage_runs(runs, stage)
+    table, transforms = stage_runs(runs, stage)
 
     readme = (RELEASE / "README.template.md").read_text(encoding="utf-8")
     readme = readme.replace("{STATUS_BANNER}", BANNERS[status].format(date=date))
     readme = readme.replace("{SOURCE_COMMIT}", commit)
+    readme = readme.replace("{N_SANITISED}", str(len(transforms)))
     (stage / "README.md").write_text(readme, encoding="utf-8", newline="\n")
     shutil.copy2(RELEASE / "NOTICE.md", stage / "NOTICE.md")
     for src, dst in LICENCES.items():
         (stage / dst).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(RELEASE / "licences" / src, stage / dst)
+    (stage / "TRANSFORMS.json").write_text(json.dumps({
+        "what": "Release-only path sanitisation (D65). Each listed file differs from the "
+                "original run file only in the roots of local absolute paths: a path inside "
+                "the repository starts '<repo>', any other local path '<local>'. "
+                "original_sha256 is the run file as it is in runs/ and in the backups.",
+        "placeholders": {
+            "<repo>": "the repository's root directory on the machine that ran the stage",
+            "<local>": "a machine-local directory outside the repository: the drive and "
+                       "the first directory below it (and, under Users or home, the user's "
+                       "folder) are removed; the rest of the path is kept",
+        },
+        "n_files": len(transforms),
+        "files": transforms,
+        "retained_unmodified": {k: v for k, v in RETAINED.items() if (stage / k).exists()},
+    }, indent=2) + "\n", encoding="utf-8", newline="\n")
     (stage / "RUNS.json").write_text(json.dumps({
         "status": status if status == "final"
         else "DRAFT - NOT FOR PUBLICATION (write-up not frozen)",
         "source_repository": "https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail",
         "source_commit": commit, "built": date, "licence": "CC-BY-4.0",
-        "decision_record": "D63", "runs": table, "excluded": EXCLUDED,
+        "decision_record": "D63-D65", "runs": table, "excluded": EXCLUDED,
         "excluded_files": sorted(SKIP_NAMES),
+        "sanitised_files": "TRANSFORMS.json",
     }, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+    gate(stage, scan_release.local_identities([]) if identities is None else identities)
 
     files = sorted(p for p in stage.rglob("*") if p.is_file())
     sums = "".join(f"{sha256(p)}  {p.relative_to(stage).as_posix()}\n" for p in files)
@@ -174,8 +377,9 @@ def build(runs: Path, out: Path, status: str, commit: str, date: str, archive_na
     (out / f"{archive_name}.sha256").write_text(f"{digest}  {archive_name}\n",
                                                 encoding="utf-8", newline="\n")
     return {"status": status, "source_commit": commit, "staged_files": len(files) + 1,
-            "run_files": sum(r["n_files"] for r in table), "archive": str(archive),
-            "archive_bytes": archive.stat().st_size, "archive_sha256": digest}
+            "run_files": sum(r["n_files"] for r in table), "sanitised_files": len(transforms),
+            "archive": str(archive), "archive_bytes": archive.stat().st_size,
+            "archive_sha256": digest}
 
 
 def main() -> int:

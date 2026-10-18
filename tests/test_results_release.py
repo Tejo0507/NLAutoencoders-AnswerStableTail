@@ -1,10 +1,13 @@
-"""The run-artifact release (D63): what is packaged, and what the scan reports.
+"""The run-artifact release (D63-D65): what is packaged, sanitised and scanned.
 
-The package must hold exactly the classified runs, byte for byte, with a
-checksum list that verifies and an archive that is reproducible; a run nobody
-classified must stop the build rather than ship or vanish. The scan must find
-local paths and tokens without printing a token, and must not mistake the
-"\\n" escapes of JSON-encoded model text for drive paths.
+The package must hold exactly the classified runs, with a checksum list that
+verifies and an archive that is reproducible; a run nobody classified must
+stop the build rather than ship or vanish. Local path roots are replaced in
+the staged copy only, keeping the rest of each path, and every changed file is
+recorded with its original hash; everything else stays byte for byte. Nothing
+the scan still finds may reach an archive. The scan must find local paths and
+tokens without printing a token, and must not mistake the "\\n" escapes of
+JSON-encoded model text for drive paths.
 """
 
 from __future__ import annotations
@@ -42,8 +45,8 @@ def runs(tmp_path):
     return root
 
 
-def _build(runs, out, commit="c0ffee"):
-    return B.build(runs, out, "draft", commit, "2026-10-18", "a.tar.gz")
+def _build(runs, out, commit="c0ffee", identities=frozenset()):
+    return B.build(runs, out, "draft", commit, "2026-10-18", "a.tar.gz", set(identities))
 
 
 def test_the_package_holds_exactly_the_released_runs_byte_for_byte(runs, tmp_path):
@@ -128,3 +131,157 @@ def test_the_scan_is_clean_on_clean_text(tmp_path, monkeypatch):
     (tmp_path / "rows.jsonl").write_text('{"text": "Thus:\\nx = 2"}\n')
     monkeypatch.setattr(sys, "argv", ["scan_release.py", str(tmp_path)])
     assert S.main() == 0
+
+
+# --- sanitisation (D65) ------------------------------------------------------
+
+REPO = "NLAutoencoders-AnswerStableTail"
+
+
+@pytest.mark.parametrize("original, released", [
+    (f"D:\\\\{REPO}\\\\runs\\\\main\\\\traces", "<repo>\\\\runs\\\\main\\\\traces"),
+    ("D:\\\\nla_models\\\\nf4\\\\Qwen__Qwen2.5-7B-Instruct", "<local>\\\\nf4\\\\Qwen__Qwen2.5-7B-Instruct"),
+    ("E:\\\\SomeOtherProject\\\\.cache\\\\huggingface", "<local>\\\\.cache\\\\huggingface"),
+    ("C:\\\\Users\\\\someone\\\\cache\\\\hub", "<local>\\\\cache\\\\hub"),
+    (f"D:/{REPO}/data/raw/gsm8k/test.jsonl", "<repo>/data/raw/gsm8k/test.jsonl"),
+])
+def test_json_paths_lose_their_root_and_keep_the_rest(original, released):
+    text = json.dumps({"p": "x"}).replace('"x"', f'"{original}"')
+    new, n = B.sanitise_text(text, "json")
+    assert n == 1
+    assert json.loads(new)["p"] == json.loads(f'"{released}"')
+    assert "SomeOtherProject" not in new and "someone" not in new
+
+
+@pytest.mark.parametrize("value, released", [
+    (f"D:\\\\{REPO}", "<repo>"), ("E:\\\\hf_cache", "<local>"), (f"D:/{REPO}", "<repo>")])
+def test_a_bare_root_that_is_a_whole_value_is_sanitised_and_scanned(value, released, tmp_path):
+    text = '{"path": "' + value + '", "text": "so s:\\\\frac{1}{2} and s:\\n  x"}'
+    new, n = B.sanitise_text(text, "json")
+    assert n == 1 and json.loads(new)["path"] == released
+    assert json.loads(new)["text"] == json.loads(text)["text"]
+    (tmp_path / "env.json").write_text(text)
+    assert set(S.scan(tmp_path, set())[1]["env.json"]) == {"abs_windows_root"}
+
+
+def test_json_escapes_in_model_text_are_not_paths():
+    text = json.dumps({"text": "The answer is:\n\\[ 5 \\]\nSo:\n- a\\b"})
+    assert B.sanitise_text(text, "json") == (text, 0)
+
+
+def test_log_paths_with_one_or_two_backslashes_are_sanitised():
+    log = (f"INFO wrote D:\\{REPO}\\runs\\main\\x.json\n"
+           f'  File "D:\\{REPO}\\.venv\\Lib\\site-packages\\t.py", line 3\n'
+           "INFO loading from E:\\hf_cache\\hub\\models--Qwen\n"
+           f"INFO repr 'D:\\\\{REPO}\\\\runs'\n")
+    new, n = B.sanitise_text(log, "text")
+    assert n == 4
+    assert "<repo>\\runs\\main\\x.json" in new and "<repo>\\.venv\\Lib" in new
+    assert "<local>\\hub\\models--Qwen" in new and "<repo>\\\\runs" in new
+    assert ":\\" not in new
+
+
+@pytest.fixture
+def runs_with_paths(runs):
+    (runs / "main" / "env").mkdir()
+    env = {"disks": {"model_cache": {"path": "E:\\SomeOtherProject\\.cache\\huggingface",
+                                     "free_gb": 12.5},
+                     "repo": {"path": f"D:\\{REPO}"}},
+           "environment": {"python_executable": f"D:\\{REPO}\\.venv\\Scripts\\python.exe"},
+           "revision": "a09a35458c702b33eeacc393d103063234e8bc28"}
+    (runs / "main" / "env" / "environment.json").write_text(json.dumps(env, indent=2))
+    (runs / "pilot" / "run.log").write_text(
+        f"10:00 INFO run=pilot dir=D:\\{REPO}\\runs\\pilot\n10:01 INFO no path here\n")
+    return runs
+
+
+def test_sanitised_files_are_recorded_with_their_original_hash(runs_with_paths, tmp_path):
+    res = _build(runs_with_paths, tmp_path / "out")
+    stage = tmp_path / "out" / B.TOP
+    record = json.loads((stage / "TRANSFORMS.json").read_text())
+    assert res["sanitised_files"] == record["n_files"] == 2
+    env = record["files"]["runs/main/env/environment.json"]
+    src = runs_with_paths / "main" / "env" / "environment.json"
+    assert env["original_sha256"] == hashlib.sha256(src.read_bytes()).hexdigest()
+    released = stage / "runs" / "main" / "env" / "environment.json"
+    assert env["released_sha256"] == hashlib.sha256(released.read_bytes()).hexdigest()
+    assert set(env["fields"]) == {"disks.model_cache.path", "environment.python_executable",
+                                  "disks.repo.path"}
+    assert record["files"]["runs/pilot/run.log"]["lines"] == [1]
+    # Provenance that is not a path root survives exactly.
+    out = json.loads(released.read_text())
+    assert out["disks"]["model_cache"] == {"path": "<local>\\.cache\\huggingface", "free_gb": 12.5}
+    assert out["environment"]["python_executable"] == "<repo>\\.venv\\Scripts\\python.exe"
+    assert out["revision"] == "a09a35458c702b33eeacc393d103063234e8bc28"
+    # A bare root - drive and one directory - is a local path too.
+    assert out["disks"]["repo"]["path"] == "<repo>"
+
+
+def test_sanitisation_never_touches_the_source_runs_and_spares_other_files(runs_with_paths, tmp_path):
+    before = {p: p.read_bytes() for p in runs_with_paths.rglob("*") if p.is_file()}
+    _build(runs_with_paths, tmp_path / "out")
+    assert {p: p.read_bytes() for p in runs_with_paths.rglob("*") if p.is_file()} == before
+    stage = tmp_path / "out" / B.TOP
+    changed = set(json.loads((stage / "TRANSFORMS.json").read_text())["files"])
+    for p, data in before.items():
+        rel = f"runs/{p.relative_to(runs_with_paths).as_posix()}"
+        if p.name in B.SKIP_NAMES or rel.startswith("runs/tiny/"):
+            continue
+        if rel not in changed:
+            assert (stage / rel).read_bytes() == data, rel
+    assert S.scan(stage, set())[1] == {}
+
+
+def test_a_token_in_a_run_stops_the_build_before_any_archive(runs, tmp_path):
+    (runs / "main" / "leak.txt").write_text("hf_" + "B" * 34)
+    with pytest.raises(SystemExit, match="scan failed"):
+        _build(runs, tmp_path / "out")
+    assert not (tmp_path / "out" / "a.tar.gz").exists()
+
+
+def test_a_path_the_transformation_cannot_reach_stops_the_build(runs, tmp_path):
+    import numpy as np
+    with open(runs / "main" / "sub" / "block.npz", "wb") as fh:
+        np.savez(fh, meta=np.asarray([json.dumps({"src": "D:\\models\\nf4\\x"})], dtype=object))
+    with pytest.raises(SystemExit, match="block.npz"):
+        _build(runs, tmp_path / "out")
+    assert not (tmp_path / "out" / "a.tar.gz").exists()
+
+
+def _retain(runs, monkeypatch, content: bytes, pinned: bytes):
+    target = runs / "main_f6_diag_validation" / "validate.py"
+    target.write_bytes(content)
+    monkeypatch.setattr(B, "RETAINED", {"runs/main_f6_diag_validation/validate.py": {
+        "sha256": hashlib.sha256(pinned).hexdigest(), "reason": "test"}})
+    return target
+
+
+def test_a_retained_file_ships_unmodified_only_with_its_pinned_content(runs, tmp_path, monkeypatch):
+    code = f'R = Path(r"D:\\{REPO}")\n'.encode()
+    _retain(runs, monkeypatch, code, code)
+    _build(runs, tmp_path / "out")
+    stage = tmp_path / "out" / B.TOP
+    assert (stage / "runs" / "main_f6_diag_validation" / "validate.py").read_bytes() == code
+    record = json.loads((stage / "TRANSFORMS.json").read_text())
+    assert "runs/main_f6_diag_validation/validate.py" not in record["files"]
+    assert "runs/main_f6_diag_validation/validate.py" in record["retained_unmodified"]
+
+
+def test_a_retained_file_with_other_content_stops_the_build(runs, tmp_path, monkeypatch):
+    pinned = f'R = Path(r"D:\\{REPO}")\n'.encode()
+    _retain(runs, monkeypatch, f'R = Path(r"E:\\Elsewhere\\x")\n'.encode(), pinned)
+    with pytest.raises(SystemExit, match="validate.py"):
+        _build(runs, tmp_path / "out")
+
+
+def test_a_retained_file_still_fails_on_anything_but_a_path(runs, tmp_path, monkeypatch):
+    code = ("token = 'hf_" + "C" * 34 + "'\n").encode()
+    _retain(runs, monkeypatch, code, code)
+    with pytest.raises(SystemExit, match="validate.py"):
+        _build(runs, tmp_path / "out")
+
+
+def test_a_local_identity_stops_the_build(runs, tmp_path):
+    (runs / "main" / "note.txt").write_text("run by someone-local on this machine")
+    with pytest.raises(SystemExit, match="identity"):
+        _build(runs, tmp_path / "out", identities={"someone-local"})

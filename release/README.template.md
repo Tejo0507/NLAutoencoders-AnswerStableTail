@@ -10,14 +10,18 @@ deviation (`docs/DECISIONS.md`) are in the code repository:
 - Repository: https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail (MIT)
 - Source commit: `{SOURCE_COMMIT}`
 
-Nothing here was regenerated for the release. Every file is a byte-for-byte
-copy of the run directory it comes from; only this README, `RUNS.json`,
-`NOTICE.md`, `LICENSE`, `licences/` and `SHA256SUMS.txt` were added.
+Nothing here was regenerated for the release, and no number was changed.
+Every file under `runs/` is a copy of the run directory it comes from.
+**{N_SANITISED} of them are release-transformed**: the roots of local
+absolute paths were replaced (see *Sanitised paths* below), and
+`TRANSFORMS.json` lists each one. Every other file is byte-for-byte
+identical to the original. Added for the release: this README, `RUNS.json`,
+`TRANSFORMS.json`, `NOTICE.md`, `LICENSE`, `licences/` and `SHA256SUMS.txt`.
 
 ## What is in it
 
 `RUNS.json` lists every directory with its classification, decision record,
-file count and size. In short:
+file count, number of sanitised files and original size. In short:
 
 | Directory | Classification | What it is |
 |---|---|---|
@@ -63,16 +67,40 @@ The archive's own SHA-256 is published beside it. The repository's
 `scripts/check_run_consistency.py --run <dir>` re-derives the analysis
 checks from a run directory placed under the repository's `runs/`.
 
+A checksum list *inside* a run refers to the original files. Where it names a
+sanitised file, compare its entry with that file's `original_sha256` in
+`TRANSFORMS.json`, not with the released file. This applies to two entries of
+`runs/main_nla240/SOURCE_SHA256SUMS.txt` (`acts/summary.json` and
+`data/validation.json`, checked from inside `runs/main/`).
+
+## Sanitised paths
+
+The runs recorded the absolute paths of the machine they ran on: stage output
+directories, data source files, the Python interpreter, model checkpoint and
+cache directories, and file paths in one logged traceback. These are kept,
+with their roots replaced:
+
+| Original root | Released as | Example |
+|---|---|---|
+| the repository's directory | `<repo>` | `<repo>\runs\main\traces` |
+| any other local directory | `<local>`, minus the drive and the first directory below it | `<local>\nf4\<model directory>` |
+
+What each path points at, relative to the repository or to the model store,
+is unchanged; which disk and which local folder held it is not published.
+Model identity does not depend on these paths: repository ids and revisions
+are recorded in the manifests separately. `TRANSFORMS.json` gives, for each
+sanitised file, its original and released SHA-256, the JSON fields or log
+lines changed and the number of replacements. The original files are
+unchanged in the study's own copies.
+
 ## Known limitations
 
 - Reproducing the runs needs the three Qwen-7B-class checkpoints (~41 GB in
   bf16), converted to 4-bit NF4, and a CUDA GPU; this study ran on an RTX
   4050 Laptop (6.44 GB VRAM). See the repository README.
-- The files record **local absolute paths** of the machine they ran on
-  (repository, interpreter, model and cache directories) in `env/`, the
-  manifests, `models/` and the logs. They are kept unedited because they are
-  part of each stage's provenance; they contain no user name and no
-  credential.
+- Local absolute paths are sanitised as described above, so a path in a
+  manifest or log cannot be opened as written. Resolve `<repo>` to a checkout
+  of the repository.
 - The pilot's manifest holds a stale `classify_correct: running` record from
   an attempt the stage refused at 24 problems (audit PW-21).
 

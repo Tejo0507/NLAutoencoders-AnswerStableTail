@@ -1,10 +1,21 @@
 """Scan a release package, a directory or a ``.tar.gz``, for data that should not ship.
 
-Looks for local absolute paths, home-directory paths, e-mail addresses,
-common token and key formats, private-key blocks, secret assignments, and the
-local identities this machine knows (user name, host name, git user name and
-e-mail, plus any ``--identity``). Text files are scanned whole; ``.npz``
-files through their object arrays (the JSON metadata); PNGs are skipped.
+Looks for:
+
+* Windows absolute paths of two or more segments (``abs_windows_path``) and
+  bare roots of one segment (``abs_windows_root``, only as a whole JSON
+  string or a delimited token, and in JSON only with an escaped separator,
+  so that model text such as ``s:\\n`` or ``s:\\\\frac`` is not reported);
+* home-directory paths, e-mail addresses, Hugging Face, GitHub, ``sk-`` and
+  AWS key formats, private-key blocks, bearer headers and secret assignments;
+* the local identities this machine knows: user name, host name, git user
+  name and e-mail, plus any ``--identity``.
+
+Coverage: text files are scanned whole (decoded as UTF-8, invalid bytes
+replaced); ``.npz`` files only through their object arrays, which hold the
+JSON metadata, not their numeric arrays; PNGs are skipped. UNC paths
+(``\\\\server\\share``), relative paths and secrets in formats not listed
+above are not looked for.
 
 Prints file, category and count. Path findings show their drive and first
 directory only; nothing else that matched is printed, so a found secret does
@@ -41,6 +52,8 @@ PATTERNS = {
         r"(?<![A-Za-z0-9])[A-Za-z]:(?:\\\\|\\|/)(?!n[^A-Za-z0-9_])[A-Za-z0-9_.~$ -]{1,64}"
         r"(?:\\\\|\\|/)[A-Za-z0-9_.~$-]"),
     "home_path": re.compile("/(?:" + "|".join(HOME_ROOTS) + r")/[A-Za-z0-9_.-]+"),
+    # "abs_windows_root" (a drive and one directory) is added per file type in
+    # scan(), because only the file type tells a JSON escape from a separator.
     "email": re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.-]*[A-Za-z]{2,}"),
     "hf_token": re.compile(r"\bhf_[A-Za-z0-9]{30,}"),
     "github_token": re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}"),
@@ -50,6 +63,16 @@ PATTERNS = {
     "secret_assignment": re.compile(
         r"(?i)\b(?:password|passwd|api[_-]?key|secret[_-]?key|access[_-]?token|hf_token)\b"
         r"['\"]?\s*[:=]\s*['\"][^'\"]{6,}"),
+}
+
+
+_ROOT_COMP = r"[A-Za-z0-9_.~$ -]+"
+#: A bare root only where it is a whole value: in JSON a complete string
+#: written with an escaped separator; elsewhere a token delimited by quotes,
+#: whitespace or brackets. Model text such as "s:\\frac" or "s:\n" is not one.
+ROOT_PATTERNS = {
+    "json": re.compile(rf'(?<=")[A-Za-z]:(?:\\\\|/){_ROOT_COMP}(?=")'),
+    "text": re.compile(rf"(?<=[\"'\s=(])[A-Za-z]:(?:\\\\|\\|/){_ROOT_COMP}(?=[\"'\s),]|$)", re.M),
 }
 
 
@@ -84,12 +107,15 @@ def text_of(name: str, data: bytes) -> str | None:
     if suffix == ".npz":
         import numpy as np
         z = np.load(io.BytesIO(data), allow_pickle=True)
-        return " ".join(str(z[k].tolist()) for k in z.files if z[k].dtype == object)
+        # The strings themselves, one per line: a repr() of the array would
+        # double every backslash and hide an escaped path from the patterns.
+        return "\n".join(str(x) for k in z.files if z[k].dtype == object or z[k].dtype.kind in "US"
+                         for x in z[k].ravel().tolist())
     return data.decode("utf-8", errors="replace")
 
 
 def redact(category: str, s: str) -> str:
-    if category == "abs_windows_path":
+    if category in {"abs_windows_path", "abs_windows_root"}:
         parts = re.split(r"\\\\|\\|/", s)
         return f"{parts[0]}\\{parts[1][:24] if len(parts) > 1 else ''}\\..."
     return "<redacted>"
@@ -106,7 +132,8 @@ def scan(target: Path, identities: set[str]) -> tuple[int, dict]:
         text = text_of(name, data)
         if not text:
             continue
-        for cat, rx in patterns.items():
+        kind = "json" if Path(name).suffix.lower() in {".json", ".jsonl"} else "text"
+        for cat, rx in {**patterns, "abs_windows_root": ROOT_PATTERNS[kind]}.items():
             hits = [m.group(0) for m in rx.finditer(text)]
             if hits:
                 findings[name][cat] = [len(hits), sorted({redact(cat, h) for h in hits})[:3]]
