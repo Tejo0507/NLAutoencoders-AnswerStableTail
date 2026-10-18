@@ -2044,3 +2044,46 @@ diagnostic run has been authorised or executed, and `runs/main_f6_diag/` does
 not exist. Preflight, the gate and the full run each need separate
 authorisation.
 
+## D60. F6's length-correct diagnostic: run, result frozen, recorded as exploratory
+
+**Recorded 2026-10-18.** The researcher authorised preflight, the seed-12
+gate and the full run together; all three ran at `27c131a` under the D58
+protocol and the D59 implementation, unmodified. Preflight passed every
+check; the gate reproduced F6 exactly (718 labels changed, shuffled AUC
+0.6142873504351077, real AUC 0.9460944231357181); the run completed all
+B = 100 draws (no fallback: projected 4,920 s against 6 h), with no failure.
+An independent validation (27 checks, 0 failed) regenerated every labelling
+from the seed definitions and recomputed every AUC and summary from the stored
+outputs. Results and their reading: `docs/F6_LENGTH_CORRECT_RESULTS.md`.
+
+- **Δ_A = +0.240** (single draws 0.196–0.278, all positive; bootstrap
+  0.233–0.247): with the same donors, the length-correct rule φ gives a
+  shuffled AUC of 0.841 against `np.resize`'s 0.602. The registered 0.614
+  depends on the length-fitting rule as well as on donor reassignment.
+- **S1 shifts prevalence** from 0.200 to 0.228 (S0: 0.156), more than the
+  protocol's "approximately preserved"; Δ_A carries that shift as well as the
+  restored label–position structure (0.920 original, 0.919 S1, 0.683 S0).
+- **Oracle:** the probe is below the position-derived benchmark in every draw
+  (E = −0.092 for S0, −0.069 for S1). This is not evidence that position
+  explains the probe's predictability and does not rule out leakage; the
+  oracle is not an upper bound, formal null or leakage test (the linear
+  position model exceeds it under S1, 0.916 against 0.910).
+- **Subset (246 problems, the four longest traces excluded):** S2 − S1 =
+  +0.031; read for the subset only.
+
+**Frozen.** The outputs stay in `runs/main_f6_diag/` (not version-controlled,
+marked read-only), with the validator, its log and the outputs' SHA-256 list
+in `runs/main_f6_diag_validation/`. They are not in any existing backup.
+
+**Unchanged.** F6's registered values (0.9460944231 / 0.6142873504 / 0.5385),
+its threshold, `leak_suspected = false` and its interpretation;
+`runs/main/robustness/robustness.json` SHA-256 `45701a51…d5ed` before, during
+and after the run. No leakage verdict is made from the diagnostic.
+
+**Next step, decided by the researcher:** no further experiment now. The
+diagnostic has identified the methodological issue — the control depends on
+how donor labels are fitted to receiver length. A stronger leakage claim would
+need a new preregistered study fixing, before any result is seen, a control
+with a defined null, a length-matching strategy, refit-inclusive uncertainty
+and a decision threshold.
+
