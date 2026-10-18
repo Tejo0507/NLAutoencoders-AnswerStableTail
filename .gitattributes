@@ -1,0 +1,3 @@
+# The results release (release/) is built byte-for-byte from these files, and
+# its archive SHA-256 is recorded; a CRLF checkout would change both.
+release/** text eol=lf
