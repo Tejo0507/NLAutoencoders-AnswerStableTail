@@ -27,9 +27,8 @@ from collections import Counter
 
 import numpy as np
 
-from _stage import base_parser
+from _stage import base_parser, load_config
 
-from nlaast import config as config_mod
 from nlaast.activations.store import ActivationStore
 from nlaast.baselines.probe import permute_labels
 from nlaast.data.answers import PERMISSIVE, equivalent, extract_answer
@@ -98,7 +97,8 @@ def audit(cfg) -> dict:
     for g in lengths:
         idx = [i for i, h in enumerate(groups) if h == g]
         rebuilt[idx] = np.resize(by_g[donors[g]], len(idx))
-    assert np.array_equal(rebuilt, y_shuf), "donor reconstruction does not match permute_labels"
+    if not np.array_equal(rebuilt, y_shuf):
+        raise RuntimeError("donor reconstruction does not match permute_labels")
 
     tiled = [g for g in lengths if lengths[donors[g]] < lengths[g]]
     truncated = [g for g in lengths if lengths[donors[g]] > lengths[g]]
@@ -172,9 +172,14 @@ def audit(cfg) -> dict:
 def main() -> int:
     p = base_parser(__doc__)
     args = p.parse_args()
-    cfg = config_mod.load(args.config, args.overrides)
-    out = audit(cfg)
+    cfg = load_config(args)
     path = cfg.dir.parent / f"{cfg.run_id}_f6_audit" / "f6_resize_audit.json"
+    # The recorded audit (docs/F6_RESIZE_AUDIT.md) is read from this file, so
+    # a rerun must not replace it silently.
+    if path.exists() and not args.force:
+        print(f"{path} exists; refusing to overwrite (use --force)", file=sys.stderr)
+        return 1
+    out = audit(cfg)
     write_json(path, out)
     import json
     print(json.dumps(out, indent=2))

@@ -41,7 +41,7 @@ from typing import Any
 
 import numpy as np
 
-from _stage import base_parser
+from _stage import base_parser, load_config
 
 from nlaast import config as config_mod
 from nlaast import logging_utils, provenance
@@ -407,7 +407,7 @@ def main() -> int:
     p.add_argument("--analyse", action="store_true",
                    help="CPU only: compare every finished condition with the base run")
     args = p.parse_args()
-    cfg = config_mod.load(args.config, args.overrides)
+    cfg = load_config(args)
     root = out_root(cfg)
     root.mkdir(parents=True, exist_ok=True)
     log = logging_utils.setup(root)
