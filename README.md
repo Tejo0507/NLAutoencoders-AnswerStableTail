@@ -269,15 +269,50 @@ $env:NLAAST_QUANT_DIR = "<volume>/nf4"  # 4-bit checkpoints, ~15 GB
 ## Running it
 
 ```powershell
-.venv/Scripts/python.exe -m pytest                                  # no GPU needed
-.venv/Scripts/python.exe -m pytest -m slow                          # adds the 4-bit GPU paths
+.venv/Scripts/python.exe -m pytest                                  # whole suite; GPU tests skip without CUDA
+.venv/Scripts/python.exe -m pytest -m "not slow"                    # CPU only: deselects the 5 GPU tests
+.venv/Scripts/python.exe -m pytest -m slow                          # only the 4-bit GPU paths
 .venv/Scripts/python.exe scripts/run_pipeline.py --config smoke     # 4 problems
 .venv/Scripts/python.exe scripts/run_pipeline.py --config pilot     # 24 problems
 ```
 
+On 2026-10-18 the whole suite gave 942 passed, 3 skipped on the RTX 4050, the
+5 GPU tests included (the skips need the released autoencoder sidecars in the
+local Hugging Face cache). The end-to-end test deletes and rebuilds
+`runs/tiny/`, a synthetic run the supervised analyses refuse to pool; no other
+test writes under `runs/`.
+
 `smoke` proves the pipeline runs end to end and nothing scientific. `pilot` is
-the smallest configuration meant to be read, and is the one that produced the
-findings above. `main` is the full run and has not been attempted.
+the smallest configuration meant to be read. `main` is the full run (250
+problems, complete 2026-10-17) and produced the [Main run](#main-run) results.
+
+### Checking the recorded results (read-only)
+
+None of these writes to `runs/`; each re-derives a check from the stored
+artifacts, so a changed or missing file shows up as a failure.
+
+```powershell
+# every run's numbers against its artifacts, its p-values and the code that ran
+.venv/Scripts/python.exe scripts/check_run_consistency.py --run runs/main          # 179 checks, 0 warnings
+.venv/Scripts/python.exe scripts/check_run_consistency.py --run runs/pilot         # 173 checks, 1 historical warning
+.venv/Scripts/python.exe scripts/check_run_consistency.py --run runs/main_nla240   # 132 (exploratory, D54)
+.venv/Scripts/python.exe scripts/check_run_consistency.py --run runs/main_f8_bf16  # 133 (partial F8, D55)
+.venv/Scripts/python.exe scripts/check_run_consistency.py --run runs/main_f8_nf4   # 132
+```
+
+```bash
+# the F6 length-correct diagnostic's outputs (D60), from the repository root
+sha256sum -c runs/main_f6_diag_validation/SHA256SUMS.txt
+# F6's registered artifact: 45701a51c98d5ebd936ed1fc6a463f7fb01f1e2743378094ee7bd6cac640d5ed
+sha256sum runs/main/robustness/robustness.json
+# the N = 240 extension's inputs, copied from main (D54): run inside runs/main
+(cd runs/main && sha256sum -c ../main_nla240/SOURCE_SHA256SUMS.txt)
+```
+
+The counts are those of 2026-10-18; `docs/AUDIT_2026-10-17.md` records the
+evidence. The diagnostic and post-hoc scripts (`audit_f6_resize.py`,
+`run_f8_bf16_headline.py --phase prepare`, `diag_f6_length_correct.py`) refuse
+to overwrite an existing output directory.
 
 The test suite includes a fixture-backed end-to-end check that runs every stage
 script — including the three that need the autoencoder — against tiny randomly
