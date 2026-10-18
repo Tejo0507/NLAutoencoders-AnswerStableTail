@@ -2138,3 +2138,67 @@ Regression tests: `tests/test_f8_headline.py` (6) and
 `tests/test_audit_f6_resize.py` (16); the refusal test fails on the previous
 `prepare`. Neither script had a test before.
 
+## D62. RQ3 is closed as untested on this model (audit decision D1, option A)
+
+**Decided 2026-10-18.** The researcher delegated the choice among the options
+in `docs/RQ3_DECISION_BRIEF.md` to the assistant, which chose **A**: RQ3 is
+reported as *not tested* on Qwen2.5-7B-Instruct, because the registered
+construct has no measurable range in this model's output.
+
+- **A is consistent with the pre-registration** and needs no new instrument,
+  run or reading. The verdict already stored (`beats: null`, D47) is the one
+  reported.
+- **B was not chosen** because the evidence says it would likely fail for
+  the same reason: rechecking markers occur in 2 of 274 traces, so any
+  measure of verification-like behaviour starts from a model that hardly
+  shows it. B also needs a new judged instrument validated by inter-rater
+  agreement, and no second annotator exists (PROJECT_PLAN §8). A1 showed what
+  an unvalidated instrument yields here: a reading that cannot corroborate or
+  refute.
+- **C was not chosen** because it would answer a different question, picked
+  after `usable_outcomes` had been seen. The dose–response in answer change
+  (0 → 21.7%, controls unchanged) stays reported as exploratory, not as RQ3.
+- **Kept open for a separate study:** B remains possible as a new,
+  preregistered study. The 83 eval-split problems with a tail that the causal
+  arm never touched stay unused, so they can serve as its holdout.
+
+Reporting rule, unchanged: the zero readout is not evidence against a tail
+direction, and `continuation_tokens` is not RQ3's outcome (D41).
+
+## D63. Release: code public now, run artifacts archived with the write-up (audit decision D8)
+
+**Decided 2026-10-18, by the assistant under the researcher's delegation;
+not executed.** O6 (PROJECT_PLAN §1) is approved in principle. This entry
+fixes how the release is done.
+
+- **Code:** already public at `github.com/Tejo0507/NLAutoencoders-AnswerStableTail`
+  (MIT; `third_party/nla_inference/` Apache-2.0). Nothing further is needed.
+- **Run artifacts:** one versioned archive, attached to a GitHub release
+  tagged at the commit the write-up reports, and archived on Zenodo through
+  its GitHub integration for a DOI. Zenodo is chosen because a DOI-backed
+  archive outlasts the repository and is citable; ~200 MB is far below its
+  limits.
+- **Timing:** after the write-up is frozen, so the archive and the reported
+  numbers come from one commit. Not now: publishing is public and cannot be
+  undone, and nothing in the record is waiting on it.
+- **Contents:**
+  - **Included:** `main`, `pilot`, and the exploratory directories (`main_nla240`,
+    `main_f8_bf16`, `main_f8_nf4`, `main_f8_comparison.json`,
+    `main_rq2probe`, `main_f6_audit`, `main_f6_diag`,
+    `main_f6_diag_validation`). Each is labelled registered or exploratory in
+    the release notes, and the archive carries a `SHA256SUMS.txt`.
+  - **Left out, as not results:** `calib`, `mlcorpus` (pre-fix traces), `smoke`,
+    `tiny` (synthetic) and `main_f5` (a 2-problem timing check).
+  - **Labelled, not hidden:** the AI-produced annotation sheet
+    (`annotation_sheet_v3.ai_claude_not_independent.jsonl`) is included under
+    its existing name.
+- **Licence for the artifacts:** CC-BY-4.0, with attribution to the upstream
+  sources. Checked 2026-10-18 on the Hugging Face API: Qwen2.5-7B-Instruct
+  and both `kitft/nla-qwen2.5-7b-L20` checkpoints are Apache-2.0; GSM8K and
+  MATH (`hendrycks_math`) are MIT. All of these allow redistributing derived
+  outputs with attribution.
+- **Privacy check:** a scan of the release set found no local user paths and
+  no access tokens. Repeat it on the final archive before upload.
+- **Executing it** is a separate, explicit step for the researcher: tag, create
+  the release with the archive, and enable the repository in Zenodo.
+

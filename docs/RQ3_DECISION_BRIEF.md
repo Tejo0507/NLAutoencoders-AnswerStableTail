@@ -2,6 +2,11 @@
 
 **Decision needed from the researcher. Nothing below has been started.**
 
+> **Decided 2026-10-18: option A** — RQ3 is closed as *not tested* on this
+> model (`DECISIONS.md` D62). B remains possible only as a separate
+> preregistered study, with the 83 untouched eval problems kept as its
+> holdout. The brief below is kept as written.
+
 ## Where RQ3 stands
 
 RQ3 asks whether tail-window states carry a direction whose ablation

@@ -60,7 +60,8 @@ Last reviewed 2026-10-17.
 > `runs/` is unchanged apart from the test suite's own fixture run
 > `runs/tiny/`; the audit register is reconciled with D52–D60 (PW-24,
 > PW-25). Read-only validation commands: README, *Checking the recorded
-> results*.
+> results*. RQ3 is closed as untested (D62); release plan D63, not yet
+> executed.
 >
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 

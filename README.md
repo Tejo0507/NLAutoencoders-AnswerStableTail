@@ -144,8 +144,9 @@ reconstruction-dependence reading for either attribute tested
 ([`docs/RQ2_PROBE_AMENDMENT.md`](docs/RQ2_PROBE_AMENDMENT.md) §12, D57); F8's bf16 replication of the
 headline comparison was run only in part (bf16 target activations, 24
 problems; D55); the NLA arm was extended to 240 problems as an exploratory,
-post-hoc analysis (D54). RQ3's path is the researcher's decision
-([`docs/RQ3_DECISION_BRIEF.md`](docs/RQ3_DECISION_BRIEF.md), #11).
+post-hoc analysis (D54). RQ3 is closed as *not tested* on this model
+(D62, option A of [`docs/RQ3_DECISION_BRIEF.md`](docs/RQ3_DECISION_BRIEF.md));
+the run artifacts will be released with the write-up (D63).
 
 **F6's leakage control is sensitive to its length mapping** (exploratory,
 D58–D60; [`docs/F6_LENGTH_CORRECT_RESULTS.md`](docs/F6_LENGTH_CORRECT_RESULTS.md)).
