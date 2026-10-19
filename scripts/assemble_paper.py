@@ -18,10 +18,14 @@ So this can be run today, on a report whose Results do not exist, and the
 output is an honest document that says so. Run it again when they do and the
 placeholders disappear.
 
-The references are pulled from `Project_Review_II.md` §References rather than
-retyped, because the drafts' `[n]` citations are numbered against that list and
-a second copy would be a second thing to keep in step. Every entry still needs
-independent verification before submission; see `paper/README.md`.
+A section that exists but still carries an unresolved `**[VERIFY]**` or
+`**[N]**` marker counts as incomplete too, so a draft cannot pass for finished
+by being present.
+
+The references are read from `paper/references.md`, the version-controlled
+copy of `Project_Review_II.md` §References. The drafts' `[n]` citations are
+numbered against that list; the copy was checked against each source on
+2026-10-19 and two author lists corrected, as its header records.
 
     python scripts/assemble_paper.py
     python scripts/assemble_paper.py --out paper/REPORT.md
@@ -38,7 +42,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PAPER = ROOT / "paper"
-REVIEW = ROOT / "Project_Review_II.md"
+REFERENCES = PAPER / "references.md"
+
+#: Inline markers that say a statement is not finished. A section containing
+#: one is reported as incomplete, whatever its declaration says.
+UNRESOLVED_MARKERS = ("**[VERIFY]**", "**[N]**")
 
 
 @dataclass(frozen=True)
@@ -54,23 +62,15 @@ class Section:
 #: The report's structure, in submission order. Taken from `paper/README.md`,
 #: which is the record of what was planned and what each piece waits on.
 SECTIONS: tuple[Section, ...] = (
-    Section("", "Abstract", None,
-            "the Results: an abstract states the outcome, and the outcome is "
-            "what the main run has not produced"),
+    Section("", "Abstract", "00_abstract.md"),
     Section("1", "Introduction", "01_introduction.md"),
     Section("2", "Related work", "02_related_work.md"),
     Section("3", "Method", "03_method.md"),
-    Section("4", "Experimental setup", "04_experimental_setup.md",
-            "the achieved N, which is what gets reported"),
+    Section("4", "Experimental setup", "04_experimental_setup.md"),
     Section("5", "Statistical analysis plan", "05_analysis_plan.md"),
-    Section("6", "Results", None,
-            "the main run; `runs/main/analysis/results.json` and "
-            "`runs/main/report/RESULTS.md` are the sources it will be written "
-            "from, and `scripts/check_run_consistency.py` is what certifies "
-            "them first"),
-    Section("7", "Discussion", None, "the Results"),
-    Section("8", "Limitations and threats to validity", "08_limitations.md",
-            "the main run's own numbers in three of its entries"),
+    Section("6", "Results", "06_results.md"),
+    Section("7", "Discussion", "07_discussion.md"),
+    Section("8", "Limitations and threats to validity", "08_limitations.md"),
 )
 
 TITLE = "Natural Language Autoencoders for Redundancy Diagnostics"
@@ -85,18 +85,16 @@ FRONT_MATTER_FIELDS = (
 
 
 def references() -> list[str]:
-    """The numbered bibliography, lifted from the review."""
-    if not REVIEW.exists():
+    """The numbered bibliography, from `paper/references.md`."""
+    if not REFERENCES.exists():
         return []
-    text = REVIEW.read_text(encoding="utf-8")
-    m = re.search(r"^##\s+References\s*$", text, re.MULTILINE)
-    if not m:
-        return []
-    tail = text[m.end():]
-    end = re.search(r"^##\s+", tail, re.MULTILINE)
-    body = tail[: end.start()] if end else tail
-    return [line.strip() for line in body.splitlines()
+    return [line.strip() for line in REFERENCES.read_text(encoding="utf-8").splitlines()
             if re.match(r"^\[\d{1,2}\]", line.strip())]
+
+
+def unresolved_markers(text: str) -> list[str]:
+    """The unfinished-statement markers a section still carries."""
+    return [m for m in UNRESOLVED_MARKERS if m in text]
 
 
 def cited_numbers(text: str) -> set[int]:
@@ -179,6 +177,10 @@ def assemble() -> tuple[str, list[Section], list[str]]:
         raw = path.read_text(encoding="utf-8")
         content, section_notes = strip_draft_notes(raw)
         notes += [f"{s.title}: {n}" for n in section_notes]
+        markers = unresolved_markers(content)
+        if markers and not s.waiting_on:
+            s = Section(s.number, s.title, s.filename,
+                        "unresolved " + " and ".join(markers) + " markers")
         if s.waiting_on:
             pending.append(s)
         parts.append(content)
@@ -189,10 +191,10 @@ def assemble() -> tuple[str, list[Section], list[str]]:
     if refs:
         used = cited_numbers("\n".join(body_text))
         parts.append("## References\n")
-        parts.append("*Numbering follows `Project_Review_II.md`, so every "
-                     "citation in this report points at an entry that already "
-                     "exists in the repository. Each entry still requires "
-                     "independent verification before submission.*\n")
+        parts.append("*Numbering follows `Project_Review_II.md`. Each entry was "
+                     "checked against its source on 2026-10-19; "
+                     "`paper/references.md` records how, and the two "
+                     "corrections made.*\n")
         for entry in refs:
             n = int(re.match(r"^\[(\d{1,2})\]", entry).group(1))
             parts.append(entry + ("" if n in used else "  *(not yet cited)*"))

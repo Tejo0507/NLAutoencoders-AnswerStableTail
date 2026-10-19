@@ -18,23 +18,50 @@
 
 ## Table of Contents
 
-- Abstract  *(not written)*
+- Abstract
 - 1. Introduction
 - 2. Related work
 - 3. Method
 - 4. Experimental setup
 - 5. Statistical analysis plan
-- 6. Results  *(not written)*
-- 7. Discussion  *(not written)*
+- 6. Results
+- 7. Discussion
 - 8. Limitations and threats to validity
 
 ---
 
 # Abstract
 
-**Not written.** Waiting on the Results: an abstract states the outcome, and the outcome is what the main run has not produced.
+Reasoning models often keep writing after their answer is settled. We ask
+whether a natural-language autoencoder's verbalised readout of layer-20
+activations tells us anything about that region that cheaper signals do not.
 
-This placeholder is deliberate. The section is part of the planned report and its absence is a state of the work, so it is recorded here rather than left out of the document: a reader of this draft should be able to see what is missing without consulting the repository. Nothing in it is a finding, and no number in it is provisional, because there is no number in it.
+We first define an Answer-Stable Tail from behaviour alone: truncation
+equivalence, agreement of resampled continuations, and persistence. We then
+compare the readout with answer convergence, a hidden-state correctness probe
+and semantic entropy, as stopping rules at matched token budget, using a
+pre-registered problem-level test. The design adds a claim-level audit with a
+paraphrase null and a verbaliser-only control, a causal battery with matched
+controls, and ten falsification tests.
+
+On Qwen2.5-7B-Instruct, run in 4-bit, over 250 GSM8K and MATH problems,
+tails occur on 0.948 of problems non-trivially. They cover a mean 0.378 of
+each trace (a lower bound) and begin before the answer is stated.
+
+On the 120 problems the readout covers, its safe-stopping rate is lower than
+semantic entropy's (−0.092, 95% CI [−0.184, 0.016], q = 0.115) and the
+probe's (−0.008, q = 1.0). Neither difference is significant, and the
+comparison with answer convergence could not be made at a shared budget. The
+probe itself is largely positional.
+
+Of 6,007 claims, 0.749 are reconstruction-dependent and not reproduced from
+noise. An exploratory independent-probe control did not corroborate that
+reading, and reconstruction fidelity is no higher in the tail than elsewhere.
+The causal question is not tested: the registered rechecking readout has
+essentially no range on this model (2 of 274 traces).
+
+On this corpus the verbalised readout did not demonstrate value beyond the
+cheaper signals.
 
 ---
 
@@ -56,7 +83,6 @@ family of rules and found that agreement is necessary without being
 sufficient: at a rule saving roughly a third of tokens, about one stop in nine
 fired on an answer the trajectory later abandoned, and widening the agreement
 window trades the problem away against the saving rather than solving it [22].
-**[VERIFY]** — both attributions follow `Project_Review_II.md`'s reading.
 
 So a stable answer is not the same as a finished computation, and that gap is
 where internal state becomes interesting. Hidden-state probes show that
@@ -101,8 +127,8 @@ we keep apart by construction:
    verbalisation is audited claim by claim against a paraphrase null and a
    verbaliser-only control [12], [16]; the causal arm follows Zhang and
    Nanda's recommendations with a matched-random direction, a matched-position
-   window and a dose-response sweep [19]; and a nine-test falsification
-   battery targets the alternative explanations directly.
+   window and a dose-response sweep [19]; and a ten-test falsification
+   battery (§5.6) targets the alternative explanations directly.
 
 We state in advance that the cheaper signals matching or beating the
 verbalised readout is a scientifically useful outcome, and we report it with
@@ -114,9 +140,9 @@ dropping it.
 
 ## Contributions
 
-Stated as what the paper does. **[VERIFY]** — none of these is asserted to be
-novel; establishing priority would need a literature search that this draft
-has not performed.
+Stated as what the paper does. None of these is asserted to be novel:
+establishing priority would need a literature search that this study has not
+performed.
 
 - An activation-free, three-criterion definition of an answer-stable tail,
   including the resampled-continuation control, with every edge case carried
@@ -151,12 +177,13 @@ format [1], and reasoning-trained models lengthen it [2]. Work on
 *overthinking* treats that length as a cost to be measured: Caldarella et al.
 evaluate harmful overthinking [7], Zhai et al. quantify redundancy in
 reasoning directly [8], and Long et al. describe a self-verification dilemma
-in which checking behaviour is overused [9]. Self-correction frameworks that
-depend on external feedback show that gains over single-pass reasoning are
-available when a reliable external signal is present [27]; the post-answer
-region of a standard reasoning trace generally has no such signal, which limits
-how much productive computation it is likely to hold. **[VERIFY]** — these four
-attributions are the review's summaries, not re-derived.
+in which checking behaviour is overused [9]. A model can improve a first-pass
+output by iterating on its own explicit feedback [27]. Without external
+feedback, however, language models struggle to self-correct their reasoning,
+and their performance sometimes degrades after the attempt [18]. The
+post-answer region of a standard reasoning trace has no external signal and no
+explicit critique-and-revise structure, which limits how much productive
+computation it is likely to hold.
 
 The line this paper engages most closely converts the regularity into a
 policy. Liu and Wang parse an intermediate answer at each chunk boundary and
@@ -218,7 +245,7 @@ more unsupported detail, and propose modelling the distribution of activations
 compatible with an explanation rather than optimising single-point
 reconstruction [13]. Zhao et al. attack hallucination in verbalisation with a
 two-stage preference-optimisation framework [14], and Dingeto proposes
-decodability supervision for verifiable explanations [11]. **[VERIFY]**.
+decodability supervision for verifiable explanations [11].
 
 Separately, the chain-of-thought faithfulness literature supplies the audit
 template. Turpin et al. show models do not always say what they think [15];
@@ -467,15 +494,17 @@ rather than complete.
 assumed.** 4-bit layer-20 activations were compared against bf16 on a
 subsample: cosine **0.987**, integrity gate passing on essentially every
 sample (`runs/pilot/robustness/`). That is far from any threshold that would
-change a conclusion. The measurement is fixed at the pilot's 8-problem
-subsample and cannot be repeated without re-downloading 15.3 GB of bf16
-weights, which §8 records.
+change a conclusion. The main run's own F8 stage was blocked by design,
+because the bf16 weights were not on disk. A later partial replication
+recomputed the target's activations in bf16 for 24 of the main run's problems
+and found cosine 0.990, as §6.8 and `docs/DECISIONS.md` D55 report.
 
-**Hardware.** A single NVIDIA GeForce RTX 4050 Laptop GPU, 6.14 GiB VRAM,
-with the target model occupying about 5.5 GiB. **[VERIFY]** — read from
-`nvidia-smi`, not from a spec sheet. Every stage is single-stream and
-batch-limited by that budget, which is the binding constraint on the study's
-scale.
+**Hardware.** A single NVIDIA GeForce RTX 4050 Laptop GPU with 6,141 MiB of
+VRAM (6.44 GB, as `nvidia-smi` and the run's `env` stage record it), 16.8 GB
+of RAM. A 4-bit 7B model needs roughly 5.0–5.5 GB, which is the `env` stage's
+own feasibility estimate rather than a measured footprint. Every stage is
+single-stream and batch-limited by that budget, which is the binding
+constraint on the study's scale.
 
 ## 4.2 Data
 
@@ -539,6 +568,11 @@ accuracy fallen as harder MATH levels entered the corpus. The conclusion that
 point estimate, and the achieved rate is reported as a limit either way
 (`docs/DECISIONS.md` D32).
 
+**Over the completed corpus**, the cap truncated 0 of 150 GSM8K traces and
+8 of 100 MATH traces: 0.080, 95% exact interval [0.035, 0.152], which still
+excludes 0.300. Of the eight, 5 of 74 are algebra and 3 of 26 counting and
+probability.
+
 **The forcing budget went from 24 to 48 tokens.** At 24, the forced completion
 was cut off mid-derivation on 40.7% of evaluated boundaries, and on 24.1% the
 cut was *blocking*: criterion 1 failed while every resampled continuation from
@@ -560,7 +594,7 @@ directly comparable with the pilot's**, deliberately.
 | semantic entropy | 8 samples, `T = 1.0`, `top_p` 0.95, clustered by **symbolic equivalence** |
 | probe | logistic, `C = 1.0`, standardised, 5 folds, group-disjoint by problem |
 | verbaliser | 2 windows per problem, 2 samples per window, `max_new_tokens` 256, `T = 1.0`; controls on |
-| NLA arm cap | 80 problems configured; see §4.6 |
+| NLA arm cap | 80 problems configured; run at **120** by a recorded override (§4.6) |
 | faithfulness | at most 8 claims per explanation, 3 paraphrases, null at the 95th percentile |
 | causal | 5 arms, doses {0.0, 0.5, 1.0, 1.5, 2.0}, 5 random directions, cap 60 problems |
 
@@ -593,19 +627,32 @@ traceable to the artifact that produced it.
 **The run is resumable per problem**, and the interleaved order means an
 interruption costs at most one problem and leaves a proportional corpus.
 
-## 4.6 Achieved N — outstanding
+## 4.6 Achieved N
 
-**The achieved N, not the configured N, is what the paper reports.** At the
-time of this draft the main run is in progress and the number is not yet
-final, so it is left as a blank to be filled rather than guessed.
+**The achieved N, not the configured N, is what the paper reports.** The main
+run completed all **250** configured problems (150 GSM8K; 100 MATH, of which
+74 algebra and 26 counting and probability), with no failed generation. A tail
+was detected on 240 of them.
 
 Two arms run on a proportional subset for cost reasons and report their own
-achieved N separately: the verbaliser arm, because the autoencoder emits
-hundreds of tokens per activation and is an order of magnitude more expensive
-than the behavioural arms; and the causal arm, at 60 problems. The primary
-comparison is computed on exactly the problems the verbaliser arm covers, with
-every baseline re-swept over those problems, so that the comparison is between
-rules rather than between problem sets (§5.1).
+achieved N separately:
+
+- **The verbaliser arm.** The autoencoder emits hundreds of tokens per
+  activation and is an order of magnitude more expensive than the behavioural
+  arms. The arm ran at **120** problems, under a configuration override of the
+  configured 80 that the run records per stage (stage hash `0bb33cf4c468a3f6`,
+  `docs/DECISIONS.md` D48).
+- **The causal arm**, at **60** problems.
+
+The primary comparison is computed on exactly the problems the verbaliser arm
+covers, with every baseline re-swept over those problems, so that the
+comparison is between rules rather than between problem sets (§5.1).
+
+Both arms are capped proportionally by dataset. Each fills its MATH share with
+a sorted prefix of problem ids, so the verbaliser arm is 74 GSM8K and 46 MATH
+algebra problems, and the causal arm 34 and 26. Neither contains a
+counting-and-probability problem (D54). That was not reported when the cap was
+chosen, and §8.11 records what it limits.
 
 Sizing was done against the primary question rather than by ambition: because
 the primary comparison is a McNemar test over problems, its power comes from
@@ -614,6 +661,10 @@ many there are. Eight discordant problems is the fewest that can clear the
 corrected threshold, which at the pilot's rate of 4/21 puts the requirement at
 roughly 42 problems in the verbaliser arm (`docs/DECISIONS.md` D32).
 `scripts/size_o3_corpus.py` recomputes this from any completed run.
+
+At 120 problems that requirement was met: the comparison against semantic
+entropy has 37 discordant problems and the one against the probe 11. §8.4
+explains why reaching it was not enough to resolve the difference.
 
 ---
 
@@ -772,7 +823,7 @@ further the model writes" is not verification, and adopting it would answer a
 different question under this one's name. Eligibility is enforced in code
 against the registered construct (D41). §8 reports what this costs.
 
-## 5.5 Outstanding reporting decision
+## 5.5 The multiplicity convention
 
 **Which multiplicity convention to foreground.** §5.3's argument supports the
 evaluable-test denominator as primary, with the pre-registered-family count as
@@ -782,6 +833,11 @@ a reporting convention. Both number sets are in every artifact and the pilot's
 verdict is identical under both; if the main run's robustness flag comes back
 false, the choice decides a finding and must be stated explicitly in the
 Results rather than assumed.
+
+**Settled by the main run.** Correcting over the 7 evaluable tests and over
+all 9 pre-registered tests gives the same 5 significant findings (§6.7). The
+evaluable-test denominator stays primary, as planned, and the convention
+decides nothing on this run.
 
 ## 5.6 Falsification battery
 
@@ -803,17 +859,438 @@ positional rather than tail-specific, and §8 says so.
 
 # 6. Results
 
-**Not written.** Waiting on the main run; `runs/main/analysis/results.json` and `runs/main/report/RESULTS.md` are the sources it will be written from, and `scripts/check_run_consistency.py` is what certifies them first.
+Sections 6.1 to 6.7 are the registered analysis of the main run. Section 6.8
+is not: it collects analyses run after the main result was seen, or run in
+part, and none of them changes a registered conclusion.
 
-This placeholder is deliberate. The section is part of the planned report and its absence is a state of the work, so it is recorded here rather than left out of the document: a reader of this draft should be able to see what is missing without consulting the repository. Nothing in it is a finding, and no number in it is provisional, because there is no number in it.
+## 6.1 Corpus and achieved N
+
+All **250** configured problems were traced (150 GSM8K, 100 MATH: 74 algebra,
+26 counting and probability), with no failed generation. Final-answer accuracy
+is **0.880**: 0.900 on GSM8K and 0.850 on MATH.
+
+The arms run on the following problems:
+
+| arm | problems | composition |
+|---|---|---|
+| traces, AST, baselines, semantic entropy, probe | 250 | the whole corpus |
+| verbalised readout (NLA) and the primary comparison | **120** | 74 GSM8K + 46 MATH algebra |
+| claim-level audit (RQ2) | 120 | as the NLA arm: 6,007 claims over 1,413 explanations |
+| causal interventions (RQ3) | 60 | 34 GSM8K + 26 MATH algebra |
+
+The NLA arm ran at 120 problems through a recorded configuration override of
+the configured 80 (stage hash `0bb33cf4c468a3f6`, `docs/DECISIONS.md` D48).
+Both subset arms are capped proportionally by dataset, not by subject. Each
+fills its MATH share with a sorted prefix of problem ids, so **neither contains
+a counting-and-probability problem** (D54). Every result computed on the NLA
+or causal arm therefore describes GSM8K and MATH algebra only (§8.11).
+
+The generation cap of 768 tokens truncated **0 of 150** GSM8K traces and
+**8 of 100** MATH traces (0.080, 95% exact interval [0.035, 0.152]): 5 of 74 in
+algebra and 3 of 26 in counting and probability. The upper bound excludes the
+pilot's 0.300 at a 512-token cap.
+
+## 6.2 RQ1 — the Answer-Stable Tail
+
+A tail was detected on **240 of 250** problems (0.960). On 3 of those it covers
+only the final chunk, so the non-trivial tail rate is **0.948**. As §3.3
+anticipates, this rate sits near its ceiling by construction: at the final
+boundary the prefix is the whole trace and both criteria are close to
+tautological. The informative quantity is how much of the trace the tail
+covers:
+
+- mean tail fraction **0.378** of chunks (median 0.341, range 0.04–1.00);
+  mean tail length 107.7 tokens;
+- tail tokens are **0.347** of the tokens generated in traces that have a
+  tail, and 0.318 of all generated tokens.
+
+**The detected tail is a lower bound.** The 48-token forcing budget cut the
+forced answer off on 0.274 of evaluated boundaries. On 0.182 the cut was
+*blocking*: criterion 1 failed while every resampled continuation reached the
+final answer, on 162 problems in all. Counting those boundaries as satisfying
+criterion 1 raises the mean tail fraction from 0.378 to **0.484**, and the
+tail's token share from 0.347 to 0.447. The relaxed figure is not the
+registered criterion and is reported only as the other end of the interval.
+
+**The tail measures determinacy, not statement.** On 0.988 of problems the
+tail begins before the trace states its answer, by a mean of 2.76 chunks (up
+to 9). For the stopping comparison that is the right property, because a rule
+stopping there loses nothing. It also means a tail window contains computation
+that produces the answer, so it must not be read as post-answer
+verification (§3.3, §8.6).
+
+Detection status, with the edge cases kept in the corpus: `ok` 238 problems
+(accuracy 0.912), `no_stable_point` 10 (accuracy 0.100) and `stable_at_zero`
+2.
+
+**Registered test.** The tail fraction is higher on correct final answers:
+Cliff's δ **+0.295** over 240 problems, p = 0.026, **q = 0.036**, which is
+significant after correction.
+
+The answer-convergence rule fires earlier than the AST on 0.601 of problems
+(by 6.05 chunks where it does) and later on 0.373 (by 2.20 chunks). This is
+the concern that consensus stopping fires on answers that are not yet settled
+[22], measured on this corpus.
+
+## 6.3 The primary question — does the verbalised readout add value?
+
+Every rule is read off its own safety/saving curve at matched token budget,
+with each baseline re-swept over exactly the 120 problems the NLA arm covers
+(§5.1). On those problems, the budget window shared by the rules runs from a
+mean token saving of **0.613 to 0.738**. Within it, every matched rule's
+safe-stopping rate lies between **0.117 and 0.325**.
+
+| compared against | NLA safe rate | comparator | discordant problems | paired rate difference [95% CI] | p | q |
+|---|---|---|---|---|---|---|
+| semantic entropy | 0.233 | 0.325 | 37 (24 favour semantic entropy) | −0.092 [−0.184, 0.016] | 0.099 | 0.115 |
+| hidden-state probe | 0.125 | 0.133 | 11 (6 favour the probe) | −0.008 [−0.061, 0.049] | 1.000 | 1.000 |
+| answer convergence | — | — | — | not made | — | — |
+
+*McNemar's exact test over problems. The interval is the conditional-exact
+interval for the paired difference in safe-stopping rate (readout minus
+comparator).*
+
+**The verbalised readout does not beat the cheaper signals.** Against both
+comparators it can be matched to, its safe-stopping rate is lower. Neither
+difference is significant after correction, and both intervals include zero.
+The study therefore establishes **no difference in either direction**. It
+shows a readout that, at matched budget on this corpus, is no better than
+semantic entropy or a correctness probe, and directionally worse than semantic
+entropy. A significant result here would have been evidence *against* the
+readout's incremental value; this one is not evidence either way about
+equivalence.
+
+**The comparison with answer convergence could not be made.** On the NLA
+problem set the rule reaches 10 operating points, and its threshold sweep is
+exhaustive. Its points fall either side of the shared window, at savings of
+0.431 and 0.879, so no budget has both rules within the 0.05 tolerance. The
+comparison is reported as planned and not made (§5.2). It produces no p-value,
+and no claim is made about the two rules' relative safety.
+
+**The probe the readout is scored against is largely positional.** Its
+grouped cross-validated AUC is **0.946** over 2,681 boundaries. The same model
+on activation-free positional features reaches **0.928**, a margin of 0.018.
+The probe's row is therefore best read as a positional stopping rule with a
+small activation-derived increment (§8.2). A readout that ties it has not
+been shown to read more than position.
+
+**How the readout was scored.** The NLA score is mean reconstruction cosine at
+the boundary, carried forward. It averages 1,413 of the 2,127 reconstruction
+samples: 709 are the Gaussian noise control, and 5 failed the verbaliser's
+integrity gate (0.004 of activation-driven samples). This reduction is one
+choice among several (§8.6).
+
+## 6.4 RQ2 — claim-level faithfulness and reconstruction fidelity
+
+**Claims.** 6,007 claims were audited over 1,413 explanations.
+
+| quantity | rate |
+|---|---|
+| reconstruction-dependent (deletion effect above the paraphrase null) | **0.750** |
+| reproduced from a matched-norm Gaussian vector (verbaliser-only control) | **0.002** |
+| dependent **and** not reproduced from noise | **0.749** |
+
+**Registered test.** The deletion effect minus the paraphrase effect, paired
+per claim: Cohen's d **0.712**, mean paired difference **0.0317** [0.0306,
+0.0329], q < 0.001.
+
+Two sensitivity checks bear on this. **First, deletion size.** Deleting a claim
+removes 23.3% of an explanation on average, and the deletion effect rises with
+the fraction removed (r = +0.330). Removing that trend and re-applying the same
+null threshold gives a length-adjusted dependence rate of **0.772**, so the
+result does not rest on the length confound. **Second, the noise control.**
+Its reproduction rate stays at or below 0.016 across Jaccard thresholds from
+0.2 to 0.6, and the similarity distribution (99th percentile 0.222) has no
+cliff near the chosen threshold.
+
+**Verbaliser integrity.** 1,413 of 1,418 activation-driven samples (0.996)
+were well-formed English, against 560 of 709 (0.790) for the Gaussian control.
+This difference between real activations and matched-norm noise was not a
+planned measurement.
+
+**Reconstruction fidelity** is reported separately from faithfulness (§3.6).
+
+| window | n | mean cosine |
+|---|---|---|
+| tail | 476 | 0.873 |
+| matched position (pre-stabilisation) | 470 | 0.878 |
+| matched length, elsewhere in the trace | 472 | 0.876 |
+| Gaussian control | 709 | 0.393 |
+
+The FVE against this run's own activations as the baseline is 0.695
+(PROJECT_PLAN §5); against an orthogonal prediction it is 0.875.
+
+**F10: fidelity is not specific to the tail.** Tail windows reconstruct
+slightly *worse* than position-matched windows (Cliff's δ −0.203) and
+length-matched ones (δ −0.137); both differences are significant. Against the
+Gaussian control the separation is total (δ 1.000). The readout describes a
+late mathematical-reasoning state about equally well wherever in the trace it
+is sampled. So a fidelity result on the tail is a result about reading this
+kind of trace, not about the tail.
+
+These numbers say that the verbalisations carry information the
+reconstructor uses, and that they are not reproduced from verbaliser priors.
+They do not say that a claim is a true description of the computation:
+reconstruction dependence is not faithfulness (§8.6). The registered
+independent-probe control meant to bear on that question was implemented only
+later, as an exploratory amendment (§6.8).
+
+## 6.5 RQ3 — causal evidence: not tested
+
+**This time the interventions were applied.** The candidate direction was
+ablated on 59 of the 60 causal-arm problems at every non-zero dose; the 60th
+generated no continuation to edit. Its median edit spans 90 positions; the
+matched-position control spans 89 (0.99 times), and the random-direction arm
+63.
+
+The share of problems whose answer changed rose with dose: 0.000, 0.000,
+0.017, 0.067 and 0.217 at doses 0, 0.5, 1.0, 1.5 and 2.0. The controls are run
+at the compared dose, 1.0, where neither changed an answer: the five random
+directions (300 runs) and the matched-position control (60 runs) both had an
+answer-change rate of 0.000.
+
+**The registered readout did not move where the test is made.** RQ3 registers
+the construct "verification-like behaviour". Its operationalisation, a count of
+rechecking markers, is a documented choice (§3.8, D40–D41). At the compared
+dose, the marker count is zero in the candidate arm and in both controls on
+every one of the 60 paired problems. No contrast could be formed, so neither
+control comparison can be beaten or failed. The gate reports the direction
+claim as **not tested** (D47): this is neither support nor refutation, and it
+is not evidence against a tail direction.
+
+At doses 1.5 and 2.0 the candidate arm did produce markers, on 4 and 5 of 60
+problems. No control was run at those doses, so these counts admit no
+contrast either. They are reported as an observation, not as a test.
+
+The constraint is the model's prose, not the sample size. Across 274 traces
+(the pilot's 24 and the main run's 250), **2** carry any of the twenty
+registered markers: pooled rate 0.0073, 95% exact interval [0.0009, 0.0261].
+Projected onto a 60-problem arm, that gives 0.44 marker-bearing problems
+expected (1.57 at the interval's upper end), against the three paired problems
+a contrast needs (`scripts/measure_rq3_readout_floor.py`). RQ3 is therefore
+closed as not tested on this model (D62). The answer-change dose–response
+above is an exploratory observation about a different quantity and is not an
+RQ3 result (§8.1).
+
+## 6.6 Falsification battery
+
+| test | result |
+|---|---|
+| F1 length | corr(trace length, tail fraction) = −0.512 |
+| F2 difficulty | mean tail fraction 0.391 on GSM8K (148), 0.359 on MATH (92) |
+| F3 verbaliser only | reproduced from noise 0.002; reconstruction cosine 0.875 real vs 0.393 control |
+| F4 parser | final-answer agreement 0.968 under a stricter extractor; 11.0 vs 15.7 chunks per trace under the alternative segmentation |
+| F5 AST sensitivity | over the 3 settings run (`k` and unanimity), mean tail fraction varies by 0.010 and the non-trivial tail rate by 0.008; the temperature and chunker sweeps were **not run** (§8.7) |
+| F6 probe leakage | real AUC 0.946; across-groups shuffle 0.614; within-group 0.539; leak suspected: **no** (registered threshold \|AUC − 0.5\| > 0.15) |
+| F7 layer | probe AUC 0.940 at layer 14, 0.946 at 20, 0.944 at 24; layer 20 is not special for the probe |
+| F8 quantisation | blocked in the main run by design (the bf16 target was not on disk); measured on the pilot (cosine 0.987) and replicated in part afterwards (§6.8) |
+| F9 multiplicity | §6.7 |
+| F10 position | §6.4: tail fidelity not above matched windows |
+
+F6 passed under its registered threshold. Its shuffled AUC depends on how
+donor label sequences are fitted to each receiver's length, so the control
+supports no claim stronger than "no leakage suspected under this control"
+(§8.10, §6.8).
+
+## 6.7 The registered hypothesis family
+
+There are nine tests in the pre-registered family. Seven are evaluable, and
+**five are significant** after Benjamini–Hochberg at q = 0.05:
+
+- RQ1 (tail fraction by correctness);
+- RQ2 (deletion versus paraphrase);
+- the three F10 contrasts.
+
+Neither evaluable O3 comparison is significant. Two tests produced no p-value,
+each for a reason independent of the effect under test (§5.3): O3 against
+convergence (no matched budget) and RQ3 (no variance in the readout).
+Correcting over all nine tests instead of the seven evaluable ones gives the
+same five significant results. The reporting convention §5.5 left open
+therefore decides nothing on this run.
+
+## 6.8 Exploratory and partial analyses
+
+Each analysis below was run after the main result was seen, or run in part
+by decision, and is labelled as such in its decision entry. None of them
+changes a registered verdict above.
+
+**The NLA arm at N = 240** (exploratory, post hoc; D54). The arm was extended
+to all 240 problems with a tail, including counting and probability. The
+original 120 problems reproduced exactly: 2,127 of 2,127 reconstruction
+cosines were bit-identical.
+
+| readout minus | N = 120 (registered) | N = 240 (exploratory) |
+|---|---|---|
+| semantic entropy | −0.092 [−0.184, 0.016], p 0.099 | −0.138 [−0.191, −0.071], p 5.1 × 10⁻⁵ |
+| probe | −0.008 [−0.061, 0.049], p 1.0 | −0.029 [−0.059, 0.010], p 0.167 |
+
+At twice the N the direction against semantic entropy holds and its interval
+excludes zero. Because that N was chosen after the N = 120 result was seen, and
+the extension's correction family differs from the main run's, this is not a
+confirmatory result. The study's O3 conclusion remains the N = 120 result.
+
+**F8, the bf16 replication, in part** (D55). On 24 problems from the NLA arm,
+the target's layer-20 activations were recomputed in bf16 and the unchanged
+NF4 verbaliser and reconstructor were rerun on both arms. Results:
+
+- NF4 and bf16 activations agree at mean cosine 0.990.
+- The per-window NLA score shifts by −0.0014 [−0.0033, 0.0005].
+- The direction against semantic entropy is unchanged.
+
+The verbaliser, reconstructor and behavioural arms stayed 4-bit, and 24
+problems cannot show O3 equivalence. The quantisation threat is narrowed, not
+closed.
+
+**RQ2's independent-probe control, through amendment A1** (exploratory;
+D56–D57, `docs/RQ2_PROBE_AMENDMENT.md` §12). The control registered for RQ2
+asks whether a claim's content is decodable from the activation. Labels came
+from an unvalidated lexicon rule, with no human validation. **It did not
+corroborate the reconstruction-dependence reading for either attribute
+tested:**
+
+- *`answer_stated`*: the activation probe did not beat a position model
+  (−0.0013 [−0.0040, 0.000]).
+- *Subject cue (GSM8K versus MATH algebra only)*: the cue was specifically
+  decodable from the claim's own activation (+0.368 [0.224, 0.522]). It was
+  unrelated to which claims reconstruction depends on (−0.034 [−0.089, 0.028]).
+
+The registered RQ2 result in §6.4 is unchanged.
+
+**F6's control under a length-correct mapping** (exploratory; D58–D60). The
+probe was refitted over 100 donor draws. A mapping that fits donor labels
+along relative position gives a mean shuffled AUC of 0.841, against 0.602
+under F6's `np.resize` with the same donors (+0.240). It also shifts label
+prevalence from 0.200 to 0.228. F6's registered result and its no-leak
+reading are unchanged, but they cannot carry a stronger claim (§8.10).
+
+**Supplementary supervised analyses** (D51). These are cheap-feature models on
+the 250 traces, with no activations:
+
+- **Tail fraction.** Predicted at held-out R² **0.333** [0.188, 0.437] (ridge,
+  143 held-out problems).
+- **Final-answer correctness.** Predicted at held-out AUROC **0.818** [0.727,
+  0.896] (logistic, 149 held-out problems).
+
+Cross-validation inside the small training split corroborates neither
+estimate; it is unstable at 97 to 101 rows, and the classifier's training
+split holds only 6 incorrect answers. Each is therefore one estimate on one
+split. Both bear on the premise: surface features already account for part of
+what a readout would have to add to.
 
 ---
 
 # 7. Discussion
 
-**Not written.** Waiting on the Results.
+## 7.1 What the evidence supports
 
-This placeholder is deliberate. The section is part of the planned report and its absence is a state of the work, so it is recorded here rather than left out of the document: a reader of this draft should be able to see what is missing without consulting the repository. Nothing in it is a finding, and no number in it is provisional, because there is no number in it.
+**A verbalised readout of layer-20 state did not improve safe stopping over
+cheaper signals.** At matched token budget, on the 120 problems the arm
+covers, the readout's safe-stopping rate was lower than semantic entropy's
+(−0.092) and the probe's (−0.008). Neither difference was significant after
+correction, and both intervals include zero (§6.3). This is the outcome the
+study named as acceptable in advance, and it is reported at the weight a
+positive result would have had.
+
+What the result does **not** say is that the readout is equivalent to the
+cheaper signals. The design can reject "no difference"; it cannot accept it,
+and the intervals are wide. The exploratory extension to 240 problems found
+the gap against semantic entropy in the same direction with an interval
+excluding zero (§6.8). That makes the direction more credible but does not
+convert it into a registered finding, because the N was chosen after the
+first result was seen.
+
+**The tail is real and large, and the registered criteria locate it before
+the answer is stated.** Answer-stable tails were found on 0.948 of problems
+non-trivially, covering a mean 0.378 of the trace on the detected (lower-bound)
+criterion and up to 0.484 on the relaxed one (§6.2). Tail fraction differs
+with correctness (q = 0.036). The criteria measure when the answer is
+*determined*, not when it is *said*. That is what a stopping rule needs, and it
+rules out reading the tail as a phase of post-answer checking.
+
+**The verbalisations carry information the reconstructor uses, and are not
+produced by the verbaliser's priors.** Three-quarters of claims are
+reconstruction-dependent against a paraphrase null, almost none are reproduced
+from matched-norm noise, and the result survives adjustment for deletion length
+(§6.4). This is evidence about **reconstruction**, which §3.6 and §8.6
+distinguish from faithfulness. The control registered to test claim content was
+run only later, as exploratory amendment A1, and it did not corroborate the
+dependence reading for either attribute it could test (§6.8).
+
+## 7.2 What the evidence does not support
+
+**Nothing is claimed about a causal tail direction.** The edit was applied and
+had a dose-dependent effect on answers. But the registered readout,
+verification-like behaviour measured by rechecking markers, has essentially no
+range on this model (2 of 274 traces). At the compared dose it was zero in
+every arm. RQ3 is therefore *not tested* (§6.5, D62). That is a statement about
+the instrument on this model's prose, not evidence for or against a direction.
+The answer-change dose–response is a different quantity, observed without a
+registered contrast, and is not substituted for the construct (§8.1).
+
+**Nothing tail-specific is claimed for the readout.** Reconstruction is no
+better on tail windows than on position- or length-matched windows elsewhere
+in the same trace (F10, §6.4). Whatever the readout describes, it describes it
+about as well outside the tail as inside.
+
+**Nothing is claimed about counting-and-probability problems** for the NLA
+and causal arms, which contain none (§6.1, §8.11). Nothing is claimed about
+other models, layers or precisions. The autoencoder is released for one layer
+of one model, and the quantisation check is partial (§6.8, §8.7).
+
+## 7.3 Reading the comparison
+
+Two properties of the comparators shape how the primary result should be read.
+
+**The probe is mostly position.** It exceeds an activation-free positional
+predictor by 0.018 AUC (§6.3). So a readout that ties it has not shown that it
+reads more than *where in the trace a boundary is*. That a readout fails to
+beat even this mostly positional rule is the more informative half of the
+result.
+
+**Semantic entropy is a per-problem quantity, adapted to symbolic answers.**
+It cannot tell where within a trace to stop (§4.4), yet at matched budget it
+had, descriptively, the highest safe-stopping rates of the rules that could be
+compared (0.175–0.325 in the window). Only its comparison with the readout was
+tested, and that test was not significant. Its advantage therefore
+comes from identifying which problems are safe to cut short at all, not from
+locating the point within a trace.
+
+Taken together with the supervised analyses, which predict tail fraction and
+correctness from surface features alone with moderate accuracy (§6.8), the
+picture is that a substantial part of what a stopping rule needs is available
+before any activation is read. That does not show that internal state carries
+nothing further. It shows that this readout, reduced to a reconstruction score,
+did not demonstrate that it adds to what is already available.
+
+## 7.4 Relation to prior work
+
+The tail's size is consistent with prior reports of substantial redundancy in
+reasoning traces [5], [8]. The convergence rule firing earlier than the AST on
+most problems (§6.2) matches the concern that consensus stopping fires on
+answers the trajectory has not finished with [22]. The positional character of
+the probe qualifies, for this setting, how far correctness probes [6] can be
+read as reading correctness rather than progress. The near-zero rate of
+noise-reproduced claims addresses the verbaliser-prior concern of [12] for this
+readout. It does so for reconstruction dependence, not for claim truth, which
+is the gap [11] and [13] identify. None of these comparisons is a replication:
+the models, benchmarks and definitions differ, and the statements above are
+about consistency, not confirmation.
+
+## 7.5 What would change the conclusions
+
+- **A confirmatory test of the readout's direction against semantic entropy.**
+  This needs a fresh, preregistered corpus at the size the N = 240 extension
+  suggests, covering all three subjects, rather than any further increase of
+  this one.
+- **RQ3.** It needs a validated in-construct measure of verification-like
+  behaviour, registered before a confirmatory run, or a model whose output
+  contains such behaviour. The 83 evaluation problems the causal arm never
+  touched are held back for that purpose (D62).
+- **The quantisation threat.** Closing it needs the verbaliser, reconstructor
+  and behavioural arms run at bf16, which this hardware cannot do (D55).
+- **A different reduction of the verbalisation to a stopping score.** This
+  study used one. A readout scored differently could produce a different curve,
+  and this study does not claim to have found the best one (§8.6).
 
 ---
 
@@ -848,6 +1325,14 @@ the quantity the construct names barely occurs. That is a finding about
 Qwen2.5-7B-Instruct's output, not a defect in the design, and it means no
 corpus size reachable by this study would make the comparison possible.
 
+**The completed corpus confirms it.** Over all 274 traces (the pilot's 24 and
+the main run's 250), 2 carry a marker ("confirming" and "to confirm"): pooled
+rate 0.0073, 95% exact interval [0.0009, 0.0261]. That projects to 0.44
+marker-bearing problems in a 60-problem arm, or 1.57 at the upper bound.
+Three would need an arm of about 115 problems even at the upper bound
+(`scripts/measure_rq3_readout_floor.py`). In the main run's causal arm the
+readout was zero in every arm at the compared dose (§6.5).
+
 **A readout that varies is not a substitute.** Output length — how much
 further the model writes after the intervention — does vary, and was
 considered for that reason. It measures a different construct: a model writes
@@ -861,25 +1346,37 @@ rather than left to discipline.
 no-op for the entire pilot: all three direction arms edited token positions
 the forward pass never contained, which is why doses 0.0, 1.0 and 2.0 returned
 byte-identical answers on all ten problems. The defect is fixed and
-unit-tested, including the cached-decoding case that caused it, but the stage
-has not been re-executed on a GPU. Until it has, nothing may be claimed about
-the tail direction in either direction, and the pilot's recorded RQ3 row must
-not be read as a null — it was measured while the independent variable was not
-being applied.
+unit-tested, including the cached-decoding case that caused it. The pilot's
+recorded RQ3 row must not be read as a null, because it was measured while the
+independent variable was not being applied. In the main run the fixed stage
+did apply the edit, on 59 of 60 problems at every non-zero dose, and answer
+change rose with dose (§6.5). So the independent variable is now demonstrated;
+the dependent variable is what has no range.
+
+**An effect on answers is not an effect on verification.** The dose–response
+in answer change is a real observation, but it is about a different quantity
+from the one RQ3 registers, measured without a registered contrast. It is
+reported as exploratory and not substituted for the construct, for the same
+reason output length is not.
 
 **What would unblock it:** registering a validated in-construct measure with
 range — for example a judge-scored rechecking rubric with inter-rater
 agreement reported — *before* a confirmatory run; or amending the research
 question itself if length is the quantity of interest, dated and justified as
 a change to the question rather than to its measurement. Neither is done here.
+RQ3 is closed as not tested on this model, and the 83 evaluation problems with
+a tail that the causal arm never touched are held back for a separately
+preregistered study (`docs/DECISIONS.md` D62).
 
 ## 8.2 The probe baseline is largely positional, and the headline is scored against it
 
-The hidden-state correctness probe reaches AUC 0.996, against **0.962** for an
-activation-free predictor built from token position alone — a margin of 0.034.
-Since the primary comparison is scored against that probe, a verbalised
-readout that merely *ties* it has not been shown to read more than position.
-Any claim of parity with the probe has to be read with this number beside it.
+On the pilot the hidden-state correctness probe reached AUC 0.996, against
+0.962 for an activation-free predictor built from token position alone, a
+margin of 0.034. On the main run the margin is smaller still: grouped-CV AUC
+**0.946** against **0.928**, a margin of **0.018** (§6.3). Since the primary
+comparison is scored against that probe, a verbalised readout that merely
+*ties* it has not been shown to read more than position. Any claim of parity
+with the probe has to be read with this number beside it.
 
 ## 8.3 The location contrast is confounded with edit extent
 
@@ -890,7 +1387,9 @@ matched-length window ending before the tail, which lies inside the prompt and
 therefore arrives in a single forward pass and is edited in full, while the
 candidate edits only as far as generation actually ran. On the pilot's spans
 that is a median of 72 positions against 36 — the control is the **larger**
-edit, by about a factor of two.
+edit, by about a factor of two. On the main run the medians are 89 for the
+control and 90 for the candidate (0.99 times), so the counts were nearly
+equal there. The difference in kind below remains.
 
 The arms also differ in kind: the candidate edits representations as tokens are
 generated, so its edit compounds into what gets written next, while the
@@ -915,8 +1414,17 @@ cannot resolve a difference we say it is underpowered rather than claiming
 equivalence, and §5.2's `smallest_attainable_p` makes the distinction
 checkable per comparison rather than asserted.
 
-**[N]** The achieved N, the realised discordance rate, and whether the primary
-comparison had the power its sizing assumed.
+**On the main run.** The achieved N is 250 problems, 120 of them in the
+primary comparison. Against semantic entropy, 37 of 120 problems are
+discordant (0.308), well above the eight the sizing required. The split was
+13 to 24, which gives p = 0.099 and an interval of [−0.184, 0.016]. The sizing
+guaranteed only that a difference *could* clear the corrected threshold, not
+that one of this size would: the comparison had the discordant pairs it
+needed and still could not resolve the effect. Against the probe, 11 of 120
+are discordant, split 5 to 6. The exploratory extension to 240 problems shows
+what twice the N does to the first comparison (§6.8). It was not planned, so
+the main result is reported as underpowered for its observed effect, not as
+equivalence.
 
 ## 8.5 One head-to-head may not be comparable at all
 
@@ -938,7 +1446,11 @@ Observed gap between the bracketing operating points: 0.398 at 24 traces,
 monotone**. Three observations of a noisy quantity, not a trend, and no
 projection is made.
 
-**[N]** Whether the completed corpus makes this comparison evaluable.
+**On the completed corpus it is still not evaluable.** On the 120 problems of
+the primary comparison, the rule's operating points fall at savings of 0.431
+and 0.879, either side of the shared window of 0.613 to 0.738. The sweep is
+exhaustive, with 10 operating points, so the gap is not a matter of grid
+resolution. The comparison is reported as planned and not made (§6.3).
 
 ## 8.6 Measurement conventions that are choices
 
@@ -971,13 +1483,24 @@ projection is made.
   it shows.
 - **The verbaliser runs through a local inference path** rather than the
   upstream serving stack, which has no support on this platform and would not
-  fit beside the target model in 6.14 GiB. The arithmetic is preserved step
+  fit beside the target model in 6,141 MiB. The arithmetic is preserved step
   for step and the conventions are taken from the released model card rather
   than invented.
-- **The quantisation check is fixed at the pilot's 8-problem subsample**
-  (cosine 0.987) and cannot be re-measured without re-downloading 15.3 GB of
-  bf16 weights. The cosine is a property of the checkpoint rather than of the
-  corpus, so it carries forward, but the sample is small.
+- **The quantisation check is partial.** The pilot measured cosine 0.987 on
+  8 problems. The main run's F8 stage was blocked by design, because the bf16
+  weights were not on disk. A later replication, partial by decision, then
+  recomputed the target's activations in bf16 for 24 of the main run's
+  problems (D55). It found cosine 0.990, no detectable shift in the readout's
+  score (−0.0014 [−0.0033, 0.0005]) and no change in direction against
+  semantic entropy. The verbaliser, the reconstructor and every behavioural
+  arm stayed 4-bit, and the registered bf16 replication of the headline
+  comparison was not run in full. It needs about 41 GB of bf16 weights and
+  bf16 generation that this hardware cannot provide.
+- **F5's sweeps over sampling temperature and the chunker were not run.**
+  F5 exercised `k` and unanimity only. The temperature and chunker sweeps are
+  implemented but were deferred by decision, at an estimated 60–150 GPU-hours,
+  because existing generations cannot answer them (D52). The AST's
+  sensitivity to those two choices is therefore unmeasured.
 - **The layer sweep is partial.** The released autoencoder is layer-20 only,
   so layers 14 and 24 exercise the probe and entropy arms but not the
   verbalised readout.
@@ -998,7 +1521,12 @@ The corpus deliberately retains problems the model answers incorrectly, since
 the construct does not presuppose correctness; pooled quantities should be read
 with that in mind.
 
-**[N]** The achieved truncation rate and the status-code distribution.
+**On the completed corpus**, the cap truncated 0 of 150 GSM8K traces and 8 of
+100 MATH traces: 0.080, 95% interval [0.035, 0.152]. Of the MATH traces, 5 of
+74 were algebra and 3 of 26 counting and probability. Detection status is
+`ok` on 238 problems, `no_stable_point` on 10 (accuracy 0.100) and
+`stable_at_zero` on 2. All of them are kept in the corpus as status codes, so
+the tail-free problems are visible rather than dropped.
 
 ## 8.9 Single rater
 
@@ -1007,11 +1535,63 @@ second trained annotator was not obtained, so annotation is single-rater and
 **no reliability coefficient is reported**. We state the absence rather than
 omitting the limitation.
 
+The same gap limits RQ2's exploratory independent-probe control (amendment
+A1, §6.8). Its claim labels come from a lexicon rule that was not validated
+against human judgement. The one completed pass over its annotation sheet was
+made by an AI model and is not independent, because the same model designed
+the rule. It was not an input to the evaluation, no agreement statistic is
+computed from it, and it is released under a name that says so.
+
+## 8.10 The probe-leakage control depends on how labels are fitted to length
+
+Falsification test F6 controls for probe leakage by giving each problem
+another problem's label sequence. Problems have different numbers of
+boundaries, so the implementation fits each donor sequence to the receiver's
+length with `np.resize`, which tiles a shorter sequence from its start and
+truncates a longer one. That breaks most of the labels' association with
+boundary position (relative-position AUC 0.920 → 0.686) and lowers their
+prevalence (0.200 → 0.152) in F6's own shuffle.
+
+An exploratory diagnostic, run after F6 under its own approved protocol,
+refitted the probe over 100 donor draws. With the same donors, a mapping that
+fits each donor sequence to the receiver's length along relative position
+raises the shuffled AUC from 0.602 to 0.841 (+0.240; single draws +0.196 to
++0.278, problem-bootstrap interval +0.233 to +0.247, no refitting variability
+included). That mapping also shifts prevalence, to 0.228, so it is a
+sensitivity analysis rather than a definitive null. In every draw, the probe
+scored below a position-derived benchmark that is neither an upper bound nor a
+leakage test.
+
+F6's registered result — real AUC 0.946, shuffled AUC 0.614, no leakage
+suspected under its threshold of |AUC − 0.5| > 0.15 — is reported as
+registered. Its shuffled AUC, and so its margin under the threshold, depends on
+the length-fitting rule, and none of the alternative arms has a null centred at
+0.5. The control therefore cannot support a stronger claim than "no leakage
+suspected under this control"; ruling leakage out would need a new
+preregistered design with a defined null, a fixed length-matching strategy and
+uncertainty that includes refitting.
+
+## 8.11 The verbaliser and causal arms omit one MATH subject
+
+Both subset arms are capped proportionally by **dataset**, not by subject, and
+fill their MATH share with a sorted prefix of problem ids. Algebra ids sort
+before counting-and-probability ids, so the verbaliser arm's 46 MATH problems
+and the causal arm's 26 are all algebra (`docs/DECISIONS.md` D54). The primary
+comparison, RQ2, F10, the reconstruction-fidelity results and RQ3 are
+therefore results on GSM8K and MATH algebra. They say nothing about counting
+and probability, a quarter of the MATH problems in the corpus, on which the
+model is also least accurate (0.769). The corpus-wide results (RQ1, the
+falsification tests on the probe, the supervised analyses) cover all three.
+The cap's stated purpose, proportionality by dataset, was met. Its effect on
+subject coverage was found only after the main run, when the arm was
+extended, and is reported here rather than corrected after the fact. The
+exploratory 240-problem extension does include the missing subject (§6.8).
+
 ---
 
 ## References
 
-*Numbering follows `Project_Review_II.md`, so every citation in this report points at an entry that already exists in the repository. Each entry still requires independent verification before submission.*
+*Numbering follows `Project_Review_II.md`. Each entry was checked against its source on 2026-10-19; `paper/references.md` records how, and the two corrections made.*
 
 [1] J. Wei, X. Wang, D. Schuurmans, M. Bosma, B. Ichter, F. Xia, E. Chi, Q. Le, and D. Zhou, "Chain-of-thought prompting elicits reasoning in large language models," in *Advances in Neural Information Processing Systems (NeurIPS)*, 2022.
 
@@ -1063,6 +1643,6 @@ omitting the limitation.
 
 [25] K. Meng, D. Bau, A. Andonian, and Y. Belinkov, "Locating and editing factual associations in GPT," in *Advances in Neural Information Processing Systems (NeurIPS)*, 2022.
 
-[26] A. Templeton, T. Conerly, J. Marcus, J. Lindsey, T. Bricken, B. Chen, A. Pearce, C. Citro, E. Ameisen, A. Jones, H. Cunningham, N. L. Turner, C. McDougall, M. MacDiarmid, C. D. Freeman, T. R. Sumers, E. Rees, J. Batson, A. S. Jermyn, S. Carter, C. Olah, and T. Henighan, "Scaling monosemanticity: extracting interpretable features from Claude 3 Sonnet," *Transformer Circuits Thread*, project report, 2024.
+[26] A. Templeton, T. Conerly, J. Marcus, J. Lindsey, T. Bricken, B. Chen, A. Pearce, C. Citro, E. Ameisen, A. Jones, H. Cunningham, N. L. Turner, C. McDougall, M. MacDiarmid, A. Tamkin, E. Durmus, T. Hume, F. Mosconi, C. D. Freeman, T. R. Sumers, E. Rees, J. Batson, A. S. Jermyn, S. Carter, C. Olah, and T. Henighan, "Scaling monosemanticity: extracting interpretable features from Claude 3 Sonnet," *Transformer Circuits Thread*, project report, 2024.
 
-[27] A. Madaan, N. Tandon, P. Gupta, S. Hallinan, L. Gao, S. Wiegreffe, U. Alon, N. Dziri, S. Prabhumoye, Y. Yang, S. Welleck, B. P. Majumder, S. Gupta, A. Yazdanbakhsh, and P. Clark, "Self-refine: iterative refinement with self-feedback," in *Advances in Neural Information Processing Systems (NeurIPS)*, 2023.
+[27] A. Madaan, N. Tandon, P. Gupta, S. Hallinan, L. Gao, S. Wiegreffe, U. Alon, N. Dziri, S. Prabhumoye, Y. Yang, S. Gupta, B. P. Majumder, K. Hermann, S. Welleck, A. Yazdanbakhsh, and P. Clark, "Self-refine: iterative refinement with self-feedback," in *Advances in Neural Information Processing Systems (NeurIPS)*, 2023.

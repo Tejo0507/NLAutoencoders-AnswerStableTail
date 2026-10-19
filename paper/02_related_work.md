@@ -1,6 +1,6 @@
 # 2. Related work
 
-*Draft. Structure is final; every `[n]` needs independent verification — see
+*Final. Every `[n]` was checked against its source on 2026-10-19; see
 [`README.md`](README.md).*
 
 Organised by the four questions this paper has to borrow an answer to: what
@@ -15,12 +15,13 @@ format [1], and reasoning-trained models lengthen it [2]. Work on
 *overthinking* treats that length as a cost to be measured: Caldarella et al.
 evaluate harmful overthinking [7], Zhai et al. quantify redundancy in
 reasoning directly [8], and Long et al. describe a self-verification dilemma
-in which checking behaviour is overused [9]. Self-correction frameworks that
-depend on external feedback show that gains over single-pass reasoning are
-available when a reliable external signal is present [27]; the post-answer
-region of a standard reasoning trace generally has no such signal, which limits
-how much productive computation it is likely to hold. **[VERIFY]** — these four
-attributions are the review's summaries, not re-derived.
+in which checking behaviour is overused [9]. A model can improve a first-pass
+output by iterating on its own explicit feedback [27]. Without external
+feedback, however, language models struggle to self-correct their reasoning,
+and their performance sometimes degrades after the attempt [18]. The
+post-answer region of a standard reasoning trace has no external signal and no
+explicit critique-and-revise structure, which limits how much productive
+computation it is likely to hold.
 
 The line this paper engages most closely converts the regularity into a
 policy. Liu and Wang parse an intermediate answer at each chunk boundary and
@@ -82,7 +83,7 @@ more unsupported detail, and propose modelling the distribution of activations
 compatible with an explanation rather than optimising single-point
 reconstruction [13]. Zhao et al. attack hallucination in verbalisation with a
 two-stage preference-optimisation framework [14], and Dingeto proposes
-decodability supervision for verifiable explanations [11]. **[VERIFY]**.
+decodability supervision for verifiable explanations [11].
 
 Separately, the chain-of-thought faithfulness literature supplies the audit
 template. Turpin et al. show models do not always say what they think [15];

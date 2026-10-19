@@ -25,9 +25,58 @@ Last reviewed 2026-10-17.
 > [`RQ3_DECISION_BRIEF.md`](RQ3_DECISION_BRIEF.md). Those files supersede the
 > "what has not run" list in §5 below, which predates the main run.
 >
-> Run artifacts are archived at `D:\NLAutoencoders-backups\runs-2026-10-17\`
-> (SHA-256 verified). That is the same physical disk; an off-machine copy is
-> still needed and is the researcher's action (audit, "Backup").
+> Run artifacts are archived in `D:\NLAutoencoders-backups\`, each snapshot a
+> `.tar.gz` with `SHA256SUMS.txt` and `VERIFICATION.json` and mirrored to
+> `E:\NLAutoencoders-backups\`: `runs-2026-10-17`, `runs-2026-10-17-pre-experiments`,
+> `runs-2026-10-18-post-experiments` and `runs-2026-10-18-f6-diagnostic`
+> (all four re-verified on both volumes 2026-10-18). C:, D: and E: are
+> partitions of **one** NVMe disk, so these are not independent physical
+> copies. **Off-machine copy: confirmed by the researcher, 2026-10-18** — the
+> complete `runs/` directory (including `main_f6_diag` and
+> `main_f6_diag_validation`) is backed up to Google Drive and to
+> `E:\NLAutoencoders-backups\runs\`. The E: copy was checked file by file
+> against the live tree (2,041 of 2,041 identical); the Google Drive copy is
+> researcher-confirmed and was not verified from this machine (audit,
+> "Backup").
+>
+> **Update 2026-10-18 — F6's control is sensitive to its length mapping
+> (exploratory).** A separate diagnostic (protocol D58, implementation D59,
+> result D60, [`F6_LENGTH_CORRECT_RESULTS.md`](F6_LENGTH_CORRECT_RESULTS.md))
+> refitted the probe over 100 donor draws. With the same donors, a
+> length-correct mapping gives a shuffled AUC of 0.841 against 0.602 under
+> F6's `np.resize` (**+0.240**), and shifts prevalence 0.200 → 0.228. The
+> probe stays below a position-derived oracle in every draw; that is not a
+> leakage test and rules nothing out. F6's registered result (0.946 / 0.614 /
+> 0.539), threshold, `leak_suspected = false` and interpretation are
+> unchanged, but the registered control cannot support a stronger claim; that
+> would need a new preregistered design. No further experiment is planned.
+> The other post-run analyses (F5 deferred, F8 partial, RQ2 amendment A1, the
+> N = 240 extension) are tracked in `DECISIONS.md` D52's status table.
+>
+> **Update 2026-10-18 — engineering pass, no new experiment.** Three defects
+> in the post-hoc scripts fixed with regression tests (D61: ignored
+> `--run-id`, a half-prepared F8 arm, an overwritable F6 audit output). Every
+> recorded check was re-run read-only and still passes, and every file under
+> `runs/` is unchanged apart from the test suite's own fixture run
+> `runs/tiny/`; the audit register is reconciled with D52–D60 (PW-24,
+> PW-25). Read-only validation commands: README, *Checking the recorded
+> results*. RQ3 is closed as untested (D62; issue #11 closed). The run-artifact
+> release is **prepared and verified as a draft, not published** (D64, D65):
+> local path roots are sanitised in the release copy only. One path is
+> retained in the F6 validator, as the researcher approved on 2026-10-19. The
+> release waits only for the write-up freeze. Steps and gates:
+> `release/PUBLISHING.md`.
+>
+> **Update 2026-10-19 — the write-up is complete and frozen** at `32b5539`
+> (D66). `paper/REPORT.md` holds all nine sections, and
+> `assemble_paper.py --check` exits 0. Its Results are read from the main
+> run's certified artifacts; §6.8 keeps the exploratory and partial analyses
+> apart. The run-artifact release is built from the commit recording D66.
+>
+> **Run artifacts published on GitHub, 2026-10-19** (D67): release
+> `data-runs-2026-10-19`, archive SHA-256 `b50c9320…b2ff`, verified by an
+> anonymous download. The Zenodo deposit is prepared but not made (no
+> credentials here), so there is no DOI yet.
 >
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 
@@ -42,8 +91,8 @@ slower than the first.
 Throughput has varied sharply across launches — GSM8K medians of 5.1, 20.6,
 9.5, 11.4 and 20.6 minutes — with no cause established beyond the machine's
 state; the code and config did not change. The launch history, including an
-unexplained 10½-hour gap on 16 Oct, is in
-[`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) at the top. Everything downstream
+unexplained 10½-hour gap on 16 Oct, is in `SESSION_HANDOFF.md` at the top
+(a local session log, not part of the public repository). Everything downstream
 of `traces` is blocked on it.
 
 MATH truncation at the 768-token cap is **8 of 92 (0.087, 95% CI [0.038,
@@ -100,7 +149,7 @@ crash) are fixed.
 
 | stage | status | headline |
 |---|---|---|
-| `env` | complete | RTX 4050, 6.44 GB VRAM, 15.65 GB RAM; the bf16-staging disk check fails by design and is worked around by eviction |
+| `env` | complete | RTX 4050, 6.44 GB VRAM, 16.8 GB (15.65 GiB) RAM; the bf16-staging disk check fails by design and is worked around by eviction |
 | `data` | complete | 24 problems: 14 GSM8K, 10 MATH; 11 train / 13 eval; gold recovery 1.000 |
 | `models` | complete | all three checkpoints converted to NF4; AV/AR/target sidecars mutually consistent; injection site verified at token 111 |
 | `traces` | complete | 24/24, no failures, 310 min; accuracy 0.792 (GSM8K 0.857, MATH 0.700); 3 traces hit the 512-token cap |
@@ -356,7 +405,9 @@ verified outcome.
   reported as not applicable rather than as stability.
 - **F6**: no leakage. Real AUC 0.996 against 0.594 with labels permuted
   between problems and 0.472 within them; both shuffles moved labels, so both
-  are real controls.
+  are real controls. (Later finding, 2026-10-18: the between-problem arm fits
+  donor labels to length with `np.resize`, which the shuffled AUC is sensitive
+  to; see [`F6_LENGTH_CORRECT_RESULTS.md`](F6_LENGTH_CORRECT_RESULTS.md).)
 - **F7**: layer 20 is **not special** for decodability — AUC 0.995 at layer 14,
   0.996 at 20, 0.994 at 24. With the positional floor at 0.962, the probe's
   near-perfect score is a property of the task and the position, not of the
@@ -537,7 +588,11 @@ list.
   and the probe should not be described as a correctness readout. It was 0.034
   here.
 - **F6's shuffle arms.** `leak_suspected: null` means the shuffle moved no
-  labels and tested nothing, not that the probe is clean.
+  labels and tested nothing, not that the probe is clean. The across-groups
+  arm's AUC also depends on how donor labels are fitted to the receiver's
+  length (`np.resize`; +0.240 under a length-correct mapping on `main`,
+  [`F6_LENGTH_CORRECT_RESULTS.md`](F6_LENGTH_CORRECT_RESULTS.md)), so read it
+  as a property of that rule as well as of the probe.
 - **`total_clamped_positions`** in `acts/summary.json`. It was 0 here; anything
   else means an activation was read where its chunk boundary did not say.
 - **`matched` in the stopping comparison table, and `o3_unmatched` in
