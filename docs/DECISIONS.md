@@ -2332,3 +2332,23 @@ pinned to `b385233`.
   must not be used.
 - Tests: `tests/test_results_release.py`, 26.
 
+**Approved 2026-10-19 by the researcher:** the validator's repository-root
+path is retained in the release, unsanitised, under the existing SHA-256 pin,
+build-time scan and disclosure. The other 41 files stay sanitised in the
+release copy only, and the scanner is not weakened.
+
+Re-verified the same day, before anything else changed:
+- the draft passes all 24 package checks;
+- a rebuild from a fresh checkout of `b385233` gives a byte-identical archive
+  (`dabda9a1…6adb`);
+- scanning the tree and the archive finds exactly one finding, the approved
+  validator path (line 16, file SHA-256 `7a9562bf…8115`), and no other path,
+  identity or token;
+- the unrelated folder name appears nowhere in the package;
+- `runs/` and the protected hashes are unchanged.
+
+The superseded D64 draft was then deleted. All 1,946 of its files were
+accounted for and none was unique: its 1,934 run files are byte-identical to
+`runs/`, and the rest were generated or written in this work. No backup was
+touched. The release stays DRAFT until the write-up is frozen.
+

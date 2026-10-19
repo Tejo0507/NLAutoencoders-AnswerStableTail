@@ -62,9 +62,10 @@ Last reviewed 2026-10-17.
 > PW-25). Read-only validation commands: README, *Checking the recorded
 > results*. RQ3 is closed as untested (D62; issue #11 closed). The run-artifact
 > release is **prepared and verified as a draft, not published** (D64, D65):
-> local path roots are sanitised in the release copy only, and one path is
-> retained in the F6 validator pending the researcher's decision. It waits for
-> the write-up freeze. Steps and gates: `release/PUBLISHING.md`.
+> local path roots are sanitised in the release copy only. One path is
+> retained in the F6 validator, as the researcher approved on 2026-10-19. The
+> release waits only for the write-up freeze. Steps and gates:
+> `release/PUBLISHING.md`.
 >
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 
