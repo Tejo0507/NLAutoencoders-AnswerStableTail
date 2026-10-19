@@ -67,6 +67,12 @@ Last reviewed 2026-10-17.
 > release waits only for the write-up freeze. Steps and gates:
 > `release/PUBLISHING.md`.
 >
+> **Update 2026-10-19 — the write-up is complete and frozen** at `32b5539`
+> (D66). `paper/REPORT.md` holds all nine sections, and
+> `assemble_paper.py --check` exits 0. Its Results are read from the main
+> run's certified artifacts; §6.8 keeps the exploratory and partial analyses
+> apart. The run-artifact release is built from the commit recording D66.
+>
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 
 **Main run in progress: 231 of 250 traces** as of 18:53 on 2026-10-16, 0

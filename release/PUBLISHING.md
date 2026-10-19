@@ -14,7 +14,9 @@ re-verified (D65).
 ## Gates, all required
 
 1. The write-up is frozen, and the freeze is recorded with its commit (in
-   `docs/DECISIONS.md` or as a tag).
+   `docs/DECISIONS.md` or as a tag). **Satisfied 2026-10-19:** frozen at
+   `32b5539` (D66). The release is built from the commit recording D66, whose
+   `paper/` is identical to the frozen one.
 2. The working tree is clean at that commit.
 3. `build_results_release.py --status final` succeeds: every entry under
    `runs/` is classified, and every released run is present.

@@ -7,10 +7,14 @@ useful about the part of a reasoning trace that comes after the answer has
 already settled — beyond what much cheaper signals already say?*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-under%20development-orange)]()
+[![Status](https://img.shields.io/badge/status-complete-brightgreen)]()
 
-> **The main run is complete (2026-10-17) and checked; it is not yet written
-> up.** All 250 main traces were generated and every post-trace stage has run;
+> **Complete and frozen (2026-10-19).** The report is written: all nine
+> sections, assembled into [`paper/REPORT.md`](paper/REPORT.md), are frozen at
+> `32b5539` (`docs/DECISIONS.md` D66). Its Results come from the main run's
+> certified artifacts, and its exploratory analyses are labelled as such.
+>
+> **The main run is complete (2026-10-17) and checked.** All 250 main traces were generated and every post-trace stage has run;
 > the execution report is `runs/main/report/RESULTS.md`, and
 > `scripts/check_run_consistency.py --run runs/main` passes 179 checks with no
 > warning. A post-run audit's reporting and provenance defects are fixed with
@@ -52,7 +56,7 @@ built to report that with the same weight as a positive result.
 | Every deviation, with reasons | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | Current state and next steps | [`docs/STATUS.md`](docs/STATUS.md) |
 | F6 control: `np.resize` audit, diagnostic protocol and result | [`docs/F6_RESIZE_AUDIT.md`](docs/F6_RESIZE_AUDIT.md), [`docs/F6_LENGTH_CORRECT_DIAGNOSTIC.md`](docs/F6_LENGTH_CORRECT_DIAGNOSTIC.md), [`docs/F6_LENGTH_CORRECT_RESULTS.md`](docs/F6_LENGTH_CORRECT_RESULTS.md) |
-| Paper drafts, and what each waits on | [`paper/README.md`](paper/README.md) |
+| The report (frozen, D66) | [`paper/REPORT.md`](paper/REPORT.md); sections and how it is assembled in [`paper/README.md`](paper/README.md) |
 
 ---
 

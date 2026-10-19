@@ -298,6 +298,11 @@ F6's control was found sensitive to its length mapping in an exploratory
 diagnostic (D58–D60); its registered result stands. RQ3's path (D1) is still
 the researcher's. Current register: `docs/AUDIT_2026-10-17.md`.
 
+**Update 2026-10-19.** RQ3 is closed as not tested on this model (D62). The
+report is complete and frozen at `32b5539` (D66), with every planned section
+written from the main run's artifacts and §5–§6 above unchanged. The run
+artifacts are released under D63–D65 (`release/PUBLISHING.md`).
+
 Four things in this plan the run changed the reading of, all recorded in
 `docs/DECISIONS.md` rather than edited into the text above:
 

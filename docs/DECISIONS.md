@@ -2352,3 +2352,67 @@ accounted for and none was unique: its 1,934 run files are byte-identical to
 `runs/`, and the rest were generated or written in this work. No backup was
 touched. The release stays DRAFT until the write-up is frozen.
 
+## D66. The write-up is complete and frozen at `32b5539`
+
+**Recorded 2026-10-19.** The researcher authorised completing the report's
+remaining sections. Commit `32b5539` makes the report complete:
+
+- it adds the Abstract, §6 Results and §7 Discussion;
+- it fills §4's achieved N and §8's main-run numbers;
+- it settles §5.5 and adds §8.11 on subject coverage;
+- it checks every citation.
+
+**The write-up is frozen at that commit.** The files under `paper/` do not
+change after it without a new, dated decision.
+
+**Evidence that it is complete.**
+- `scripts/assemble_paper.py --check` reports 9 declared sections, 9 present
+  and 0 pending, and exits 0. The assembler now also counts a section as
+  unfinished while it carries an unresolved `**[VERIFY]**` or `**[N]**`
+  marker; none remains.
+- The full test suite gives 971 passed and 3 skipped.
+- `paper/REPORT.md` is regenerated from the sections by that script.
+
+**Where the numbers come from.**
+- §6.1–6.7 are read from `runs/main/analysis/results.json` and its tables and
+  from `runs/main/report/RESULTS.md`, which the consistency checker certifies
+  (179 checks, 0 mismatched).
+- The figures quoted beyond the report were recomputed from the run's files
+  without writing anything: trace counts, truncation, accuracy, arm
+  composition, the dose–response, and the window and safe-rate range on the
+  NLA problem set. The RQ3 floor (2 of 274) was re-measured with
+  `measure_rq3_readout_floor.py`.
+
+**Corrections made while writing.**
+- The window for the head-to-heads is the NLA problem set's (0.613–0.738), and
+  convergence's operating points there are 0.431 and 0.879, not the
+  full-corpus 0.448 and 0.884.
+- At doses 1.5 and 2.0 the candidate causal arm produced markers on 4 and 5
+  problems. No control ran at those doses, so §6.5 reports this as an
+  observation and not as a test.
+- §4's "6.14 GiB" was a unit slip for 6,141 MiB, and its 5.5 GiB footprint is
+  now given as the env stage's estimate.
+- §1 said the falsification battery has nine tests; §5.6 lists ten.
+
+**Citations, checked against their sources.**
+- Titles and ordered authors were checked against arXiv for 23 entries,
+  against Crossref for the two DOIs, and against the publishing pages for
+  three.
+- Every flagged attribution was checked against the cited paper.
+- [26] and [27] had wrong author lists. They are corrected in the tracked
+  `paper/references.md`, which the assembler now reads in place of the
+  gitignored `Project_Review_II.md`; that file is left as submitted.
+- §2.1 had cited [27] for self-correction with external feedback, which it is
+  not about. The sentence now says what [27] does, and its point rests on
+  [18].
+- Venue names and page ranges were not re-checked, except for the two DOIs.
+
+**Unchanged.** The registered results, protocols and verdicts are unchanged.
+RQ3 is not tested (D62). The N = 240 extension, amendment A1, the partial F8
+replication and the F6 diagnostic are reported in §6.8 as exploratory or
+partial. `PROJECT_PLAN.md` §5–§6 and every file under `runs/` are untouched.
+
+**Release source.** The run-artifact release (D63–D65) is built from the
+commit that records this decision. That commit changes only non-paper files,
+so its `paper/` is identical to `32b5539`.
+
