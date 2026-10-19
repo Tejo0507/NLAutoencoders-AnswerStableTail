@@ -91,8 +91,8 @@ slower than the first.
 Throughput has varied sharply across launches — GSM8K medians of 5.1, 20.6,
 9.5, 11.4 and 20.6 minutes — with no cause established beyond the machine's
 state; the code and config did not change. The launch history, including an
-unexplained 10½-hour gap on 16 Oct, is in
-[`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md) at the top. Everything downstream
+unexplained 10½-hour gap on 16 Oct, is in `SESSION_HANDOFF.md` at the top
+(a local session log, not part of the public repository). Everything downstream
 of `traces` is blocked on it.
 
 MATH truncation at the 768-token cap is **8 of 92 (0.087, 95% CI [0.038,
@@ -149,7 +149,7 @@ crash) are fixed.
 
 | stage | status | headline |
 |---|---|---|
-| `env` | complete | RTX 4050, 6.44 GB VRAM, 15.65 GB RAM; the bf16-staging disk check fails by design and is worked around by eviction |
+| `env` | complete | RTX 4050, 6.44 GB VRAM, 16.8 GB (15.65 GiB) RAM; the bf16-staging disk check fails by design and is worked around by eviction |
 | `data` | complete | 24 problems: 14 GSM8K, 10 MATH; 11 train / 13 eval; gold recovery 1.000 |
 | `models` | complete | all three checkpoints converted to NF4; AV/AR/target sidecars mutually consistent; injection site verified at token 111 |
 | `traces` | complete | 24/24, no failures, 310 min; accuracy 0.792 (GSM8K 0.857, MATH 0.700); 3 traces hit the 512-token cap |

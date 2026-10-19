@@ -329,7 +329,7 @@ the full dose–response curve.
 ## D20. F8 splits its bf16 weights across GPU and host memory
 
 Truncated to the 21 layers it needs, the bf16 target is still about 11 GB,
-against 15.65 GB of RAM of which 2–3 GB is typically free. Loaded CPU-only, F8
+against 15.65 GB of RAM *[units note, 2026-10-19: 15.65 GiB, i.e. 16.8 GB as the `env` stage records it]* of which 2–3 GB is typically free. Loaded CPU-only, F8
 does not run on this machine — and F8 is the measurement that decides whether
 the NLA arm is being fed in-distribution vectors.
 
@@ -1791,7 +1791,7 @@ rate against semantic entropy and the probe at matched budget. A full bf16
 replication needs all three checkpoints in bf16 (target 15.23 GB, verbaliser
 15.3 GB, reconstructor 10.9 GB) and bf16 generation for the verbaliser and for
 every forced answer and semantic-entropy sample. On a 6 GB GPU with 15.6 GB
-of RAM that means disk-offloaded 7B decoding at seconds per token: on the
+of RAM *[units note, 2026-10-19: 15.6 GiB, i.e. 16.8 GB]* that means disk-offloaded 7B decoding at seconds per token: on the
 order of 40-200 h for the verbaliser alone on the subsample, more for the
 behavioural arms. That is recorded as not implementable on this hardware.
 

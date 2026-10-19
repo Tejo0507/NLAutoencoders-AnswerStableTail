@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: >-
+  If you use this code or its frozen report, please cite it as below. The run
+  artifacts are a separate dataset release, listed under references.
+type: software
+title: "Natural Language Autoencoders for Redundancy Diagnostics: the Answer-Stable Tail"
+abstract: >-
+  Code, frozen research report and decision record for a study of whether a
+  natural-language autoencoder's verbalised readout of layer-20 activations of
+  Qwen2.5-7B-Instruct says anything about the answer-stable tail of reasoning
+  traces that cheaper signals do not. On 250 GSM8K and MATH problems the
+  readout did not beat semantic entropy or a hidden-state probe at matched
+  token budget; the causal question (RQ3) was not tested on this model.
+authors:
+  - given-names: Tejo Sridhar
+    family-names: M V S
+version: 0.1.0
+commit: 471360740810dfb41d6e5370e8307d8a7ab18b06
+date-released: 2026-10-19
+license: MIT
+repository-code: "https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail"
+keywords:
+  - natural language autoencoders
+  - interpretability
+  - reasoning traces
+  - early stopping
+references:
+  - type: data
+    title: "Run artifacts: NLA Answer-Stable Tail (main, pilot, exploratory)"
+    authors:
+      - given-names: Tejo Sridhar
+        family-names: M V S
+    version: data-runs-2026-10-19
+    date-released: 2026-10-19
+    license: CC-BY-4.0
+    url: "https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/releases/tag/data-runs-2026-10-19"
