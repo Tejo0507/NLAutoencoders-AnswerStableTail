@@ -8,7 +8,8 @@ when every gate below holds. The current draft,
 `D:\NLAutoencoders-release\data-runs-DRAFT-2026-10-18-sanitised\`, was built
 and verified on 2026-10-18 (`docs/AUDIT_2026-10-17.md`, PW-28). It is
 **not** published, because the write-up is not frozen. The earlier
-unsanitised draft beside it is marked `SUPERSEDED.txt` and must not be used.
+unsanitised draft was deleted on 2026-10-19 after the sanitised one was
+re-verified (D65).
 
 ## Gates, all required
 
@@ -23,11 +24,11 @@ unsanitised draft beside it is marked `SUPERSEDED.txt` and must not be used.
    reports exactly one finding: `abs_windows_root` in
    `runs/main_f6_diag_validation/validate_f6_diag.py`, the retained validator
    (the builder pins it to its SHA-256). Any other finding blocks publication.
-6. The researcher accepts that one retained path. It is the F6 validator's
-   repository-root constant, `R`, a drive letter and the public repository
-   name, kept so that the published validator is the code that ran. The
-   alternative is to add the file to the sanitisation and accept that the
-   released validator differs from the hashed original (D65).
+6. The retained path is accepted. **Satisfied 2026-10-19:** the researcher
+   approved retaining the F6 validator's repository-root constant, `R` (a
+   drive letter and the public repository name), unsanitised, under its
+   SHA-256 pin (D65). At the freeze, confirm that the pin still matches; do
+   not sanitise the file or relax the scan.
 7. `TRANSFORMS.json` lists 41 sanitised files (or the researcher has
    reviewed a different count). Every untransformed run file is identical
    to `runs/`.
