@@ -37,11 +37,23 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     return p
 
 
-def setup(args) -> tuple:
-    """Resolve config, prepare the run directory, open the manifest."""
+def load_config(args):
+    """The config ``base_parser``'s arguments name, ``--run-id`` applied.
+
+    Every entry point resolves its config through here, so ``--run-id`` means
+    the same run whether or not the script opens a manifest; a script that
+    loaded the overlay itself would silently read and write the overlay's own
+    run instead.
+    """
     cfg = config_mod.load(args.config, args.overrides)
     if args.run_id:
         cfg = config_mod.from_mapping({**cfg.to_dict(), "run_id": args.run_id})
+    return cfg
+
+
+def setup(args) -> tuple:
+    """Resolve config, prepare the run directory, open the manifest."""
+    cfg = load_config(args)
 
     cfg.dir.mkdir(parents=True, exist_ok=True)
     log = logging_utils.setup(cfg.dir)

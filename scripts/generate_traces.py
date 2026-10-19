@@ -190,6 +190,43 @@ def process_problem(model: TargetModel, cfg, prob: dict, log, skip_entropy: bool
     }
 
     # -- per-boundary evidence -------------------------------------------
+    boundaries, capped = collect_boundaries(model, cfg, pid, question, text,
+                                            chunks, final_answer)
+    row["boundaries"] = boundaries
+    row["boundary_scan_capped"] = capped
+    row["max_boundaries_evaluated"] = acfg.max_boundaries_evaluated
+
+    # -- semantic-entropy samples ----------------------------------------
+    if not skip_entropy and secfg.n_samples > 0:
+        prompts = [model.build_prompt(question)] * secfg.n_samples
+        samples = model.generate(
+            prompts,
+            max_new_tokens=secfg.max_new_tokens,
+            temperature=secfg.temperature,
+            top_p=secfg.top_p,
+            do_sample=True,
+            seed=derive(cfg.seed, "entropy", pid) % (2**31),
+        )
+        row["entropy_samples"] = [
+            {"answer": extract_answer(s.text, PERMISSIVE), "n_tokens": s.n_tokens}
+            for s in samples
+        ]
+    else:
+        row["entropy_samples"] = []
+
+    return row
+
+
+def collect_boundaries(model, cfg, pid, question, text, chunks,
+                       final_answer) -> tuple[list[dict], bool]:
+    """Per-boundary evidence for one chunked trace, by the backwards scan.
+
+    Returns the boundary rows (evaluated or not) and whether the scan was
+    capped by ``ast.max_boundaries_evaluated``. Factored out of
+    ``process_problem`` so the F5 sweep (``scripts/run_f5_sweep.py``) gathers
+    evidence by exactly this procedure under a changed temperature or chunker.
+    """
+    acfg = cfg.ast
     boundaries: list[dict] = []
     capped = False
     if final_answer is not None and len(chunks) >= 2:
@@ -249,29 +286,7 @@ def process_problem(model: TargetModel, cfg, prob: dict, log, skip_entropy: bool
                 "n_continuations": 0, "prefix_tokens": c.prefix_tokens,
                 "evaluated": False,
             })
-    row["boundaries"] = boundaries
-    row["boundary_scan_capped"] = capped
-    row["max_boundaries_evaluated"] = acfg.max_boundaries_evaluated
-
-    # -- semantic-entropy samples ----------------------------------------
-    if not skip_entropy and secfg.n_samples > 0:
-        prompts = [model.build_prompt(question)] * secfg.n_samples
-        samples = model.generate(
-            prompts,
-            max_new_tokens=secfg.max_new_tokens,
-            temperature=secfg.temperature,
-            top_p=secfg.top_p,
-            do_sample=True,
-            seed=derive(cfg.seed, "entropy", pid) % (2**31),
-        )
-        row["entropy_samples"] = [
-            {"answer": extract_answer(s.text, PERMISSIVE), "n_tokens": s.n_tokens}
-            for s in samples
-        ]
-    else:
-        row["entropy_samples"] = []
-
-    return row
+    return boundaries, capped
 
 
 def boundary_evidence_batch(model, cfg, pid, question, text, chunks,
