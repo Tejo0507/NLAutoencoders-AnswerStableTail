@@ -1,8 +1,8 @@
 # 8. Limitations and threats to validity
 
-*Draft. Everything here is established independently of the main run's
-outcome. Three entries marked **[N]** need the main run's own numbers and are
-otherwise complete.*
+*Final. Written before the main run and completed with its own numbers; where
+an entry first quoted a partial count, the completed run's figure is now
+given beside it.*
 
 Ordered by how much each constrains what the paper can claim.
 
@@ -33,6 +33,14 @@ the quantity the construct names barely occurs. That is a finding about
 Qwen2.5-7B-Instruct's output, not a defect in the design, and it means no
 corpus size reachable by this study would make the comparison possible.
 
+**The completed corpus confirms it.** Over all 274 traces (the pilot's 24 and
+the main run's 250), 2 carry a marker ("confirming" and "to confirm"): pooled
+rate 0.0073, 95% exact interval [0.0009, 0.0261]. That projects to 0.44
+marker-bearing problems in a 60-problem arm, or 1.57 at the upper bound.
+Three would need an arm of about 115 problems even at the upper bound
+(`scripts/measure_rq3_readout_floor.py`). In the main run's causal arm the
+readout was zero in every arm at the compared dose (§6.5).
+
 **A readout that varies is not a substitute.** Output length — how much
 further the model writes after the intervention — does vary, and was
 considered for that reason. It measures a different construct: a model writes
@@ -46,25 +54,37 @@ rather than left to discipline.
 no-op for the entire pilot: all three direction arms edited token positions
 the forward pass never contained, which is why doses 0.0, 1.0 and 2.0 returned
 byte-identical answers on all ten problems. The defect is fixed and
-unit-tested, including the cached-decoding case that caused it, but the stage
-has not been re-executed on a GPU. Until it has, nothing may be claimed about
-the tail direction in either direction, and the pilot's recorded RQ3 row must
-not be read as a null — it was measured while the independent variable was not
-being applied.
+unit-tested, including the cached-decoding case that caused it. The pilot's
+recorded RQ3 row must not be read as a null, because it was measured while the
+independent variable was not being applied. In the main run the fixed stage
+did apply the edit, on 59 of 60 problems at every non-zero dose, and answer
+change rose with dose (§6.5). So the independent variable is now demonstrated;
+the dependent variable is what has no range.
+
+**An effect on answers is not an effect on verification.** The dose–response
+in answer change is a real observation, but it is about a different quantity
+from the one RQ3 registers, measured without a registered contrast. It is
+reported as exploratory and not substituted for the construct, for the same
+reason output length is not.
 
 **What would unblock it:** registering a validated in-construct measure with
 range — for example a judge-scored rechecking rubric with inter-rater
 agreement reported — *before* a confirmatory run; or amending the research
 question itself if length is the quantity of interest, dated and justified as
 a change to the question rather than to its measurement. Neither is done here.
+RQ3 is closed as not tested on this model, and the 83 evaluation problems with
+a tail that the causal arm never touched are held back for a separately
+preregistered study (`docs/DECISIONS.md` D62).
 
 ## 8.2 The probe baseline is largely positional, and the headline is scored against it
 
-The hidden-state correctness probe reaches AUC 0.996, against **0.962** for an
-activation-free predictor built from token position alone — a margin of 0.034.
-Since the primary comparison is scored against that probe, a verbalised
-readout that merely *ties* it has not been shown to read more than position.
-Any claim of parity with the probe has to be read with this number beside it.
+On the pilot the hidden-state correctness probe reached AUC 0.996, against
+0.962 for an activation-free predictor built from token position alone, a
+margin of 0.034. On the main run the margin is smaller still: grouped-CV AUC
+**0.946** against **0.928**, a margin of **0.018** (§6.3). Since the primary
+comparison is scored against that probe, a verbalised readout that merely
+*ties* it has not been shown to read more than position. Any claim of parity
+with the probe has to be read with this number beside it.
 
 ## 8.3 The location contrast is confounded with edit extent
 
@@ -75,7 +95,9 @@ matched-length window ending before the tail, which lies inside the prompt and
 therefore arrives in a single forward pass and is edited in full, while the
 candidate edits only as far as generation actually ran. On the pilot's spans
 that is a median of 72 positions against 36 — the control is the **larger**
-edit, by about a factor of two.
+edit, by about a factor of two. On the main run the medians are 89 for the
+control and 90 for the candidate (0.99 times), so the counts were nearly
+equal there. The difference in kind below remains.
 
 The arms also differ in kind: the candidate edits representations as tokens are
 generated, so its edit compounds into what gets written next, while the
@@ -100,8 +122,17 @@ cannot resolve a difference we say it is underpowered rather than claiming
 equivalence, and §5.2's `smallest_attainable_p` makes the distinction
 checkable per comparison rather than asserted.
 
-**[N]** The achieved N, the realised discordance rate, and whether the primary
-comparison had the power its sizing assumed.
+**On the main run.** The achieved N is 250 problems, 120 of them in the
+primary comparison. Against semantic entropy, 37 of 120 problems are
+discordant (0.308), well above the eight the sizing required. The split was
+13 to 24, which gives p = 0.099 and an interval of [−0.184, 0.016]. The sizing
+guaranteed only that a difference *could* clear the corrected threshold, not
+that one of this size would: the comparison had the discordant pairs it
+needed and still could not resolve the effect. Against the probe, 11 of 120
+are discordant, split 5 to 6. The exploratory extension to 240 problems shows
+what twice the N does to the first comparison (§6.8). It was not planned, so
+the main result is reported as underpowered for its observed effect, not as
+equivalence.
 
 ## 8.5 One head-to-head may not be comparable at all
 
@@ -123,7 +154,11 @@ Observed gap between the bracketing operating points: 0.398 at 24 traces,
 monotone**. Three observations of a noisy quantity, not a trend, and no
 projection is made.
 
-**[N]** Whether the completed corpus makes this comparison evaluable.
+**On the completed corpus it is still not evaluable.** On the 120 problems of
+the primary comparison, the rule's operating points fall at savings of 0.431
+and 0.879, either side of the shared window of 0.613 to 0.738. The sweep is
+exhaustive, with 10 operating points, so the gap is not a matter of grid
+resolution. The comparison is reported as planned and not made (§6.3).
 
 ## 8.6 Measurement conventions that are choices
 
@@ -156,13 +191,24 @@ projection is made.
   it shows.
 - **The verbaliser runs through a local inference path** rather than the
   upstream serving stack, which has no support on this platform and would not
-  fit beside the target model in 6.14 GiB. The arithmetic is preserved step
+  fit beside the target model in 6,141 MiB. The arithmetic is preserved step
   for step and the conventions are taken from the released model card rather
   than invented.
-- **The quantisation check is fixed at the pilot's 8-problem subsample**
-  (cosine 0.987) and cannot be re-measured without re-downloading 15.3 GB of
-  bf16 weights. The cosine is a property of the checkpoint rather than of the
-  corpus, so it carries forward, but the sample is small.
+- **The quantisation check is partial.** The pilot measured cosine 0.987 on
+  8 problems. The main run's F8 stage was blocked by design, because the bf16
+  weights were not on disk. A later replication, partial by decision, then
+  recomputed the target's activations in bf16 for 24 of the main run's
+  problems (D55). It found cosine 0.990, no detectable shift in the readout's
+  score (−0.0014 [−0.0033, 0.0005]) and no change in direction against
+  semantic entropy. The verbaliser, the reconstructor and every behavioural
+  arm stayed 4-bit, and the registered bf16 replication of the headline
+  comparison was not run in full. It needs about 41 GB of bf16 weights and
+  bf16 generation that this hardware cannot provide.
+- **F5's sweeps over sampling temperature and the chunker were not run.**
+  F5 exercised `k` and unanimity only. The temperature and chunker sweeps are
+  implemented but were deferred by decision, at an estimated 60–150 GPU-hours,
+  because existing generations cannot answer them (D52). The AST's
+  sensitivity to those two choices is therefore unmeasured.
 - **The layer sweep is partial.** The released autoencoder is layer-20 only,
   so layers 14 and 24 exercise the probe and entropy arms but not the
   verbalised readout.
@@ -183,7 +229,12 @@ The corpus deliberately retains problems the model answers incorrectly, since
 the construct does not presuppose correctness; pooled quantities should be read
 with that in mind.
 
-**[N]** The achieved truncation rate and the status-code distribution.
+**On the completed corpus**, the cap truncated 0 of 150 GSM8K traces and 8 of
+100 MATH traces: 0.080, 95% interval [0.035, 0.152]. Of the MATH traces, 5 of
+74 were algebra and 3 of 26 counting and probability. Detection status is
+`ok` on 238 problems, `no_stable_point` on 10 (accuracy 0.100) and
+`stable_at_zero` on 2. All of them are kept in the corpus as status codes, so
+the tail-free problems are visible rather than dropped.
 
 ## 8.9 Single rater
 
@@ -191,6 +242,13 @@ The corpus-release objective anticipated a blinded multi-rater annotation. A
 second trained annotator was not obtained, so annotation is single-rater and
 **no reliability coefficient is reported**. We state the absence rather than
 omitting the limitation.
+
+The same gap limits RQ2's exploratory independent-probe control (amendment
+A1, §6.8). Its claim labels come from a lexicon rule that was not validated
+against human judgement. The one completed pass over its annotation sheet was
+made by an AI model and is not independent, because the same model designed
+the rule. It was not an input to the evaluation, no agreement statistic is
+computed from it, and it is released under a name that says so.
 
 ## 8.10 The probe-leakage control depends on how labels are fitted to length
 
@@ -220,3 +278,19 @@ the length-fitting rule, and none of the alternative arms has a null centred at
 suspected under this control"; ruling leakage out would need a new
 preregistered design with a defined null, a fixed length-matching strategy and
 uncertainty that includes refitting.
+
+## 8.11 The verbaliser and causal arms omit one MATH subject
+
+Both subset arms are capped proportionally by **dataset**, not by subject, and
+fill their MATH share with a sorted prefix of problem ids. Algebra ids sort
+before counting-and-probability ids, so the verbaliser arm's 46 MATH problems
+and the causal arm's 26 are all algebra (`docs/DECISIONS.md` D54). The primary
+comparison, RQ2, F10, the reconstruction-fidelity results and RQ3 are
+therefore results on GSM8K and MATH algebra. They say nothing about counting
+and probability, a quarter of the MATH problems in the corpus, on which the
+model is also least accurate (0.769). The corpus-wide results (RQ1, the
+falsification tests on the probe, the supervised analyses) cover all three.
+The cap's stated purpose, proportionality by dataset, was met. Its effect on
+subject coverage was found only after the main run, when the arm was
+extended, and is reported here rather than corrected after the fact. The
+exploratory 240-problem extension does include the missing subject (§6.8).

@@ -40,14 +40,13 @@ class TestTheDocumentNamesWhatIsMissing:
         for s in ap.SECTIONS:
             assert s.title in markdown, f"{s.title} is not in the document"
 
-    def test_a_section_with_no_file_becomes_a_named_placeholder(self, built):
-        markdown, pending, _ = built
-        absent = [s for s in ap.SECTIONS if s.filename is None]
-        assert absent, "the fixture assumes some section is still unwritten"
-        for s in absent:
-            assert s in pending
-            assert "**Not written.**" in ap.placeholder(s)
-            assert s.waiting_on in markdown
+    def test_a_section_with_no_file_becomes_a_named_placeholder(self, monkeypatch):
+        absent = ap.Section("6", "Results", None, "the main run")
+        monkeypatch.setattr(ap, "SECTIONS", (*ap.SECTIONS[:6], absent))
+        markdown, pending, _ = ap.assemble()
+        assert absent in pending
+        assert "**Not written.**" in markdown
+        assert "Waiting on the main run." in markdown
 
     def test_the_placeholder_states_no_finding_and_no_number(self):
         """A stub that reads like a result is the failure mode here."""
@@ -66,12 +65,31 @@ class TestTheDocumentNamesWhatIsMissing:
             present = bool(s.filename and (ap.PAPER / s.filename).exists())
             assert ("(not written)" in line) is not present
 
-    def test_a_section_present_but_still_waiting_is_reported_as_pending(self, built):
-        """Section 4 exists and needs the achieved N; that is not 'done'."""
-        _, pending, _ = built
-        titles = {s.title for s in pending}
-        assert "Experimental setup" in titles
-        assert "Introduction" not in titles
+    def test_a_section_present_but_still_waiting_is_reported_as_pending(self, monkeypatch):
+        """A file that exists but is declared as waiting is not 'done'."""
+        waiting = ap.Section("4", "Experimental setup", "04_experimental_setup.md",
+                             "the achieved N")
+        monkeypatch.setattr(ap, "SECTIONS", (ap.SECTIONS[1], waiting))
+        _, pending, _ = ap.assemble()
+        assert [s.title for s in pending] == ["Experimental setup"]
+
+    def test_an_unresolved_marker_makes_a_present_section_pending(self, tmp_path, monkeypatch):
+        """Presence is not completion: a [VERIFY] or [N] left in the text counts."""
+        monkeypatch.setattr(ap, "PAPER", tmp_path)
+        (tmp_path / "a.md").write_text("# 1. A\n\n*Final.*\n\nDone.\n", encoding="utf-8")
+        (tmp_path / "b.md").write_text("# 2. B\n\n*Final.*\n\nThe N is **[N]**.\n",
+                                       encoding="utf-8")
+        monkeypatch.setattr(ap, "SECTIONS", (ap.Section("1", "A", "a.md"),
+                                             ap.Section("2", "B", "b.md")))
+        _, pending, _ = ap.assemble()
+        assert [(s.title, s.waiting_on) for s in pending] == [("B", "unresolved **[N]** markers")]
+
+    def test_the_report_as_it_stands_is_complete(self, built):
+        """Every declared section exists and none carries an unfinished marker."""
+        markdown, pending, _ = built
+        assert pending == []
+        assert "**Not written.**" not in markdown
+        assert not ap.unresolved_markers(markdown)
 
 
 class TestDraftingNotesDoNotReachTheDocument:
@@ -100,17 +118,18 @@ class TestDraftingNotesDoNotReachTheDocument:
         assert "*Draft." not in markdown
 
 
-needs_review = pytest.mark.skipif(
-    not ap.REVIEW.exists(),
-    reason="Project_Review_II.md is a local working document (gitignored)")
-
-
-@needs_review
 class TestReferences:
-    def test_the_bibliography_comes_from_the_review(self):
+    def test_the_bibliography_comes_from_the_tracked_copy(self):
+        """Not from the gitignored review, so the report builds from the repository."""
+        assert ap.REFERENCES == ap.PAPER / "references.md"
         refs = ap.references()
-        assert len(refs) >= 26
+        assert len(refs) == 27
         assert refs[0].startswith("[1]")
+
+    def test_every_citation_in_the_text_has_an_entry(self, built):
+        markdown, _, _ = built
+        numbers = {int(r[1:r.index("]")]) for r in ap.references()}
+        assert ap.cited_numbers(markdown.split("## References", 1)[0]) <= numbers
 
     def test_each_entry_is_numbered_once_and_in_order(self):
         import re

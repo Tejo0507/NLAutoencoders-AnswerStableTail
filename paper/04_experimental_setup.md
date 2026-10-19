@@ -1,8 +1,8 @@
 # 4. Experimental setup
 
-*Draft. Every value below is read from `configs/base.yaml` and
-`configs/main.yaml` as resolved for the main run. The achieved N is the one
-quantity still outstanding — see §4.6.*
+*Final. Every value below is read from `configs/base.yaml` and
+`configs/main.yaml` as resolved for the main run, and the achieved N from the
+run's own artifacts (§4.6).*
 
 ## 4.1 Model and site
 
@@ -25,15 +25,17 @@ rather than complete.
 assumed.** 4-bit layer-20 activations were compared against bf16 on a
 subsample: cosine **0.987**, integrity gate passing on essentially every
 sample (`runs/pilot/robustness/`). That is far from any threshold that would
-change a conclusion. The measurement is fixed at the pilot's 8-problem
-subsample and cannot be repeated without re-downloading 15.3 GB of bf16
-weights, which §8 records.
+change a conclusion. The main run's own F8 stage was blocked by design,
+because the bf16 weights were not on disk. A later partial replication
+recomputed the target's activations in bf16 for 24 of the main run's problems
+and found cosine 0.990, as §6.8 and `docs/DECISIONS.md` D55 report.
 
-**Hardware.** A single NVIDIA GeForce RTX 4050 Laptop GPU, 6.14 GiB VRAM,
-with the target model occupying about 5.5 GiB. **[VERIFY]** — read from
-`nvidia-smi`, not from a spec sheet. Every stage is single-stream and
-batch-limited by that budget, which is the binding constraint on the study's
-scale.
+**Hardware.** A single NVIDIA GeForce RTX 4050 Laptop GPU with 6,141 MiB of
+VRAM (6.44 GB, as `nvidia-smi` and the run's `env` stage record it), 16.8 GB
+of RAM. A 4-bit 7B model needs roughly 5.0–5.5 GB, which is the `env` stage's
+own feasibility estimate rather than a measured footprint. Every stage is
+single-stream and batch-limited by that budget, which is the binding
+constraint on the study's scale.
 
 ## 4.2 Data
 
@@ -97,6 +99,11 @@ accuracy fallen as harder MATH levels entered the corpus. The conclusion that
 point estimate, and the achieved rate is reported as a limit either way
 (`docs/DECISIONS.md` D32).
 
+**Over the completed corpus**, the cap truncated 0 of 150 GSM8K traces and
+8 of 100 MATH traces: 0.080, 95% exact interval [0.035, 0.152], which still
+excludes 0.300. Of the eight, 5 of 74 are algebra and 3 of 26 counting and
+probability.
+
 **The forcing budget went from 24 to 48 tokens.** At 24, the forced completion
 was cut off mid-derivation on 40.7% of evaluated boundaries, and on 24.1% the
 cut was *blocking*: criterion 1 failed while every resampled continuation from
@@ -118,7 +125,7 @@ directly comparable with the pilot's**, deliberately.
 | semantic entropy | 8 samples, `T = 1.0`, `top_p` 0.95, clustered by **symbolic equivalence** |
 | probe | logistic, `C = 1.0`, standardised, 5 folds, group-disjoint by problem |
 | verbaliser | 2 windows per problem, 2 samples per window, `max_new_tokens` 256, `T = 1.0`; controls on |
-| NLA arm cap | 80 problems configured; see §4.6 |
+| NLA arm cap | 80 problems configured; run at **120** by a recorded override (§4.6) |
 | faithfulness | at most 8 claims per explanation, 3 paraphrases, null at the 95th percentile |
 | causal | 5 arms, doses {0.0, 0.5, 1.0, 1.5, 2.0}, 5 random directions, cap 60 problems |
 
@@ -151,19 +158,32 @@ traceable to the artifact that produced it.
 **The run is resumable per problem**, and the interleaved order means an
 interruption costs at most one problem and leaves a proportional corpus.
 
-## 4.6 Achieved N — outstanding
+## 4.6 Achieved N
 
-**The achieved N, not the configured N, is what the paper reports.** At the
-time of this draft the main run is in progress and the number is not yet
-final, so it is left as a blank to be filled rather than guessed.
+**The achieved N, not the configured N, is what the paper reports.** The main
+run completed all **250** configured problems (150 GSM8K; 100 MATH, of which
+74 algebra and 26 counting and probability), with no failed generation. A tail
+was detected on 240 of them.
 
 Two arms run on a proportional subset for cost reasons and report their own
-achieved N separately: the verbaliser arm, because the autoencoder emits
-hundreds of tokens per activation and is an order of magnitude more expensive
-than the behavioural arms; and the causal arm, at 60 problems. The primary
-comparison is computed on exactly the problems the verbaliser arm covers, with
-every baseline re-swept over those problems, so that the comparison is between
-rules rather than between problem sets (§5.1).
+achieved N separately:
+
+- **The verbaliser arm.** The autoencoder emits hundreds of tokens per
+  activation and is an order of magnitude more expensive than the behavioural
+  arms. The arm ran at **120** problems, under a configuration override of the
+  configured 80 that the run records per stage (stage hash `0bb33cf4c468a3f6`,
+  `docs/DECISIONS.md` D48).
+- **The causal arm**, at **60** problems.
+
+The primary comparison is computed on exactly the problems the verbaliser arm
+covers, with every baseline re-swept over those problems, so that the
+comparison is between rules rather than between problem sets (§5.1).
+
+Both arms are capped proportionally by dataset. Each fills its MATH share with
+a sorted prefix of problem ids, so the verbaliser arm is 74 GSM8K and 46 MATH
+algebra problems, and the causal arm 34 and 26. Neither contains a
+counting-and-probability problem (D54). That was not reported when the cap was
+chosen, and §8.11 records what it limits.
 
 Sizing was done against the primary question rather than by ambition: because
 the primary comparison is a McNemar test over problems, its power comes from
@@ -172,3 +192,7 @@ many there are. Eight discordant problems is the fewest that can clear the
 corrected threshold, which at the pilot's rate of 4/21 puts the requirement at
 roughly 42 problems in the verbaliser arm (`docs/DECISIONS.md` D32).
 `scripts/size_o3_corpus.py` recomputes this from any completed run.
+
+At 120 problems that requirement was met: the comparison against semantic
+entropy has 37 discordant problems and the one against the probe 11. §8.4
+explains why reaching it was not enough to resolve the difference.

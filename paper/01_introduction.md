@@ -1,6 +1,9 @@
 # 1. Introduction
 
-*Draft. Does not depend on the main run's outcome.*
+*Final. Written before the main run's outcome and unchanged by it. On
+2026-10-19 its verification markers were removed once the citations were
+checked, and the falsification battery's count was corrected to the ten tests
+§5.6 lists.*
 
 Chain-of-thought prompting made it standard for a language model to produce a
 long intermediate derivation before its answer [1], and reasoning-trained
@@ -18,7 +21,6 @@ family of rules and found that agreement is necessary without being
 sufficient: at a rule saving roughly a third of tokens, about one stop in nine
 fired on an answer the trajectory later abandoned, and widening the agreement
 window trades the problem away against the saving rather than solving it [22].
-**[VERIFY]** — both attributions follow `Project_Review_II.md`'s reading.
 
 So a stable answer is not the same as a finished computation, and that gap is
 where internal state becomes interesting. Hidden-state probes show that
@@ -63,8 +65,8 @@ we keep apart by construction:
    verbalisation is audited claim by claim against a paraphrase null and a
    verbaliser-only control [12], [16]; the causal arm follows Zhang and
    Nanda's recommendations with a matched-random direction, a matched-position
-   window and a dose-response sweep [19]; and a nine-test falsification
-   battery targets the alternative explanations directly.
+   window and a dose-response sweep [19]; and a ten-test falsification
+   battery (§5.6) targets the alternative explanations directly.
 
 We state in advance that the cheaper signals matching or beating the
 verbalised readout is a scientifically useful outcome, and we report it with
@@ -76,9 +78,9 @@ dropping it.
 
 ## Contributions
 
-Stated as what the paper does. **[VERIFY]** — none of these is asserted to be
-novel; establishing priority would need a literature search that this draft
-has not performed.
+Stated as what the paper does. None of these is asserted to be novel:
+establishing priority would need a literature search that this study has not
+performed.
 
 - An activation-free, three-criterion definition of an answer-stable tail,
   including the resampled-continuation control, with every edge case carried

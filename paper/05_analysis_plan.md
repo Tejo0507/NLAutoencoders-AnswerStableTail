@@ -1,7 +1,8 @@
 # 5. Statistical analysis plan
 
-*Draft. Fixed before the main run's analysis. One reporting decision is
-outstanding (§5.5). Decision records: `docs/DECISIONS.md` D29, D30, D37–D41.*
+*Final. Fixed before the main run's analysis; §5.5's reporting decision was
+settled by the run without a choice being needed. Decision records:
+`docs/DECISIONS.md` D29, D30, D37–D41.*
 
 ## 5.1 The primary comparison: matched budget, problem-level
 
@@ -156,7 +157,7 @@ further the model writes" is not verification, and adopting it would answer a
 different question under this one's name. Eligibility is enforced in code
 against the registered construct (D41). §8 reports what this costs.
 
-## 5.5 Outstanding reporting decision
+## 5.5 The multiplicity convention
 
 **Which multiplicity convention to foreground.** §5.3's argument supports the
 evaluable-test denominator as primary, with the pre-registered-family count as
@@ -166,6 +167,11 @@ a reporting convention. Both number sets are in every artifact and the pilot's
 verdict is identical under both; if the main run's robustness flag comes back
 false, the choice decides a finding and must be stated explicitly in the
 Results rather than assumed.
+
+**Settled by the main run.** Correcting over the 7 evaluable tests and over
+all 9 pre-registered tests gives the same 5 significant findings (§6.7). The
+evaluable-test denominator stays primary, as planned, and the convention
+decides nothing on this run.
 
 ## 5.6 Falsification battery
 

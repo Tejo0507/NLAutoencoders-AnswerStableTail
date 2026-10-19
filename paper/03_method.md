@@ -1,7 +1,7 @@
 # 3. Method
 
-*Draft. These are the pre-registered definitions, fixed before the main run;
-they do not depend on its outcome. Source: `PROJECT_PLAN.md` §5, with the
+*Final. These are the pre-registered definitions, fixed before the main run;
+they do not depend on its outcome and were not changed after it. Source: `PROJECT_PLAN.md` §5, with the
 decision record in `docs/DECISIONS.md`.*
 
 ## 3.1 Chunking and intermediate answers

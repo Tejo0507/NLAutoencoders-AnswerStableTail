@@ -1,12 +1,13 @@
-# Paper drafts
+# The report
 
-Sections that can be written before the main run finishes, and what each one
-is still waiting on.
+The final report's sections, one file each, and how they become one document.
+**All nine sections are written** and the report is frozen at the commit
+recorded in `docs/DECISIONS.md` D66.
 
 ## Assembling it
 
 [`REPORT.md`](REPORT.md) is the whole report in one file, **generated** by
-`scripts/assemble_paper.py` — do not edit it; edit a section and re-run:
+`scripts/assemble_paper.py`. Do not edit it; edit a section and re-run:
 
 ```powershell
 .venv\Scripts\python.exe scripts\assemble_paper.py
@@ -14,69 +15,70 @@ is still waiting on.
 ```
 
 The review was submitted as a single Word document rendered from a single
-Markdown file, so the report needs the same shape. The assembler adds the title
-page, the table of contents and the bibliography, lifts each section's drafting
-note out of the submission text, and writes **a named placeholder for every
-section that does not exist yet** rather than omitting it — a reader of the
-draft should be able to see what is missing without consulting this file. It
-exits 2 while anything is pending and 0 when every declared section is present,
-so it is also the check for whether the report is submission-ready. It is not:
-the Abstract, Results and Discussion are absent by design, and §4 and §8 are
-drafted but still need the main run's numbers.
+Markdown file, so the report has the same shape. The assembler adds:
 
-The bibliography is read from `../Project_Review_II.md` §References rather than
-copied, so the two documents cannot drift. It holds **27** entries, and every
-one is now cited by a drafted section: `[27]` (Madaan et al., *Self-refine*)
-was uncited on first assembly and is now cited in §2.1, carrying over the
-review's own use of it (Project_Review_II.md §2.1.9) rather than a new claim.
+- the title page;
+- the table of contents;
+- the bibliography;
+- **a named placeholder for any section that does not exist**, rather than
+  omitting it.
 
-**Nothing here reports a result.** No section states an outcome of the main
-run, and the Results and Abstract are deliberately absent rather than
-stubbed — writing them now would require assuming numbers that do not exist.
-The pilot's numbers are quoted only where they are explicitly labelled as the
-pilot's and used to motivate a design choice, never as findings.
+It also lifts each section's italic note out of the submission text.
+
+It exits 2 while any section is missing or still carries an unresolved
+`**[VERIFY]**` or `**[N]**` marker, and 0 when every section is present and
+none does. On the frozen report it exits 0.
+
+## Where the numbers come from
+
+Every number in §6 is read from the main run's artifacts:
+`runs/main/analysis/results.json` and its tables, and
+`runs/main/report/RESULTS.md`. `scripts/check_run_consistency.py --run
+runs/main` certifies those against each other (179 checks, 0 mismatched).
+
+The exploratory and partial analyses in §6.8 are each quoted from their own
+artifact and decision entry (`docs/DECISIONS.md` D51, D54–D60). They are
+labelled as exploratory or partial wherever they appear, and none is used for
+a registered conclusion.
 
 ## Status
 
 | § | File | State | Waiting on |
 |---|---|---|---|
-| 1 | [`01_introduction.md`](01_introduction.md) | **draft complete** | nothing — the motivation does not depend on the outcome |
-| 2 | [`02_related_work.md`](02_related_work.md) | **draft complete**, citations traceable | independent verification of every reference (see below) |
-| 3 | [`03_method.md`](03_method.md) | **draft complete** | nothing — these are the pre-registered definitions |
-| 4 | [`04_experimental_setup.md`](04_experimental_setup.md) | **draft complete** except achieved N | the achieved N, which is what gets reported |
-| 5 | [`05_analysis_plan.md`](05_analysis_plan.md) | **draft complete** | one reporting decision (BH convention, D38) |
-| 6 | Results | **not written** | the main run |
-| 7 | Discussion | **not written** | the Results |
-| 8 | [`08_limitations.md`](08_limitations.md) | **draft complete** for everything already established | three entries need the main run's own numbers |
-| — | Abstract | **not written** | the Results |
+| 1 | [`01_introduction.md`](01_introduction.md) | **final** | nothing |
+| 2 | [`02_related_work.md`](02_related_work.md) | **final**, citations checked | nothing |
+| 3 | [`03_method.md`](03_method.md) | **final** (pre-registered definitions, unchanged) | nothing |
+| 4 | [`04_experimental_setup.md`](04_experimental_setup.md) | **final**, achieved N filled | nothing |
+| 5 | [`05_analysis_plan.md`](05_analysis_plan.md) | **final**, §5.5 settled by the run | nothing |
+| 6 | [`06_results.md`](06_results.md) | **final** | nothing |
+| 7 | [`07_discussion.md`](07_discussion.md) | **final** | nothing |
+| 8 | [`08_limitations.md`](08_limitations.md) | **final**, main-run numbers filled | nothing |
+| — | [`00_abstract.md`](00_abstract.md) | **final** | nothing |
 
-## Citation keys
+## Citations
 
-Numbered `[n]` citations refer to the bibliography in
-[`../Project_Review_II.md`](../Project_Review_II.md) §References, which has 27
-entries. Using that numbering keeps every citation in these drafts traceable
-to an entry that already exists in the repository rather than to one invented
-here.
+Numbered `[n]` citations refer to [`references.md`](references.md), the
+version-controlled copy of `../Project_Review_II.md` §References. The numbering
+is unchanged, so every citation still points at the entry the review used.
 
-**Every reference still needs independent verification before submission.**
-The bibliography was assembled during the proposal stage; author lists, venues,
-years and DOIs have not been re-checked against the publishers in preparing
-these drafts, and at least four entries are marked in the review as preprints
-whose status may since have changed. Treat `[n]` as a pointer, not as a
-verified citation.
+On 2026-10-19 every entry was checked against its source:
 
-## Claims flagged for verification
+- **Titles and authors:** checked against arXiv, Crossref or the publishing
+  page.
+- **Flagged attributions:** every in-text attribution the drafts had flagged
+  was checked against the cited paper.
 
-Marked inline as **[VERIFY]**. They fall into three kinds:
+Three corrections came out of that check:
 
-- **Novelty claims.** Nothing here asserts that a construct or method is new
-  without a marker, because establishing novelty needs a literature search
-  that has not been performed for this draft.
-- **Attributions.** Where a draft says a specific prior work showed a specific
-  thing, the attribution follows `Project_Review_II.md`'s own reading of it
-  and has not been re-derived from the source.
-- **Quantities from outside this repository.** Hardware figures, model card
-  values and anything not computed by this codebase.
+- **[26] and [27] author lists.** Each was corrected in `references.md`; the
+  review's own copy is left as submitted.
+- **§2.1's use of [27].** It had cited Self-Refine as a framework depending on
+  *external* feedback. Self-Refine uses the model's own feedback, so the
+  sentence now says that. Its point, that intrinsic self-correction does not
+  reliably help, now rests on [18], whose abstract states it.
 
-Quantities *computed by this codebase* are not flagged; they are reproducible
-from `runs/<id>/` and are cited to the artifact that holds them.
+Venue names and page ranges were not re-checked against the proceedings,
+except for the two DOI entries.
+
+No statement is asserted to be novel. The contributions list in §1 says so
+explicitly.
