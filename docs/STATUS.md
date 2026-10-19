@@ -73,6 +73,11 @@ Last reviewed 2026-10-17.
 > run's certified artifacts; §6.8 keeps the exploratory and partial analyses
 > apart. The run-artifact release is built from the commit recording D66.
 >
+> **Run artifacts published on GitHub, 2026-10-19** (D67): release
+> `data-runs-2026-10-19`, archive SHA-256 `b50c9320…b2ff`, verified by an
+> anonymous download. The Zenodo deposit is prepared but not made (no
+> credentials here), so there is no DOI yet.
+>
 > Everything below this box describes the state on 2026-10-16 and the pilot.
 
 **Main run in progress: 231 of 250 traces** as of 18:53 on 2026-10-16, 0

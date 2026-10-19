@@ -2416,3 +2416,59 @@ partial. `PROJECT_PLAN.md` §5–§6 and every file under `runs/` are untouched.
 commit that records this decision. That commit changes only non-paper files,
 so its `paper/` is identical to `32b5539`.
 
+## D67. The run artifacts are published on GitHub; the Zenodo deposit is pending
+
+**Recorded 2026-10-19.** The release follows `release/PUBLISHING.md`.
+
+**Built** with `--status final --date 2026-10-19` from `4713607`, the commit
+recording D66, with a clean tree, into
+`D:\NLAutoencoders-release\data-runs-2026-10-19\`. The package holds 1,943
+files: 1,934 run files and 9 release documents. Of the run files, 41 are
+sanitised. The archive `nlaast-runs-2026-10-19.tar.gz` is 145,402,631 bytes,
+SHA-256 `b50c9320d4aefcfdc3e7c1989ff40ea013fdb3bbf86aa12a0f309e978b10b2ff`.
+A fresh checkout of `4713607` rebuilds it byte for byte.
+
+**Gates, all passed on the final files.**
+- **Checksums:** 1,942 of 1,942 listed files verify, and so does the
+  archive's `.sha256`.
+- **Archive structure:** 1,943 regular members, with no unsafe path or
+  duplicate, equal to the staged package.
+- **Inventory:** every released run is present and every excluded one is
+  absent. The 1,893 untransformed run files are identical to `runs/`, and the
+  41 transformed files match their recorded hashes. The AI annotation sheet is
+  present and unmodified.
+- **Labels:** RUNS.json status is final, and the README and RUNS.json are
+  pinned to `4713607`. No document carries a DRAFT label.
+- **Licences:** the licence texts and `NOTICE.md` match `release/`.
+- **Sensitive data:** the unrelated folder name appears nowhere. Scanning the
+  directory and the archive gives exactly one finding, the approved
+  `abs_windows_root` in `validate_f6_diag.py`, at its pinned SHA-256
+  `7a9562bf…8115`.
+- **Protected artifacts:** `robustness.json`, the F6 protocol and diagnostic,
+  and A1's code hash as recorded. Consistency checks: `main` 179, pilot 173
+  (1 historical warning), `main_nla240` 132, `main_f8_bf16` 133 and
+  `main_f8_nf4` 132, each with 0 mismatched.
+
+**Published on GitHub.**
+- **Push:** the branch `rq2-amendment-f8-nla240` was pushed to `origin` as a
+  new branch, with no force and no change to `main`. It carries 21 commits,
+  all ancestors of the release commit; a scan of their diff found no
+  credential or data file.
+- **Tag:** `data-runs-2026-10-19`, an annotated tag on `4713607`.
+- **Release:** "Run artifacts: NLA Answer-Stable Tail (main, pilot,
+  exploratory)", published 2026-10-19T07:25:37Z, not a draft:
+  https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/releases/tag/data-runs-2026-10-19
+- **Assets:** the archive and its `.sha256`. GitHub's own asset digest is
+  `b50c9320…b2ff`. An anonymous download of both assets passes
+  `sha256sum -c` and is byte-identical to the validated files.
+- **Issue #7** ("Run the main experiment and write the execution report") was
+  closed against the frozen report. No issue remains open.
+
+**Zenodo: not deposited.** No Zenodo credential exists on this machine, so
+no record was created and no DOI exists. The deposit is prepared beside the
+archive: `zenodo_metadata.json` (Dataset, CC-BY-4.0, related to the
+repository at `4713607` and to the GitHub release) and `ZENODO_UPLOAD.md`
+(files, sizes, hashes and the steps). Check the creator field before
+publishing. Record the DOI here only once Zenodo shows the record as
+published.
+

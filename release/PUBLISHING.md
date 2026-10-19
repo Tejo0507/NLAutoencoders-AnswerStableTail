@@ -1,5 +1,15 @@
 # Publishing the run artifacts (D63, D64)
 
+> **Published on GitHub 2026-10-19** (D67): tag `data-runs-2026-10-19` on
+> `4713607`, release
+> https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/releases/tag/data-runs-2026-10-19,
+> archive `nlaast-runs-2026-10-19.tar.gz`, SHA-256
+> `b50c9320d4aefcfdc3e7c1989ff40ea013fdb3bbf86aa12a0f309e978b10b2ff`. Every
+> gate below passed on the final files. **Zenodo step 3 is not done**: it is
+> prepared in `D:\NLAutoencoders-release\data-runs-2026-10-19\ZENODO_UPLOAD.md`
+> and needs the researcher's Zenodo account. The text below is the procedure
+> as it was followed.
+
 The package is built from `runs/` by `scripts/build_results_release.py`,
 using this directory's README template, `NOTICE.md` and `licences/`. The
 builder sanitises local path roots in the staged copy only and refuses to
