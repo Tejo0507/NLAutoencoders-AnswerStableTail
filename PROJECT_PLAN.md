@@ -303,6 +303,18 @@ report is complete and frozen at `32b5539` (D66), with every planned section
 written from the main run's artifacts and §5–§6 above unchanged. The run
 artifacts are released under D63–D65 (`release/PUBLISHING.md`).
 
+**Update 2026-10-19, after the freeze.** A post-hoc audit (D68,
+`docs/SCIENTIFIC_AUDIT_2026-10-19.md`) found that §5's safe-stopping outcome
+was implemented on the answer *parsed* from `P_s`, not the answer *forced*
+from it. It also found that the O3 comparison was made at budgets beyond what
+any rule can save safely, so its result does not bear on the readout's
+incremental value. §5–§6 above are unchanged. The registered results are kept
+as computed, and the corrected readings are in `paper/ADDENDUM_2026-10-19.md`.
+Later the same day §5's outcome was implemented as registered, and O3 was
+re-scored under a plan hashed before the data (D69). The readout beats a
+no-signal rule; its value beyond the probe is unresolved. Results are in
+`docs/REANALYSIS_2026-10-19.md`. §5–§6 are still unchanged.
+
 Four things in this plan the run changed the reading of, all recorded in
 `docs/DECISIONS.md` rather than edited into the text above:
 

@@ -21,21 +21,59 @@ answer convergence, a hidden-state correctness probe and semantic entropy.
 The comparison is made at matched token budget, under a pre-registered
 analysis plan, on Qwen2.5-7B-Instruct run in 4-bit.
 
-**What the study found**, as reported in the frozen report:
+**What the study found.** These are the frozen report's results, read with
+the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
+[audit](docs/SCIENTIFIC_AUDIT_2026-10-19.md), D68):
 
-- **The readout did not beat the cheaper signals.** On the 120 problems it
-  covers, its safe-stopping rate was lower than semantic entropy's (−0.092,
-  95% CI [−0.184, 0.016], q = 0.115) and the probe's (−0.008, q = 1.0).
-  Neither difference is significant, so no difference in either direction is
-  established.
-- **Tails are common and long.** They are found non-trivially on 0.948 of 250
-  problems, and they begin before the answer is stated: they measure
-  *determinacy*, not post-answer checking.
-- **Most claims carry reconstruction weight but are unconfirmed.** 0.749 of
-  6,007 claims are reconstruction-dependent and not reproduced from noise. An
-  exploratory independent-probe control did not corroborate that reading.
+- **Whether the readout adds value beyond cheaper signals is unanswered.** The
+  registered comparison found no significant difference against semantic
+  entropy (−0.092, 95% CI [−0.184, 0.016], q = 0.115) or the probe (−0.008,
+  q = 1.0). The audit found the comparison was made at token budgets (0.61 and
+  0.72) where even a perfect rule must stop unsafely: an oracle can save only
+  0.17 safely. In that regime a rule using **no signal at all** beats every
+  compared rule (0.373 against semantic entropy's 0.325 and the readout's
+  0.233). The result therefore says nothing about incremental value in either
+  direction. Semantic entropy's apparent edge comes from abstaining, not from
+  information.
+  **Re-scored on the registered (forced-answer) outcome**
+  ([D69](docs/REANALYSIS_2026-10-19.md); corrected, post hoc), every rule
+  was given the same stopping positions and budgets lay below the oracle
+  bound:
+  - the readout's score **beats a no-signal rule**: +0.052 [0.022, 0.082];
+  - **against the probe it is unresolved**: +0.027 [−0.026, 0.076]. This
+    reading does not change with the verbaliser seed, and the gap shrinks
+    to +0.006 against a layer-24 probe;
+  - **semantic entropy cannot be compared**: it has no operating point
+    where safe stopping is possible.
+
+  So the readout carries stopping-relevant information. Its value beyond the
+  probe is not established.
+- **Tails are common and long, and they are not post-answer text.** They are
+  found non-trivially on 0.948 of 250 problems and cover a mean 0.378 of the
+  chunks, a floor that depends on the 48-token forcing budget. They usually
+  begin before the answer is written, and the forced completion often finishes
+  the arithmetic itself. The tail marks where the answer becomes *recoverable
+  within that budget*, not redundant computation.
+- **Most claims carry reconstruction weight, and some of their content checks
+  out.** 0.749 of 6,007 claims are reconstruction-dependent and not
+  reproduced from noise. This survives clustering by problem and the removal
+  of invalid paraphrase-null draws (0.73–0.78). Checked objectively against
+  the trace (D71):
+  - the stated next word is right on 52% of explanations, against 3–10% under
+    the controls;
+  - "quoted" context is almost never verbatim;
+  - the named final token's word is rarely right.
+
+  Interpretive content, faithfulness to the computation and mechanism remain
+  untested.
 - **RQ3, the causal question, was not tested on this model.** Its registered
-  readout, a count of rechecking phrases, occurs in 2 of 274 traces.
+  readout, a count of rechecking phrases, occurs in 2 of 274 traces. This
+  instruction-tuned model barely verifies in its prose at all. The
+  exploratory answer-change dose–response turned out to be truncation: every
+  dose-2.0 change was a continuation cut off at 200 tokens (D74). A corrected
+  pilot is implemented and staged
+  ([`docs/RQ3_FOLLOWUP_DESIGN.md`](docs/RQ3_FOLLOWUP_DESIGN.md)); it has not
+  been run.
 
 **Status: complete (2026-10-19).** The report is frozen at `32b5539`, and the
 run artifacts are published as a GitHub release. The Zenodo deposit is
@@ -44,6 +82,7 @@ prepared but not made, so there is no DOI yet.
 | Looking for | Where |
 |---|---|
 | The report (Abstract to Limitations, frozen) | [`paper/REPORT.md`](paper/REPORT.md), assembled from the sections in [`paper/`](paper/README.md) |
+| Corrections to how the report reads (post hoc, D68) | [`paper/ADDENDUM_2026-10-19.md`](paper/ADDENDUM_2026-10-19.md); evidence in [`docs/SCIENTIFIC_AUDIT_2026-10-19.md`](docs/SCIENTIFIC_AUDIT_2026-10-19.md) |
 | The research questions, pre-registered definitions and falsification battery | [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §1, §5 and §6 |
 | Every deviation and decision, with reasons (D1–D67) | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | Open and closed work items, and the release's verification evidence | [`docs/AUDIT_2026-10-17.md`](docs/AUDIT_2026-10-17.md), a living register opened on that date |
@@ -69,10 +108,10 @@ the full results with their sources.
 
 | | |
 |---|---|
-| **RQ1 — the tail** | Detected on 240 of 250 (non-trivial on 0.948); mean tail fraction 0.378. Tail fraction is higher on correct final answers (Cliff's δ +0.295, q = 0.036). |
-| **Primary question (O3)** | 120 problems in the NLA arm (`--set nla.max_problems=120`, config hash `0bb33cf4c468a3f6`). Against the probe: 11 discordant problems, 6 favour the probe, q = 1.0. Against semantic entropy: 37 discordant, 24 favour semantic entropy, q = 0.115. Against the agreement rule: no shared budget, so not compared. |
-| **RQ2 — claim faithfulness** | 6,007 claims: 0.750 reconstruction-dependent, 0.002 reproduced from noise. |
-| **F10 — position** | Tail windows reconstruct slightly *worse* than position-matched ones (cosine 0.873 vs 0.878, Cliff's δ −0.203). |
+| **RQ1 — the tail** | Detected on 240 of 250 (non-trivial on 0.948); mean tail fraction 0.378. Tail fraction is higher on correct final answers (Cliff's δ +0.295, q = 0.036). *Audit:* not separable from trace length (p = 0.68 with log tokens as covariate). |
+| **Primary question (O3)** | 120 problems in the NLA arm (`--set nla.max_problems=120`, config hash `0bb33cf4c468a3f6`). Against the probe: 11 discordant problems, 6 favour the probe, q = 1.0. Against semantic entropy: 37 discordant, 24 favour semantic entropy, q = 0.115. Against the agreement rule: no shared budget, so not compared. *Audit:* compared at budgets (0.613, 0.722) above the oracle's 0.174, where an information-free rule scores 0.373 and 0.261, above every compared rule; safety was scored on the *parsed* answer, not the registered *forced* one. |
+| **RQ2 — claim faithfulness** | 6,007 claims: 0.750 reconstruction-dependent, 0.002 reproduced from noise. *Audit:* survives clustering by problem, [0.734, 0.766]. This is reconstruction dependence, not faithfulness. |
+| **F10 — position** | Tail windows reconstruct slightly *worse* than position-matched ones (cosine 0.873 vs 0.878, Cliff's δ −0.203). *Audit:* the registered tests are sample-level. Paired by problem, p = 0.012 against matched-position and 0.053 against matched-length. |
 | **RQ3 — causal** | **Not tested on this model.** The edits were applied (59 of 60 problems; the 60th generated nothing to edit), but the registered rechecking-marker readout is zero in every arm at the compared dose, so no contrast could be made. This is not evidence against a tail direction (D62). |
 | **Probe baseline** | Beats an activation-free positional predictor by only 0.018 AUC; it must not be read as a correctness readout. |
 | **F8 — quantisation** | Partly replicated (D55): on 24 problems, bf16 target activations match NF4 at cosine 0.990 and leave the NLA readout's score unchanged within noise (−0.0014 [−0.0033, 0.0005]); the verbaliser, reconstructor and behavioural arms stayed NF4, so this is not the full registered replication. |
@@ -85,7 +124,11 @@ or deferred wherever they appear (report §6.8; `docs/DECISIONS.md` D51–D60):
 
 | Analysis | Status | Outcome |
 |---|---|---|
-| NLA arm at 240 problems | **exploratory, post hoc** (D54) | The direction against semantic entropy holds, and its interval excludes zero. N was chosen after the first result was seen, so this is not confirmatory. |
+| NLA arm at 240 problems | **exploratory, post hoc** (D54) | The direction against semantic entropy holds, and its interval excludes zero. N was chosen after the first result was seen, so this is not confirmatory. *Audit:* semantic entropy's safe rate there is 74 abstentions plus 4 safe stops out of 166, so the direction reflects where the rules stop, not what they know. |
+| Claim–evidence audit | **post hoc** (D68) | [`docs/SCIENTIFIC_AUDIT_2026-10-19.md`](docs/SCIENTIFIC_AUDIT_2026-10-19.md); regenerate with `scripts/audit_claims_posthoc.py --config main` (CPU, roughly 20–30 min). |
+| O3 on the registered outcome | **corrected, post hoc** (D69; plan hashed before the data) | Readout − no signal +0.052 [0.022, 0.082]; readout − probe +0.027 [−0.026, 0.076]; semantic entropy not comparable. Overall *unresolved*. [`docs/REANALYSIS_2026-10-19.md`](docs/REANALYSIS_2026-10-19.md) |
+| Coverage (seed, layer, subject) | **exploratory** (D73) | Readout beats chance under every variant; its edge over the probe is not robust. [`docs/COVERAGE_PLAN.md`](docs/COVERAGE_PLAN.md) |
+| RQ2 paraphrase null, claim checks, F10/RQ2 units | **post hoc** (D70–D72) | 29% identity draws; the conclusion holds (0.73–0.78). The next word is predicted on 52% of explanations. With corrected units RQ1 is not robustly significant. |
 | RQ2 independent-probe control (amendment A1) | **exploratory** (D56–D57) | Did not corroborate the reconstruction-dependence reading. Its labels are rule-derived and were not validated by people. |
 | F8 bf16 replication | **partial** (D55) | Covered above. |
 | F6 control under a length-correct mapping | **exploratory diagnostic** (D58–D60) | Shuffled AUC 0.841 against 0.602 under `np.resize` (+0.240). F6's registered no-leak result is unchanged, but it cannot carry a stronger claim ([`docs/F6_LENGTH_CORRECT_RESULTS.md`](docs/F6_LENGTH_CORRECT_RESULTS.md)). |
@@ -107,8 +150,10 @@ whether that claim can be *supported*:
 - and that survives a causal test with proper controls.
 
 A plausible outcome is that the cheap signals do just as well. The protocol was
-built to report that with the same weight as a positive result, and that is
-the outcome reported.
+built to report that with the same weight as a positive result. The frozen
+report read its result that way. The post-hoc audit (D68) found the comparison
+could not distinguish any signal from chance at the budgets it reached, so the
+question remains open rather than answered negatively.
 
 ### Three distinctions the code enforces
 
@@ -303,8 +348,14 @@ sha256sum runs/main/robustness/robustness.json
 
 The expected counts are recorded in `docs/AUDIT_2026-10-17.md`. The diagnostic
 and post-hoc scripts (`audit_f6_resize.py`, `run_f8_bf16_headline.py --phase
-prepare`, `diag_f6_length_correct.py`) refuse to overwrite an existing output
-directory.
+prepare`, `diag_f6_length_correct.py`, `audit_claims_posthoc.py`, and the
+D69–D74 scripts listed in `docs/REANALYSIS_2026-10-19.md`) refuse to
+overwrite an existing output directory. The last one regenerates every number
+in the D68 audit, on CPU in roughly 20–30 minutes:
+
+```powershell
+.venv/Scripts/python.exe scripts/audit_claims_posthoc.py --config main   # writes runs/main_claims_audit/
+```
 
 ### The report
 
