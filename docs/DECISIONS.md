@@ -3469,3 +3469,24 @@ semantic or faithfulness claim.
 **Primary result expected** at about 01:00–05:00 on 21 October. The range
 comes mainly from the nla stage's speed.
 
+## D88. A misplaced deviation repaired in the leakage-resistant design
+
+**Recorded 2026-10-21, found while building the topic-branch commits.** The
+deviation-1 version of `docs/LEAKAGE_RESISTANT_DESIGN.md`, reconstructed by
+cutting before deviation 2, did not reproduce its recorded hash
+(`7d9294db…e7ef`, D84).
+
+**Cause.** The D85 edit inserted deviation 2 in the middle of deviation 1's
+last sentence. The sentence's second half ("A rule can have low selective
+risk by stopping only at the very end. The two numbers are reported together
+and never ranked as one.") was left stranded after deviation 2.
+
+**Repair.** The stranded words were moved back. No word was added, removed
+or changed.
+- The deviation-1 prefix of the repaired file reproduces `7d9294db…e7ef`
+  exactly, which confirms the diagnosis.
+- The file's hash changes from `2bb536f2…7756` (recorded in D85) to
+  `514818cf567b8ad0248190f0d74f912ca27d57256754a6e1b48fa4d88fb06afe`.
+- No gate reads this hash. Stage 1 records it as provenance when its
+  positions are drawn, which has not happened yet.
+
