@@ -49,8 +49,38 @@ def keep_awake() -> None:
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
 
 
+def other_gpu_memory() -> list[tuple[str, int]]:
+    """Processes other than this one holding over 100 MiB of dedicated GPU
+    memory (Windows performance counters). On this 6.1 GB card the 5.6 GB
+    model spills to shared memory if anything else holds VRAM, which made
+    traces 10-20x slower (D89). Read-only: nothing is stopped."""
+    if sys.platform != "win32":
+        return []
+    cmd = ("(Get-Counter '\\GPU Process Memory(*)\\Dedicated Usage').CounterSamples | "
+           "Where-Object { $_.CookedValue -gt 100MB } | "
+           "ForEach-Object { $_.InstanceName + ' ' + [math]::Round($_.CookedValue/1MB) }")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd],
+                         capture_output=True, text=True).stdout
+    found = []
+    for ln in out.splitlines():
+        parts = ln.split()
+        if len(parts) == 2 and parts[0].startswith("pid_"):
+            pid = parts[0].split("_")[1]
+            name = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                   f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).ProcessName"],
+                                  capture_output=True, text=True).stdout.strip()
+            found.append((f"{name or '?'} (PID {pid})", int(parts[1])))
+    return found
+
+
 def main() -> int:
     keep_awake()
+    others = other_gpu_memory()
+    if others:
+        print("WARNING: other processes hold GPU memory, so the model will spill to "
+              "shared memory and run 10-20x slower (D89): "
+              + ", ".join(f"{n} {m} MiB" for n, m in others)
+              + ". Close them (for example OMEN Command Center) and re-run.", flush=True)
     py = sys.executable
     st = json.loads((RUN / "manifest.json").read_text(encoding="utf-8"))["stages"]["traces"]
     if st.get("status") != "complete":
