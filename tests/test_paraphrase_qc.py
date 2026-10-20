@@ -69,3 +69,41 @@ def test_reordering_around_a_thousands_separator_is_flagged_as_unverified():
     claim = "The total is 1,000 apples"
     v = paraphrase_claim(claim, 2)
     assert classify(claim, v) == REORDER and REORDER not in VALID_N2
+
+
+def _llm_qc():
+    import sys
+    from pathlib import Path
+    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    from paraphrase_null_llm import qc
+    return qc
+
+
+@pytest.mark.parametrize("variant, ok, reason", [
+    ("The passage lays out a total formed by adding three weekly figures.", True, "accepted"),
+    (CLAIM, False, "identical"),
+    ("the text describes a sum of three weekly totals", False, "normalised_identical"),
+    ("The passage describes a sum of three weekly totals.", False, "too close to the original"),
+    ("Line one.\nLine two about three weekly totals.", False, "empty or multi-line"),
+    ("It adds 3 weekly figures.", False, "numbers changed"),
+    ("Totals.", False, "length ratio"),
+])
+def test_rewording_qc(variant, ok, reason):
+    qc = _llm_qc()
+    assert qc(CLAIM, variant) == (ok, reason)
+
+
+def test_rewording_qc_keeps_numbers_and_quotes():
+    qc = _llm_qc()
+    orig = 'Final token "18." closes the sum of 9 and 9.'
+    assert qc(orig, 'The last token, "18.", ends the addition of 9 plus 9.')[0]
+    assert qc(orig, 'The last token, "18", ends the addition of 9 plus 9.')[1] == "quoted string changed"
+    assert qc(orig, 'The last token, "18.", ends the addition of 9 plus 8.')[1] == "numbers changed"
+
+
+def test_token_change_measures_diversity_not_meaning():
+    assert token_change(CLAIM, CLAIM) == 0.0
+    assert token_change(CLAIM, "The passage describes a sum of three weekly totals.") == pytest.approx(1 / 9)
+    assert token_change("a b", "c d") == 1.0
