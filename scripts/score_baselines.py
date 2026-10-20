@@ -33,8 +33,11 @@ from nlaast.ast_detect.detector import agreement_run_length
 from nlaast.baselines.probe import CorrectnessProbe, cross_validate
 from nlaast.baselines.semantic_entropy import confidence_score, semantic_entropy
 from nlaast.baselines.stopping import (
+    OUTCOME_PARSED,
+    OUTCOMES,
     budget_grid,
     complete_threshold_grid,
+    forced_answer_sequence,
     granularity_bound,
     sweep_threshold,
 )
@@ -65,20 +68,45 @@ def convergence_scores(trace: dict, window: int | None = None) -> list[float]:
     return [min(r, float(window)) for r in runs]
 
 
-def build_rows(traces: list[dict]) -> dict[str, dict[str, Any]]:
+def build_rows(
+    traces: list[dict],
+    outcome: str = OUTCOME_PARSED,
+    completed_forced: dict | None = None,
+    prefer: str = "stored",
+) -> dict[str, dict[str, Any]]:
     """Per-problem scaffolding the sweep needs: answers and token counts at
-    each boundary."""
+    each boundary.
+
+    ``outcome`` selects the answer a rule "walks away with" (D69):
+
+    * ``parsed`` (default) - the answer parsed from the prefix text. This is
+      what the registered run scored, so the default keeps every stored
+      result reproducing. It is **not** PROJECT_PLAN §5's definition (D68).
+    * ``forced`` - the answer forced from the prefix, as §5 registers it, from
+      the stored evidence plus ``completed_forced`` (see
+      ``stopping.forced_answer_sequence``). Boundaries with neither are marked
+      unknown, and a rule that stops at one raises ``OutcomeUnknown``.
+    """
+    if outcome not in OUTCOMES:
+        raise ValueError(f"outcome must be one of {OUTCOMES}, not {outcome!r}")
     rows = {}
     for t in traces:
         chunks = [Chunk(**{k: c[k] for k in
                            ("index", "text", "char_start", "char_end",
                             "token_end", "prefix_tokens")})
                   for c in t.get("chunks", [])]
-        # The answer a rule "walks away with" is the one parsed from the prefix
-        # it stopped at, which is what the safety definition compares.
-        answers = [extract_answer(prefix_text(chunks, i, t["trace"]), PERMISSIVE)
-                   for i in range(len(chunks))]
+        if outcome == OUTCOME_PARSED:
+            answers = [extract_answer(prefix_text(chunks, i, t["trace"]), PERMISSIVE)
+                       for i in range(len(chunks))]
+            known = [True] * len(chunks)
+        else:
+            answers, known = forced_answer_sequence(t, completed_forced, prefer)
+            if len(answers) != len(chunks):
+                raise ValueError(f"{t['problem_id']}: {len(answers)} boundary "
+                                 f"records for {len(chunks)} chunks")
         rows[t["problem_id"]] = {
+            "outcome": outcome,
+            "answer_known": known,
             "problem_id": t["problem_id"],
             "dataset": t.get("dataset"),
             "split": t.get("split"),
