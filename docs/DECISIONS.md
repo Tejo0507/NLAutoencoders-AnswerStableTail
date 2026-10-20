@@ -3197,3 +3197,54 @@ chunks, 240 problems.
 linearly present in its own input. On these data it is an interpretable view
 of the activation, not an additional source of information.
 
+## D82. An extended-budget forcing pass, specified before any extended answer
+
+**Recorded 2026-10-20.** The plan is `docs/EXTENDED_FORCING_PLAN.md`,
+SHA-256 `615171a2…08d3`
+(`615171a21ef6a9ad30998d32cf5cbf87982154946530add692f97db409f108d3`). No
+extended-budget answer had been generated on any run.
+
+**Why.** D79 bracketed the 48-token cut-off between two extreme readings,
+and every readout advantage depends on which one is right. Only a
+measurement can decide it.
+
+**The pass:**
+- every design-A menu boundary whose registered completion was cut off is
+  re-forced with the registered call, at 256 tokens instead of 48;
+- the tokens are counted exactly;
+- a seeded 50 finished boundaries serve as the stability gate (≥ 0.95).
+
+**Outcomes:**
+- O48, the registered outcome, which stays the only one D75's verdict uses;
+- O256;
+- O256-u, where still unfinished means no answer;
+- continuation majority, as a diagnostic.
+
+Each is scored with both registered savings and *net* savings, which charge
+the forced tokens. The primary reading is O256 with net savings.
+
+**Fixed now:** the share `f` of pre-tail cut-offs whose 256-token answer
+equals the final answer decides the wording: ≥ 0.80, "commitment within 48
+tokens"; ≤ 0.20, "registered reading supported"; otherwise "mixed".
+
+**Code, tested before any GPU use:**
+- `scripts/force_extended.py`;
+- `scripts/extended_forcing_analysis.py`;
+- `tests/test_extended_forcing.py`.
+
+**Checks on the code:**
+- The analysis was run end to end on an *identity fixture* in the
+  scratchpad: "extended" answers equal to the registered ones. With it, every
+  O256 cell reproduced O48 exactly, and the registered analysis reproduced
+  first. The fixture is a code test, not a result.
+- Dry runs: 428 cut-off menu boundaries on `main_nla240` (at most 122k tokens)
+  and 216 on `main`.
+- On `main`, only 29 of 120 problems have continuation answers at every menu
+  boundary, so the continuation diagnostic is small.
+
+**Order:**
+1. `main_nla240`, once `rep1` no longer needs the GPU;
+2. `rep1`, after D75's confirmatory analysis exists.
+
+Neither is part of `scripts/rep1_runbook.py`.
+
