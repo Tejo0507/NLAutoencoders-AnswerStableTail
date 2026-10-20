@@ -3285,3 +3285,57 @@ reconstruction. An online rule that verbalises at each candidate cannot save
 compute on this setup. Stage 1 is an information test, not an efficiency
 test.
 
+## D84. Stage 0 and selective risk run; a lexicon frozen for `rep1`; the paper re-planned
+
+**Recorded 2026-10-20. CPU only. The `rep1` traces stage was untouched
+throughout** (175/400 at 10:52 IST).
+
+**Stage 0** (`scripts/offmenu_stage0.py` → `runs/main_offmenu_stage0/stage0.json`,
+`176487fd…7efa`; exploratory). Units are all 2,756 boundaries of 250
+problems; there is no menu.
+- **Information:** a same-label activation probe adds +0.091 [0.066, 0.115]
+  AUC over position for safety (AUC 0.861). The registered probe adds +0.026
+  and raw text −0.002.
+- **As stopping rules under the registered estimand:** the probe beats no
+  signal by +0.046 [0.017, 0.072], but an information-free falling-position
+  rule beats it. Probe − falling: −0.032 [−0.083, 0.009] on registered
+  savings and −0.093 [−0.147, −0.043] on net savings. D79's artefact is
+  therefore a property of the estimand, not of the menu.
+
+**Selective risk at matched coverage** (D83 deviation 1, post hoc; plan as
+amended `7d9294db…e7ef`). Code: `src/nlaast/analysis/selective.py`, tested,
+with the no-signal closed form checked against Monte Carlo.
+- **On the menu** (`scripts/selective_risk_menu.py`), when the readout stops,
+  the stop is more often unsafe than chance: +0.14 [0.05, 0.21] at coverage
+  0.5 on the 240 arm, +0.16 [0.04, 0.26] on `main`.
+- **Everywhere**, the probes' stops are almost never unsafe (0.01–0.02), but
+  they save only 2–5% of the trace.
+- No single estimand measures stop quality here, and both views are
+  reported.
+
+**Lexicon frozen** (D81 deviation 3; plan as amended `5c351b65…6567`):
+`runs/main_nla240_information/lexicon.json`,
+`11674b0a01a18c3d423a7e4ae26a25579a437f4c659d3f5c7f1e3aff73cdb079`. The 40
+phase terms are fixed for `rep1`. Its AUC of 0.925 on `main` is **in
+sample**, and the output file says so.
+
+**A labelling defect, found and fixed.** The lexicon run first labelled
+`main` "out of sample", because the code only checked the directory. `main`'s
+120 problems are inside the lexicon's 240. The status now comes from
+problem overlap with the source run, and the file was regenerated.
+
+**Documents:**
+- `docs/UNDEREXPLORED_RESULTS_2026-10-20.md` (results);
+- `paper/CLAIM_EVIDENCE_MATRIX.md`;
+- `paper/PUBLICATION_STRATEGY.md` (directions, backlog, go/no-go);
+- `paper/MANUSCRIPT_OUTLINE.md`;
+- figures from stored JSON only (`scripts/make_paper_figures_v2.py` →
+  `paper/figures_v2/`).
+
+**Recommendation:** direction E. B's evaluation lessons frame D's finding,
+that the text is legible but not incremental. The fallback is B alone. The
+frozen report is not edited.
+
+**Tests:** 1,105 passed, 3 skipped (30 GPU or integration tests
+deselected), up from 1,074.
+
