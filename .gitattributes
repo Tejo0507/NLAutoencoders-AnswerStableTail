@@ -1,3 +1,11 @@
 # The results release (release/) is built byte-for-byte from these files, and
 # its archive SHA-256 is recorded; a CRLF checkout would change both.
 release/** text eol=lf
+
+# Frozen plans and the replication config are verified by SHA-256 of their
+# bytes before any confirmatory analysis runs (D69, D75, D79, D81-D83); a CRLF
+# checkout would make every one of those gates refuse.
+docs/*_PLAN.md text eol=lf
+docs/*_DESIGN.md text eol=lf
+docs/*_PROTOCOL.md text eol=lf
+configs/replication.yaml text eol=lf
