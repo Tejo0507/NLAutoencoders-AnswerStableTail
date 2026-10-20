@@ -174,3 +174,17 @@ def test_cross_problem_batches_sort_by_length_and_cover_everything():
 def test_blocks_are_descending_and_at_most_four():
     assert blocks([0, 1, 2, 3, 4, 5]) == [[5, 4, 3, 2], [1, 0]]
     assert blocks([3]) == [[3]]
+
+
+def test_block_size_follows_the_traces_stage_rule():
+    from force_all_boundaries import block_size
+    assert [block_size(b) for b in (0, 1, 2, 3, 4, 8)] == [1, 1, 2, 3, 4, 4]
+    assert blocks([0, 1, 2, 3, 4], 2) == [[4, 3], [2, 1], [0]]
+
+
+def test_replication_forces_in_blocks_of_two_and_main_in_blocks_of_four():
+    # D80: completed answers use the block size of the stored ones beside them.
+    from force_all_boundaries import block_size
+    from nlaast import config as config_mod
+    assert block_size(config_mod.load("replication", []).generation.batch_size) == 2
+    assert block_size(config_mod.load("main", []).generation.batch_size) == 4
