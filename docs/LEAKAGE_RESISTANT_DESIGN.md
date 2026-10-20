@@ -289,6 +289,57 @@ setup.
    - **Status:** post hoc everywhere it has been computed. It is specified
      here, before any outcome, for `rep1` and Stage 1, as secondary.
 
-   **What it is not.** Selective risk ignores how much a stop saves. A rule
+   **What it is not.** Selective risk ignores how much a stop saves.
+
+2. **2026-10-20, before any Stage 1 data existed: a power audit, and three
+   design revisions (D85).** No Stage 1 position, verbalisation or forced
+   answer existed. The traces stage was still running (193/400) and no `rep1`
+   outcome had been computed.
+   - **Audit.** `scripts/stage1_power_audit.py` → `runs/stage1_power_audit/power.json`.
+     It simulates the §3.5 analysis with full refits, 10 per cell.
+     - **P1:** menu units with real explanation text.
+     - **P2:** Stage 1's exact sampling (N problems × K uniform boundaries, no
+       menu), with raw trace text standing in for E.
+     - **Labels:** `Y_reg`, `Y_tail` and `Y_commit`, the last a pessimistic
+       stand-in for O256's class balance.
+   - **Findings:**
+
+     | | N × K | median SE | half-width | resolved as equivalent |
+     |---|---|---|---|---|
+     | P1, real text | 200 × 4 | ≤ 0.0022 | ≤ 0.0043 | 100% under every label |
+     | P2, `Y_reg` | 200 × 4 | 0.0029 | 0.0058 | **40%** |
+     | P2, `Y_reg` | 250 × 4 | 0.0024 | 0.0047 | 50% |
+     | P2, `Y_reg` | 250 × 8 | 0.0021 | 0.0041 | 80% |
+
+     - The spread of Δ̂ across refits and samples is at or below the median
+       bootstrap SE, so the problem-cluster bootstrap is not over-confident.
+     - More problems help more than more points per problem (200 × 8 ≈
+       250 × 4).
+     - The failures at 200 × 4 come from a small out-of-sample penalty
+       (Δ ≈ −0.006 for raw text), which puts the CI across −0.01.
+   - **Revisions:**
+     1. **N: every ok `rep1` problem, up to 400** (at least 300), with K = 4,
+        in place of the first 200. Positions are drawn only once the traces
+        stage is complete. Extrapolated half-width under P2: about 0.0037.
+        Cost: about 8–12 GPU-hours.
+     2. **Decision rule (§3.5): readings from the 95% CI, TOST-style.** The
+        first version checked "probe better" before equivalence, so a
+        significant but negligible negative Δ would have been mislabelled.
+
+        | CI | reading |
+        |---|---|
+        | lower > +0.01 | practically relevant increment |
+        | > 0, inside the margin | detectable but negligible increment |
+        | < 0, inside the margin | text slightly worse; no practically relevant difference |
+        | contains 0, inside the margin | equivalent within ±0.01 |
+        | upper < −0.01 | probe practically better |
+        | anything else | inconclusive |
+
+     3. **Attrition gate (§3.9):** at least 75% of the drawn positions need a
+        passing verbalisation, in place of an absolute 600.
+   - **Frozen now:** the code (`scripts/stage1_offmenu.py`, tests in
+     `tests/test_stage1_positions.py`). It was run end to end on a scratchpad
+     fixture of `main`'s menu chunks, giving Δ₁ −0.0007 [−0.004, 0.003].
+     That is a code test, not a result. A rule
    can have low selective risk by stopping only at the very end. The two
    numbers are reported together and never ranked as one.

@@ -3339,3 +3339,67 @@ frozen report is not edited.
 **Tests:** 1,105 passed, 3 skipped (30 GPU or integration tests
 deselected), up from 1,074.
 
+## D85. Runbook gates fixed; the extended-forcing code audited; Stage 1 approved as revised
+
+**Recorded 2026-10-20, about 13:00–15:00 IST. The `rep1` traces process
+(PID 27992) was never touched.** It was at 193/400, all ok, in the frozen
+order, with no error lines; plan, config and problem hashes unchanged.
+
+**1. Two runbook gate defects, fixed before they could act.**
+- The acts gate read `total_clamped_positions` at the top level of
+  `acts/summary.json`. It sits under `alignment`, so the gate would have
+  halted the runbook after acts even on a good run.
+- The baselines gate tested for `probe.json`, which `score_baselines.py`
+  writes even when the probe is skipped. It now reads the manifest's rule
+  list.
+- Every gate now passes on `main`'s finished artifacts and fails on a missing
+  run.
+- The waiting runbook was replaced. Only its own processes were stopped.
+  `rep1_runbook.py`: `5da4593c…11a7`.
+
+**2. The extended-forcing code, audited against its frozen plan** (D82
+deviation 1; plan as amended `027f1bc0…d555`).
+- **Gaps closed:**
+  - the information audit under O256 was missing;
+  - §4.5's split by position covered only one side;
+  - the `f` statistic read a stored flag instead of recomputing.
+- **Checks, all exact:**
+  - the identity fixture reproduces O48 and the registered analysis;
+  - a final-answer fixture reproduces D79's independently computed
+    committed-to-final scenario (B\* 0.6058 and every gap and CI);
+  - the O256 information path reproduces all 12 stored D81 contrasts.
+- `extended_forcing_analysis.py`: `849d8674…869a`;
+  `information_audit.py`: `7b26afe8…8d56`.
+
+**3. Stage 1: power audit and decision** (D83 deviation 2; design as amended
+`2bb536f2…7756`).
+- `scripts/stage1_power_audit.py` → `runs/stage1_power_audit/power.json`
+  (`85300f39…18a1`), stored data only.
+- With real explanation text, 200 × 4 resolves equivalence in 100% of
+  simulations.
+- Under Stage 1's exact sampling, with raw text standing in, only 40% resolve
+  at 200 × 4, against 80% at 250 × 8. The cause is a small out-of-sample
+  penalty that puts the CI across the margin.
+- The bootstrap is not over-confident: the spread across refits is at or
+  below the bootstrap SE.
+
+**Decision: Stage 1 is approved and will run, revised before any Stage 1 data
+existed:**
+- every ok `rep1` problem (up to 400) × 4 positions;
+- TOST-style readings, because the first rule could call a negligible,
+  significant negative Δ "probe better";
+- an attrition gate of 75% of drawn positions.
+
+The cost is about 8–12 GPU-hours, all local. `stage1_offmenu.py`:
+`9c9a3c2f…bf01`.
+
+**4. Order after `rep1`** (`scripts/post_rep1_queue.py`, `8a1d29f3…16a4`;
+it waits for the runbook and refuses to start unless D75's analysis exists
+unblocked):
+1. D82 on `main_nla240`;
+2. the `rep1` secondaries (CPU);
+3. D82 on `rep1`;
+4. Stage 1.
+
+It stops at the first failed step.
+
