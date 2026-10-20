@@ -3248,3 +3248,40 @@ tokens"; ≤ 0.20, "registered reading supported"; otherwise "mixed".
 
 Neither is part of `scripts/rep1_runbook.py`.
 
+## D83. A leakage-resistant design: Stage 0 on stored data, Stage 1 for review
+
+**Recorded 2026-10-20.** The design is `docs/LEAKAGE_RESISTANT_DESIGN.md`,
+SHA-256 `b26f902d…8a17`
+(`b26f902d2169acf053b75cedb4e5b6c972c290f7819bbedad45eadffe8a08a17`).
+
+**The leak it removes.** Design A's menu always contains `i* − 1` and `i*`,
+because the matched-position window ends just before the tail start and the
+tail window starts at it. Every rule evaluated there is told where the
+outcome changes.
+
+**Stage 0** (stored data; CPU; exploratory; frozen before it was computed):
+- every chunk boundary of `main`'s 250 traces is a unit;
+- this is possible because `main_forced` completed O48 at every boundary;
+- it measures position, the registered probe, a same-label activation probe
+  and the raw trace text, as information and as stopping policies against
+  no signal and the oracle;
+- it has no NLA, which exists only on the menu.
+
+**Stage 1** (new GPU work; **not run**):
+- 200 `rep1` problems, with 4 boundaries each drawn by a seeded rule that
+  reads only the number of chunks;
+- verbalisation, reconstruction and 256-token forcing at each;
+- primary estimand: Δ₁ = AUC(`pos+A+E`) − AUC(`pos+A`), with an equivalence
+  margin of 0.01;
+- an estimated 4–6 GPU-hours.
+
+It waits for three things: D75's analysis, D82's `rep1` pass and the `rep1`
+information audit, and the researcher's review.
+
+**A cost fact recorded with it.** On `main_nla240`, a verbaliser sample is
+134 tokens on average (median 135, none at the 256 cap). A mean trace is 325
+tokens. One check of 2 samples therefore costs 0.83 of a trace before
+reconstruction. An online rule that verbalises at each candidate cannot save
+compute on this setup. Stage 1 is an information test, not an efficiency
+test.
+
