@@ -18,11 +18,20 @@ The interventions:
 | ``truncate`` | stop generating at the tail start | the behavioural upper bound on what the tail contributes |
 | ``filler`` | replace tail text with neutral filler of matched token length | token count, as distinct from tail content |
 | ``ablate_dir`` | project the candidate tail direction out of the layer-K residual stream over the tail span | the hypothesis under test |
-| ``random_dir`` | project out a random direction of matched norm | that *any* rank-1 edit of this size would do it |
+| ``random_dir`` | project out a random *unit* direction at the same coefficient | that *any* rank-1 projection would do it |
 | ``matched_position`` | ``ablate_dir`` applied to the pre-stabilisation window | that the direction is about the tail, not about late positions |
 
 The candidate direction is fitted on the **training split only**. Fitting it on
 the problems it is then evaluated on would make the whole exercise circular.
+
+**``random_dir`` is matched on the direction's norm, not on the edit's.**
+Both directions are unit vectors, so the same coefficient removes ``|h . u|``,
+and that depends on how the direction sits against the activations. On
+``main``'s layer-20 eval activations the candidate removes 21.8% of an
+activation's norm per position and a random direction 1.1%, a 19-fold
+difference (D68). A candidate that beats this control has therefore not been
+shown to beat an edit of the same size. ``docs/RQ3_FOLLOWUP_DESIGN.md``
+specifies a control matched on edit size.
 """
 
 from __future__ import annotations
@@ -146,15 +155,24 @@ def projection_editor(
         proj = (seg @ d_t).unsqueeze(-1) * d_t
         out[:, lo:hi, :] = seg - coefficient * proj
         state["edited"] += hi - lo
+        # How much the edit removed, so a control can be shown to match it in
+        # size rather than only in direction norm (D68, D74). Bookkeeping
+        # only: the edit itself is unchanged.
+        state["removed"] += float((coefficient * proj).float().norm(dim=-1).sum())
         edit.n_positions_edited = state["edited"]
+        edit.removed_norm_sum = state["removed"]
         return out
 
     def reset() -> None:
         state["seen"] = 0
         state["edited"] = 0
+        state["removed"] = 0.0
         edit.n_positions_edited = 0
+        edit.removed_norm_sum = 0.0
 
+    state["removed"] = 0.0
     edit.n_positions_edited = 0
+    edit.removed_norm_sum = 0.0
     edit.reset = reset
     return edit
 
