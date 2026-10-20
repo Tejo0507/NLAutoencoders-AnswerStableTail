@@ -91,7 +91,11 @@ def steps(stage1: bool):
         for sub in ("positions", "verbalise", "reconstruct", "force", "analyse"):
             out.append((f"stage1_{sub}", py + [s("stage1_offmenu.py"), sub],
                         (lambda sub=sub: _ok_json(R / "rep1_stage1" / "analysis.json")
-                         if sub == "analyse" else None)))
+                         if sub == "analyse" else
+                         # reconstruction is not resumable: only its end-of-phase
+                         # summary means it finished, so a re-run skips it then
+                         _ok_json(R / "rep1_stage1" / "reconstruct_summary.json")
+                         if sub == "reconstruct" else None)))
     # D87 (approved 2026-10-20): fresh-data work first; the exploratory D82
     # pass on already-seen main_nla240 runs last. No method or rule changes.
     first = [x for x in out if not x[0].endswith("_main_nla240")]
@@ -130,7 +134,8 @@ def main() -> int:
     env = {**os.environ, "PYTHONUTF8": "1", "OMP_NUM_THREADS": "2"}
     for name, cmd, gate in plan:
         done = gate() is None if name not in ("stage1_positions",) else (R / "rep1_stage1" / "positions.jsonl").exists()
-        if done and name not in ("stage1_verbalise", "stage1_reconstruct", "stage1_force"):
+        # verbalise and force resume per item, so they always re-enter (cheap)
+        if done and name not in ("stage1_verbalise", "stage1_force"):
             print(f"{name}: already done")
             continue
         print(f"{time.strftime('%H:%M:%S')} {name}", flush=True)
