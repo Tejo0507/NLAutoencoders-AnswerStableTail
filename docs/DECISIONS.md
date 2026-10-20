@@ -3490,3 +3490,32 @@ or changed.
 - No gate reads this hash. Stage 1 records it as provenance when its
   positions are drawn, which has not happened yet.
 
+## D89. A GPU memory spill caused by another application, removed with approval
+
+**Recorded 2026-10-21 about 02:00 IST.**
+- **The symptom.** After the laptop restarted, rep1 resumed correctly (261
+  done, 139 to do) but ran at 1,274 s, 597 s and 1,280 s per trace, against
+  about 89 s after the previous resume.
+- **The cause.** Windows GPU process counters showed the traces process
+  with 5,222 MiB in dedicated VRAM and **770 MiB spilled into shared system
+  memory**. `HP.OMEN.VadRedirectHelper` (OMEN Command Center) held 567 MiB of
+  dedicated VRAM; its parent `OmenCommandCenterBackground.exe` respawned it
+  when it was stopped. GPU power was 29 W at 100% utilisation, with no
+  throttling, on AC: memory-bound.
+- **What was done, with the researcher's approval:**
+  1. The OMEN background process and its two helpers were stopped. The
+     system service was left alone.
+  2. `safe_stop.ps1` stopped the traces stage just after trace 264 was
+     flushed.
+  3. With 0 MiB in use, `resume_rep1.py` was relaunched.
+
+  After the restart the process holds 5,895 MiB dedicated and 168 MiB
+  shared.
+- **Data.** 264 rows, all ok, in the frozen order, last line complete. The
+  only loss is the in-progress problem 265, which is redone.
+- **Safeguard.** `resume_rep1.py` now warns, read-only, if any other process
+  holds over 100 MiB of GPU memory before it launches anything. OMEN Command
+  Center may start again at the next boot.
+- **Not a deviation.** Same config, same problems, same order; only the
+  speed changed.
+
