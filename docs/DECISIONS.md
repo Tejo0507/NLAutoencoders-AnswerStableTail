@@ -3133,3 +3133,67 @@ reanalyse_o3_registered.py --config replication --forced-dir runs/rep1_forced \
 position_truncation_audit.py --config replication --forced-dir runs/rep1_forced --confirmatory
 ```
 
+## D81. An information audit of the readout, specified before it was computed
+
+**Recorded 2026-10-20T05:00Z (10:30 IST).** The plan is
+`docs/SUPPLEMENTARY_INFORMATION_PLAN.md`, SHA-256 `acba5597…2aad`
+(`acba5597b5f36f5f3cb034114e499ad25317362530bc17ee1daf0c823d3c2aad`).
+None of its quantities had been computed on any run, and `rep1` had no
+outcome.
+
+**Why.** D79 showed that the registered O3 estimand rewards abstention plus
+a few very early stops. Whether the readout *contains* information about the
+model's state is a different question, and it was never asked directly. The
+plan asks it, using cheaper information sources as controls:
+- **Q1:** does the readout's score predict a menu chunk's safety beyond
+  position and the probe?
+- **Q2:** does the explanation *text* add anything beyond the trace text the
+  model has already written?
+- **Q3:** does the text name the final answer before the trace writes it?
+  The test is against a cross-problem null.
+
+The plan uses grouped cross-validation, a problem-cluster bootstrap, and
+Holm correction over the three primaries.
+
+**Status.**
+- `main_nla240`: primary for the plan, but exploratory, because its other
+  results were known.
+- `rep1`: pre-specified and secondary to D75. It is computed only after
+  D75's confirmatory analysis exists, and serves as the independent test.
+
+Every result is about information at the menu's outcome-selected points. It
+says nothing about a deployable rule. The registered O3 test, D69 and D75 are
+unchanged.
+
+**Run on `main_nla240` and `main`, 2026-10-20 (exploratory; CPU only).**
+Results: `runs/main_nla240_information/`, `runs/main_information/` and
+`docs/UNDEREXPLORED_RESULTS_2026-10-20.md`. Plan as amended (deviations 1–2,
+both post hoc): `c8aabc93…1b34`. Primary run `main_nla240`: 1,206 menu
+chunks, 240 problems.
+- **Q1: the readout score adds nothing** beyond position and the probe:
+  −0.001 [−0.002, −0.000], *no practically relevant increment*. It is not
+  noisy: its two samples correlate 0.94.
+- **Q2: the explanation text adds +0.073 AUC** [0.058, 0.087] beyond
+  position and the last 600 characters of the trace (*increment detected*).
+  - It survives the multiplicity check (+0.073) and the whole prefix as
+    control (+0.078). The noise-text null is −0.003.
+  - Its heaviest terms name the reasoning phase: "final answer",
+    "concluding", "therefore" against "first", "let's", "expecting
+    continuation".
+- **But a linear probe on the same layer-20 activation, trained for the
+  same label, is better** (deviation 1, post hoc):
+  - AUC 0.889 against 0.860 on registered safety, and 0.948 against 0.917 on
+    tail membership;
+  - the text adds nothing to it: −0.001 [−0.004, 0.002] and −0.000
+    [−0.002, 0.001];
+  - an unfitted ensemble of the two is no better than the probe alone
+    (deviation 2).
+- **Q3: no latent answer.** Before the trace writes the final answer, the
+  explanations name it no more often than another problem's answer: 3.1%
+  against 4.0%, −0.010 [−0.022, 0.004].
+- **`main` (120)** agrees on every point.
+
+**Reading.** The verbaliser makes legible a reasoning-phase signal that is
+linearly present in its own input. On these data it is an interpretable view
+of the activation, not an additional source of information.
+
