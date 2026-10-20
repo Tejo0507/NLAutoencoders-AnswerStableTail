@@ -3403,3 +3403,69 @@ unblocked):
 
 It stops at the first failed step.
 
+## D86. rep1 paused cleanly at 231/400 because the machine must shut down
+
+**Recorded 2026-10-20 17:35 IST.** The researcher could not keep the laptop
+on overnight.
+
+**What was found.**
+- The traces stage resumes per problem, with per-problem seeds, so a resumed
+  problem regenerates identically.
+- A truncated last line is dropped and redone.
+- A problem that raises an exception is written as a permanent `ok: false`
+  row. Leaving the job running through sleep therefore risks writing CUDA
+  errors after the wake into the replication as failed problems.
+
+**What was done.**
+1. The two waiting orchestrators (runbook, queue) were stopped. Neither had
+   launched anything; both log directories were empty.
+2. The traces process was terminated 1 s after trace 231 was flushed
+   (17:32:16). The only loss is the partly generated problem 232.
+
+**Verified.**
+- 231 rows, all ok, no failure rows, a complete last line, an exact prefix of
+  the frozen order;
+- plan, config and problem hashes unchanged;
+- the GPU idle.
+
+**Not a deviation.** D75 §5 lets generation stop and continue. The same
+config resumes the same problems in the same order, and no outcome was
+computed during the pause.
+
+**Resume:** `scripts/resume_rep1.py` (one command); pause:
+`scripts/safe_stop.ps1`. See `docs/RESUME_2026-10-20.md`.
+
+## D87. Resumed; queue reordered for time; claims about the explanations stay string-level
+
+**Recorded 2026-10-20 18:05 IST, with the researcher's approval** (plan:
+`docs/TIME_PLAN_2026-10-20.md`).
+
+**Resumed.** `resume_rep1.py` restarted the traces stage at 17:37. It
+reported "231 already done, 169 to do", and the first new trace was the
+expected `math-algebra-test-00942`, ok, in order. It now runs at about 89 s
+per trace, against about 285 s before the pause. That is consistent with the
+long-running process having spilled GPU memory (D78). `resume_rep1.py` holds
+a per-process wake request (`SetThreadExecutionState`). No power setting
+was changed.
+
+**Reordered.** After D75 and D79, the queue now runs:
+1. the rep1 CPU secondaries;
+2. D82 on rep1;
+3. Stage 1;
+4. D82 on `main_nla240`, last.
+
+D82 §6 had listed `main_nla240` first. This is an order of runs only: no
+method, sample size, decision rule or registered quantity changes, and every
+item still runs. `main_nla240`'s pass is exploratory on already-seen data;
+rep1's is pre-specified on fresh data. The edit is to `post_rep1_queue.py`,
+which the running `resume_rep1.py` launches only after D75. The traces
+stage was not touched.
+
+**Explanations: string-level claims only.** The researcher declined a human
+rating of the phase lexicon. The paper therefore claims only that
+explanation text carries string-level predictive information. It makes no
+semantic or faithfulness claim.
+
+**Primary result expected** at about 01:00–05:00 on 21 October. The range
+comes mainly from the nla stage's speed.
+

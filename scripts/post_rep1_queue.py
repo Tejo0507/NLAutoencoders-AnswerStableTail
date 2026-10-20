@@ -92,7 +92,11 @@ def steps(stage1: bool):
             out.append((f"stage1_{sub}", py + [s("stage1_offmenu.py"), sub],
                         (lambda sub=sub: _ok_json(R / "rep1_stage1" / "analysis.json")
                          if sub == "analyse" else None)))
-    return out
+    # D87 (approved 2026-10-20): fresh-data work first; the exploratory D82
+    # pass on already-seen main_nla240 runs last. No method or rule changes.
+    first = [x for x in out if not x[0].endswith("_main_nla240")]
+    last = [x for x in out if x[0].endswith("_main_nla240")]
+    return first + last
 
 
 def pid_alive(pid: int) -> bool:
