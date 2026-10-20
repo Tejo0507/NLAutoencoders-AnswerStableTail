@@ -73,7 +73,15 @@ def other_gpu_memory() -> list[tuple[str, int]]:
     return found
 
 
+#: D90: return cached GPU blocks before the 6.1 GB card fills. Without it the
+#: model's KV caches pushed it into shared system memory (memory-bound at
+#: ~29 W, 1.2-1.5 s/token); with it, 66 W and ~0.2 s/token. The allocator
+#: option changes no kernel, seed or result.
+ALLOC_CONF = "garbage_collection_threshold:0.8"
+
+
 def main() -> int:
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", ALLOC_CONF)
     keep_awake()
     others = other_gpu_memory()
     if others:

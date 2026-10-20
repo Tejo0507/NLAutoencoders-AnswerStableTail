@@ -3519,3 +3519,33 @@ or changed.
 - **Not a deviation.** Same config, same problems, same order; only the
   speed changed.
 
+## D90. A PyTorch allocator setting removes the remaining spill (approved engineering change)
+
+**Recorded 2026-10-21 about 02:50 IST.**
+- **The problem remained.** With OMEN gone, traces still ran at 322–881 s
+  (1.49 s/token). The process alone filled the card: 5,799 MiB dedicated,
+  with shared memory growing to 304 MiB as the KV caches expanded.
+- **Every process followed the same pattern.**
+
+  | phase | s/token |
+  |---|---|
+  | first 100 traces | 0.36 |
+  | traces 101–231 | 1.16 |
+  | first resume | 0.38 |
+
+  So the caching allocator's held blocks pushed the process over the card's
+  edge.
+- **The change**, approved by the researcher. After `safe_stop.ps1` (269 rows,
+  all ok, in order), the run was relaunched with
+  `PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.8`, which makes
+  PyTorch return cached blocks before the card fills.
+- **The effect:** 70, 55 and 39 s for the first three traces, about
+  0.2 s/token. Shared usage fell to 78 MiB, and the GPU drew 66.7 W against
+  about 29 W: compute-bound again.
+- **What it does not change:** kernels, seeds, batch sizes, budgets,
+  problems and order. It is an engineering setting like D78's batch size,
+  outside the measurement.
+- `resume_rep1.py` now sets it by default, so later stages and manual
+  restarts inherit it.
+- Whether the speed holds over hours is checked as the run continues.
+
