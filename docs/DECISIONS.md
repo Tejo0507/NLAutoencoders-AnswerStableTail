@@ -3083,3 +3083,53 @@ beyond its traces stage.** Both items need a decision before
    measures exactly this, so the analysis is protected, but the record and
    the code disagree.
 
+## D80. `rep1`'s forcing: blocks of 2, and 200 re-forced boundaries
+
+**Recorded 2026-10-20 at 10:30 IST, with `rep1` at 166 of 400 traces.** No
+`rep1` forced-answer completion, safety label or analysis existed. The
+traces process (PID 27992) was not touched. This settles D79's two open
+items.
+
+1. **Block size: 2, from the config.** `force_all_boundaries.py` now takes the
+   traces stage's rule, `block_size(batch_size) = max(1, min(4, batch_size))`,
+   instead of a hardcoded 4.
+   - `rep1` (batch 2, D78) completes its answers in blocks of 2, as its stored
+     answers were made. `main` stays at 4, so the D69 completion is unchanged:
+     the dry run still gives 1,236 missing boundaries and 68,928 tokens.
+   - The block size is now one of the provenance fields the script refuses
+     to mix in one output file.
+   - D78 already said forcing blocks become 2, so this corrects the code to
+     the plan, not the plan to the code. Larger forcing blocks are not used:
+     D77 measured them 3–7× slower on this card.
+   - Tests: `test_block_size_follows_the_traces_stage_rule` and
+     `test_replication_forces_in_blocks_of_two_and_main_in_blocks_of_four`.
+2. **Re-forced sample: 200, a recorded deviation from the plan's 100**
+   (`REPLICATION_PLAN.md`, deviation 2).
+   - The threshold stays at 0.95. A larger sample makes the gate right more
+     often on either side of it.
+   - At `main`'s measured agreement (0.97), the binomial probability of a
+     spurious block is 0.081 at n = 100 and 0.040 at n = 200.
+   - At a true 0.93, it catches the failure with probability 0.83 at n = 200,
+     against 0.71 at n = 100.
+   - The cost is about 3 GPU-minutes.
+
+**Hashes:**
+- plan as amended (deviations 1–2): `e45629a7…0761`
+  (`e45629a7914fb4c8eefc95758014a72ab7af53c363e670c862f441c886a60761`);
+- `force_all_boundaries.py`: `6cf14dee…0c08`;
+- frozen plan (D75) and config (D78): unchanged.
+
+**Commands for `rep1`, in order** (`scripts/rep1_runbook.py` runs them with a
+gate between each):
+
+```
+detect_answer_stable_tail.py --config replication --sweep
+extract_activations.py --config replication --layers 14 20 24
+score_baselines.py --config replication
+run_autoencoder.py --config replication
+force_all_boundaries.py --config replication --menu-only --n-repro 200
+reanalyse_o3_registered.py --config replication --forced-dir runs/rep1_forced \
+    --confirmatory docs/REPLICATION_PLAN.md --plan-sha256 e45629a7…0761
+position_truncation_audit.py --config replication --forced-dir runs/rep1_forced --confirmatory
+```
+
