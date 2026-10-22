@@ -39,6 +39,52 @@ in `paper/CLAIM_EVIDENCE_MATRIX.md`.
      - matched-mean-saving estimands that reward abandoning problems;
      - short forced-answer budgets that are reliable but invalid.
 
+### Contribution statement (draft, 2026-10-20; conditional on the pending results)
+
+Prior work already establishes four things (`docs/NOVELTY_REVIEW_2026-10-20.md`):
+- stopping signals should be charged for their compute and compared at
+  matched risk (LearnStop; Thought Calibration);
+- hidden-state probes predict intermediate correctness (2504.05419);
+- verbalizer evaluations need input and probe controls (Li et al., ICML 2026);
+- truncate-and-answer reveals when answers commit (Lanham et al. 2023 and its
+  successors).
+
+**This paper does not claim any of these.** It claims:
+1. **A measured validity problem in the forced-answer instrument itself.**
+   With a 48-token budget, the setting a 2026 early-exit method also uses,
+   54–57% of pre-tail forced answers are cut off. They are reproducible but
+   disagree with the model's own continuations 98–99% of the time. A
+   256-token re-forcing shows how much this changes stopping conclusions
+   [D82, pending].
+2. **Two evaluation choices that can manufacture a stopping advantage,
+   each demonstrated with a control:**
+   - Candidate points chosen from the outcome: a rule using no readout
+     matches the NLA [D79].
+   - A matched-mean-saving estimand that counts abstention as safe: an
+     information-free rule beats an AUC-0.86 probe, at every boundary,
+     without the menu [D83 Stage 0].
+   - Selective risk reverses the rankings in both cases.
+3. **The first incremental-value test of NLA verbalisations for
+   reasoning-state information, against a same-activation, same-label
+   probe.** The control is Li et al.'s.
+   - The text carries phase information beyond the raw input text (+0.073
+     AUC).
+   - It carries none beyond the probe: −0.001 [−0.004, 0.002] on the menu,
+     [rep1 replication and Stage 1 off the menu, pending].
+
+The claims are bounded to one target model and one released NLA, and to
+string-level predictive content. There is no faithfulness claim (D87).
+
+### Anticipated objections and where each is answered
+
+| objection | answer in the paper | evidence |
+|---|---|---|
+| not novel | The contribution statement above. General ideas are credited, and only the three specific findings are claimed. Novelty is stated as "to our knowledge", after a full-text review | `NOVELTY_REVIEW` |
+| unfair stopping comparison | Every estimand is reported side by side: registered (authoritative), selective risk, position controls, no-menu Stage 0, O48 against O256, registered against net savings. No ranking rests on one estimand | D79, D83, D82; rep1 pre-specified |
+| explanations not faithful | No faithfulness or semantic claim. The lexicon is predictive string content, in a separate section, tested out of sample on rep1 | D81 deviation 3, D87 |
+| one model / dataset | Claims limited to Qwen2.5-7B-Instruct with its released L20 NLA. Rep1 gives 400 unseen problems; GSM8K and MATH are reported separately | limitations §9 |
+| weak implementation | Fidelity: cosine 0.875 against a 0.39 noise floor; FVE 0.696 against the card's 0.752; integrity 92%; sample agreement 0.94. Strong baselines. The conclusion is limited to "what linear and TF-IDF models can extract" | `runs/main_nla240/nla/summary.json`; D81 Q5 |
+
 ## 2. Related work
 
 - Probe-based and training-free early exit: self-verification probes, LYNX,

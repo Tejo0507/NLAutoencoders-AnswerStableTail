@@ -24,6 +24,17 @@ how `rep1` and the D82 forcing pass could change it.
 | **D.** What NLA verbalisations carry about reasoning state, against cheap probes | NLA text legibly encodes reasoning phase, but carries no information a linear probe on the same activation lacks, and an online check costs nearly a trace | High for the interpretability audience: NLAs are new (Anthropic, 2026), and an incremental-value test against same-activation probes is the obvious skeptical question | C1–C5, D2 on stored data, with tight intervals | `rep1` replication (pre-specified); Stage 1 off the menu (4–6 GPU-hours) | One NLA pair and layer; TF-IDF featurisation; menu-only so far | Yes with Stage 1; without it, a reviewer will ask about the menu |
 | **E.** Combined: B as the frame, D as the case study, A's negative result inside it | "Evaluating whether verbalised activations help a model know when it is done: what the readout carries, what cheap probes carry, and how evaluation choices decide the answer" | Union of B and D | All of the above | `rep1`, D82, Stage 1 | Length and focus. It must not read as a list of failures | Yes |
 
+**Novelty update (2026-10-20, `docs/NOVELTY_REVIEW_2026-10-20.md`):**
+- Two general lessons are **already published**: charge the signal's
+  compute, and compare at matched risk (LearnStop, arXiv 2606.30852; Thought
+  Calibration, EMNLP 2025).
+- Direction B's novel core narrows to three specific failure modes:
+  outcome-derived candidate points, the matched-mean-saving/abstention
+  artefact, and forced-answer budget validity.
+- Direction D's closest neighbour is Li et al., ICML 2026, on verbalizers
+  conveying privileged information. Our same-activation, same-label probe
+  control extends theirs.
+
 ## 3. Recommendation
 
 **Primary: E, framed around D's question and B's lessons.**
