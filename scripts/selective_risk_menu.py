@@ -15,7 +15,6 @@ Writes ``runs/<run_id>_selective/selective_menu.json`` and refuses to replace it
 
 from __future__ import annotations
 
-import json
 import logging
 import sys
 from pathlib import Path
