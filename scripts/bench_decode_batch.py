@@ -9,7 +9,6 @@ the same prompts. Writes ``runs/bench_decode_batch/results.json``.
 
 from __future__ import annotations
 
-import json
 import sys
 import time
 
