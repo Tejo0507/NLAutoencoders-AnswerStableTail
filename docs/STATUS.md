@@ -1,7 +1,32 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-17.
+Last reviewed 2026-10-22.
+
+> **Update 2026-10-22: the confirmatory replication (D75) is half-way
+> through its pipeline. Its verdict is not known.** Everything below this
+> block is the 2026-10-17 state and stays as written. Records: D75–D91 in
+> `docs/DECISIONS.md`.
+>
+> | milestone | state (verified 2026-10-22) |
+> |---|---|
+> | **A. Traces** | **Complete:** 400 rows, 400 ok, 400 unique ids, exact frozen order. Plan `e45629a7…`, config `d31383f6…` and problems `e633885f…` hashes match. 17 hit the 768-token cap (all MATH, all with a parsed answer); AST gives 15 of them no stable point, and 2 keep a flagged tail. 380/400 have a tail, against the plan's 200 minimum |
+> | ast, acts, baselines | **Complete**; the runbook gates pass (1,200 activation blocks, 0 clamped; probe present) |
+> | **B. NLA verbalisation** | **Running** (`run_autoencoder.py --config replication`). Interrupted at 558/2,227 windows when the machine went off, then resumed at 559 with the partial file verified (D91). Reconstruction follows |
+> | **C. Menu forcing** | Pending: the registered **48-token** instrument, blocks of 2, 200 re-forced boundaries, agreement ≥ 0.95, else blocked (D80) |
+> | **D. D75 confirmatory analysis** | Pending: `reanalyse_o3_registered.py --confirmatory docs/REPLICATION_PLAN.md --plan-sha256 e45629a7…0761`. H1 readout − layer-20 probe; H2 readout − no signal; mean safe-rate gap over 0.1–0.9 × B\*, paired problem bootstrap (2,000, seed 20261019), Holm over {H1, H2}, margin 0.05, mechanical readings. **The registered 48-token outcome decides it** |
+> | **E. D79 position/leakage audit** | Pending; runs right after D. It is secondary and does not enter the verdict, but it says whether a positive H2 reflects content or the menu's position structure (on stored data a rule with no readout matched the readout) |
+> | **F. Follow-ups**, in the D87 order | Pending: rep1 secondaries (#29) → D82 256-token forcing on rep1 (#28) → Stage 1 (#30) → D82 on `main_nla240`. All are pre-specified or exploratory; none replaces the registered outcome |
+> | **G. Manuscript** | Drafts merged (#37), with provisional novelty (#31). No faithfulness claim. Results sections wait for D–F |
+>
+> **To continue after any interruption** (quit OMEN Command Center first;
+> D89):
+> `.venv\Scripts\python.exe scripts\resume_rep1.py`. To pause:
+> `scripts\safe_stop.ps1`. See `docs/RESUME_2026-10-20.md`.
+>
+> **Repository:** the research stack #33–#37 is merged into `main` (D91
+> records the review). The working checkout that runs the pipeline stays on
+> its branch until the pipeline finishes.
 
 > **Update 2026-10-17 — the main run is complete.** 250 traces (0 failed,
 > 250 unique ids), then every post-trace stage: `ast`, `acts` (750 blocks, 0
