@@ -90,11 +90,17 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
 - **Registered report:** complete (2026-10-19), frozen at `32b5539`, with its
   run artifacts published as a GitHub release. The Zenodo deposit is
   prepared but not made, so there is no DOI yet.
-- **Confirmatory replication (D75, 400 fresh problems): in progress.**
-  - Traces are complete and validated, and the activation verbaliser has
-    run on every window.
-  - The registered 48-token analysis has **not** run yet, so there is no
-    verdict.
+- **Confirmatory replication (D75, 400 fresh problems): registered verdict
+  computed (2026-10-22, D94).** Follow-ups are still running.
+  - On the registered 48-token outcome (380 problems), both hypotheses are
+    **supported**:
+    - H1, readout − layer-20 probe: +0.047 [0.019, 0.075], Holm p 0.002;
+    - H2, readout − no signal: +0.057 [0.039, 0.076], Holm p 0.001.
+  - **The position audit (D79) qualifies this.** A rule that uses only the
+    token position does better than the readout (+0.025). With its position
+    trend removed, the readout does not beat no signal. Whether the
+    advantage comes from the explanations' content is **unresolved**. No
+    faithfulness claim is made.
   - Live state and next steps: [`docs/STATUS.md`](docs/STATUS.md).
   - Resume procedure: [`docs/RESUME_2026-10-20.md`](docs/RESUME_2026-10-20.md).
 
