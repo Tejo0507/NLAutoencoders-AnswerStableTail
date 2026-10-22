@@ -3,8 +3,8 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-22.
 
-> **Update 2026-10-22: the confirmatory replication (D75) is half-way
-> through its pipeline. Its verdict is not known.** Everything below this
+> **Update 2026-10-22 (paused at 16:43): the confirmatory replication (D75)
+> is past traces and verbalisation. Its verdict is not known.** Everything below this
 > block is the 2026-10-17 state and stays as written. Records: D75–D91 in
 > `docs/DECISIONS.md`.
 >
@@ -12,7 +12,7 @@ Last reviewed 2026-10-22.
 > |---|---|
 > | **A. Traces** | **Complete:** 400 rows, 400 ok, 400 unique ids, exact frozen order. Plan `e45629a7…`, config `d31383f6…` and problems `e633885f…` hashes match. 17 hit the 768-token cap (all MATH, all with a parsed answer); AST gives 15 of them no stable point, and 2 keep a flagged tail. 380/400 have a tail, against the plan's 200 minimum |
 > | ast, acts, baselines | **Complete**; the runbook gates pass (1,200 activation blocks, 0 clamped; probe present) |
-> | **B. NLA verbalisation** | **Running** (`run_autoencoder.py --config replication`). Interrupted at 558/2,227 windows when the machine went off, then resumed at 559 with the partial file verified (D91). Reconstruction follows |
+> | **B. NLA stage** | **Verbalisation complete:** 2,227/2,227 windows, 4,439/4,454 samples passing integrity (99.7%). **Reconstruction not complete:** the pipeline was paused at 16:43 on 2026-10-22 at 2,000/2,227 reconstructions (D92). Reconstruction writes its output only at the end, so it reruns in full (about 1.3 h) on resume; verbalisation is not repeated |
 > | **C. Menu forcing** | Pending: the registered **48-token** instrument, blocks of 2, 200 re-forced boundaries, agreement ≥ 0.95, else blocked (D80) |
 > | **D. D75 confirmatory analysis** | Pending: `reanalyse_o3_registered.py --confirmatory docs/REPLICATION_PLAN.md --plan-sha256 e45629a7…0761`. H1 readout − layer-20 probe; H2 readout − no signal; mean safe-rate gap over 0.1–0.9 × B\*, paired problem bootstrap (2,000, seed 20261019), Holm over {H1, H2}, margin 0.05, mechanical readings. **The registered 48-token outcome decides it** |
 > | **E. D79 position/leakage audit** | Pending; runs right after D. It is secondary and does not enter the verdict, but it says whether a positive H2 reflects content or the menu's position structure (on stored data a rule with no readout matched the readout) |
