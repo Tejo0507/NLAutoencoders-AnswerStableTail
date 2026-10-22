@@ -3620,3 +3620,29 @@ functions:
 **400/400 traces is not a completed replication.** The nla stage, menu
 forcing, and the D75 confirmatory analysis (H1, H2) are pending.
 
+## D92. rep1 paused after verbalisation, during reconstruction
+
+**Recorded 2026-10-22 16:45 IST.** The researcher had to shut the machine
+down and asked for the pipeline to be stopped immediately.
+
+**Stopped at 16:43:** the orchestrators first (`resume_rep1.py`,
+`rep1_runbook.py`), so that no next stage could start, then
+`run_autoencoder.py`. No python process remains, and the GPU is idle.
+
+**State:**
+- **Verbalisation complete:** 2,227/2,227 windows, unique, last line
+  complete, 4,439/4,454 samples passing integrity.
+- **Reconstruction stopped at 2,000/2,227.** It writes its output only when
+  the phase ends, so nothing partial exists and the phase reruns in full on
+  resume (about 1.3 h). The researcher chose to stop now rather than wait
+  about 12 minutes for it to finish.
+- Traces, ast, acts and baselines are complete. The plan, config and
+  problem hashes are unchanged.
+- Forcing, D75 and D79 have not started.
+
+**Resume:** quit OMEN Command Center, then run `resume_rep1.py` (unchanged).
+It skips completed stages, skips every finished verbalisation window, and
+reruns reconstruction.
+
+**Not a deviation:** nothing in the measurement changed.
+
