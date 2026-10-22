@@ -2852,3 +2852,234 @@ question, the causal redundancy of the tail along this direction. RQ3 stays
 *not tested* (D62), and the exploratory dose–response in answer change is
 withdrawn as evidence of an effect (defect 1).
 
+## D75. A confirmatory replication of design A on fresh problems, frozen before generation
+
+**Recorded 2026-10-19T17:46Z, before any trace was generated for these
+problems.** The researcher authorised the replication and its GPU work, and
+asked for the cost to be cut without lowering quality. The plan,
+`docs/REPLICATION_PLAN.md`, has SHA-256 `5cd66761…6d5c`.
+`reanalyse_o3_registered.py --confirmatory` checks that hash and refuses to
+run on any other plan.
+- **Problems:** `runs/rep1/data/problems.jsonl`, SHA-256 `e633885f…d248`.
+- **Config:** `configs/replication.yaml`, SHA-256 `a474405a…10f0`.
+
+**Design choices, each taken from the existing record:**
+- **H1** is the readout against the layer-20 probe, the registered probe and
+  the one D69 used. Layers 14 and 24 are secondary.
+- **The margin, estimand, budgets, tolerance and bootstrap** are D69's.
+- **The stopping rule is independent of outcomes:** the achieved N is the
+  longest complete prefix of the interleaved order.
+
+**Cost reductions, none of which touches a quantity in the analysis:**
+
+| change | why it is safe | saving |
+|---|---|---|
+| no semantic-entropy samples | semantic entropy has no operating point below the oracle bound on this model (D69): 82/120 problems tie at confidence 1.0 | its 8 samples per problem, ~2,600 tokens |
+| no Gaussian-control verbalisations | they serve RQ2; the stopping score excludes them by design; real samples keep their own seeds | a third of verbaliser tokens |
+| forcing only on the shared menu | design A can stop nowhere else; design B is not computed | ~75% of forcing (on `main`, 143 of 554 missing boundaries were on the menu) |
+| no faithfulness, causal, robustness or report stages | nothing in the plan reads them | 1.5 h per 120 problems (faithfulness) and more |
+| cross-problem, length-sorted batching for forcing | used only if it reproduces stored answers ≥ 0.95 on `main` | measured below |
+
+The registered pipeline code is not modified. All of these are configuration,
+or flags on post-hoc scripts.
+
+## D76. A rewording null for RQ2, specified before any paraphrase was generated
+
+**Recorded 2026-10-19, before generation.** D70 showed that the registered
+paraphrase null is mostly no edit or an added discourse marker.
+`scripts/paraphrase_null_llm.py` tests the missing case: does a rewording
+that keeps the meaning move reconstruction as much as deleting the claim
+does? **Exploratory.**
+
+- **Sample:** 60 explanations from `main`'s audit, seeded (20261019),
+  stratified by window kind, with every claim of each one (so a per-explanation
+  null can be pooled, as registered).
+- **Rewordings:** the target model (Qwen2.5-7B-Instruct, NF4) is told to keep
+  the meaning, every number, every quoted string and every technical term;
+  3 variants per claim at T = 0.7.
+- **Acceptance rules, fixed now** (`qc`, tested). Reject a variant if it is:
+  - empty or multi-line;
+  - D70 `identical` or `normalised_identical`;
+  - different in its multiset of numbers;
+  - missing any quoted string of the original;
+  - outside a word-count ratio of [0.6, 1.67];
+  - changed on fewer than 25% of tokens.
+- **Scoring:** the reconstructor scores each explanation with one claim
+  replaced by an accepted variant. Base explanations are re-scored first, and
+  the run stops if they differ from the stored base cosines by more than
+  0.01. Identical texts are scored once.
+- **Analysis:**
+  - the dependent rate under a per-explanation 95th-percentile null built
+    from rewording effects, against the registered null on the same claims;
+  - mean |effect| of rewordings against rule-based paraphrases;
+  - the share of claims whose deletion moves reconstruction more than their
+    mean rewording does.
+- **Limit, stated now:** the rules check form, not meaning. A blank sheet for
+  human judgement of each accepted variant is written beside the results. No
+  rewording is called meaning-preserving until people have judged it.
+
+## D77. RQ3 pilot Stage 0 ran: no-go; Stage 1 is not run. Bigger batches are slower on this GPU
+
+**Recorded 2026-10-20.** The researcher authorised the pilot's GPU work.
+
+**Stage 0** (`run_rq3_pilot.py --stage0` → `runs/main_rq3_pilot_stage0/`;
+2026-10-19T17:34Z to about 18:14Z, about 40 GPU-minutes). The candidate
+direction ran at doses 0 and 2.0 on the registered causal arm's 60 problems,
+with 768 tokens and forcing after the cap.
+- **Smoke test first** (2 problems, `runs/main_rq3_pilot_smoke/`). Problem
+  00007's registered "change" to `1` at the 200-token cap finishes at 204
+  tokens on the original `160`.
+- **The implementation reproduces the registered run.** Dose 0 matches the
+  registered token counts on **60 of 60** problems and changes no answer.
+- **At dose 2.0, 0 of 60 answers change.** Of the 13 registered changes, 10
+  now finish on their own and 3 are forced after the 768-token cap, all on
+  the original answer.
+- The edit does disrupt generation:
+  - mean tokens rise from 64.6 to 368.6 (median 226);
+  - 30% still hit the 768-token cap;
+  - 55% are flagged degenerate;
+  - the mean removed norm is 25.8 per position.
+- **Verdict by D74's rule: no-go.** Once continuations may finish, the
+  candidate changes no answers, so there is nothing whose specificity
+  size-matched controls could test. **Stage 1 is not run.** It would cost
+  1.5–16 GPU-hours to test the specificity of an effect that does not exist
+  at this dose.
+- **Reading.** Projecting out the tail direction lengthens and degrades the
+  continuation but leaves final answers intact. That is consistent with the
+  direction carrying something about progress or termination
+  (ρ = 0.81 with relative position, D74), and not with it carrying the answer.
+  Whether this is direction-specific was not tested. RQ3 stays *not tested*.
+
+**Forcing benchmark** (`force_all_boundaries.py --repro-only 120`, the same
+120 stored boundaries of `main` in each run):
+
+| batching | seconds per forced answer | agreement with stored |
+|---|---|---|
+| per problem, blocks of 4 (as registered) | **1.35** | 0.983 |
+| across problems, 8, sorted by length | 4.15 (stopped after 112) | — |
+| across problems, 16, sorted by length | 9.77 | 0.992 |
+
+Larger batches are 3–7× **slower**. On this 6.1 GB card a 5.55 GB NF4 model
+leaves about 0.5 GB of headroom. Beyond it, the Windows driver spills to
+shared system memory instead of raising an out-of-memory error. Cross-problem
+batching is therefore **rejected**, and every run keeps the registered blocks
+of four. The 4.2 s average measured during the D69 completion was inflated by
+concurrent CPU work. Uncontended, it is 1.35 s.
+
+## D78. The replication runs at batch size 2: batch 4 spills on this GPU
+
+**Recorded 2026-10-20, before any replication outcome was computed.** The
+first 3 fresh traces took 63, 191 and 335 s (about 200 s each), roughly 22
+GPU-hours for 400 problems. A decode benchmark (`scripts/bench_decode_batch.py`
+→ `runs/bench_decode_batch/`) on 8 real continuation prompts, 200 tokens at
+T = 0.8:
+
+| batch | tokens/s |
+|---|---|
+| 1 | 20.9 |
+| **2** | **33.0** |
+| 4 (registered) | **9.2** |
+
+At batch 4 the 7B NF4 model plus four sequences' KV cache exceeds the card's
+6.1 GB, and the driver pages to shared memory. That probably accounts for
+most of the main run's 55 traces-stage hours.
+
+**Change:** `configs/replication.yaml` sets `generation.batch_size: 2`. That
+batch applies to sampled AST continuations, to block forcing (blocks become
+2 boundaries) and to verbalisation. Nothing that defines the measurement
+changes:
+- K = 5 and T = 0.8;
+- the 200-token continuations and 48-token forcing;
+- greedy traces at batch 1;
+- the scores.
+
+Only which random draws the continuations take differs, from the same
+distribution. The 3 traces made at batch 4 are archived
+(`runs/rep1/traces/traces.batch4_superseded.jsonl`) and regenerated.
+
+**Hashes after the change:**
+- plan as amended (deviation 1): `fdae4d06…b268`;
+- config: `d31383f6…2e5f23`;
+- the plan as first frozen (D75): `5cd66761…6d5c`.
+
+`--confirmatory` is given the amended hash.
+
+**The registered main run is not re-run.** Its batch-4 measurements stand. The
+replication's continuations differ only in their random draws.
+
+## D79. A position-only control and a truncation audit, specified before they were computed
+
+**Recorded 2026-10-19T21:16Z, while `rep1`'s traces stage was running (91 of
+400 traces). No position-rule result had been computed on any run, and no
+`rep1` outcome existed.** The plan is `docs/POSITION_TRUNCATION_PLAN.md`,
+SHA-256 `8435272e…f57a`
+(`8435272ec6d509b4c1f2d86d5f9707a56191155bbbf9f3681d515eee0309f57a`).
+
+**Why.** Design A's shared menu is symmetric about the tail start by
+construction, so within it later chunks are nearly always safe. The no-signal
+rule favours early chunks. A readout whose score merely rises with position
+would therefore beat it. D69's "readout beats no-signal" does not
+distinguish content from position. The plan adds:
+- a position rule, `prefix_tokens`, as the fair cheap-signal control;
+- a readout with its position trend removed;
+- a diagnostic that knows each chunk's relative position.
+
+Separately, 28% against 15% of stops landing on cut-off forced completions
+(D69) is measured across every budget. It is bracketed by two extreme
+readings of a cut-off completion.
+
+**Status.**
+- `main` and `main_nla240`: exploratory.
+- `rep1`: secondary, specified after the D75 freeze and before any outcome.
+
+It never enters the D75 verdict. The registered outcome, the D69 analyses and
+the D75 plan are unchanged.
+
+**Run on `main` and `main_nla240`, 2026-10-20 (exploratory; CPU only;
+`docs/POSITION_TRUNCATION_RESULTS.md`).** Plan as amended (deviations 1–3):
+`bffc9e08…c877`. Only the deviations section differs from the frozen text,
+checked by hashing. Every stored design-A result reproduced exactly first.
+
+- **A score that rises with position loses to no signal** (−0.065 and
+  −0.072). The readout's score *falls* with position (median ρ −0.37); the
+  probe's rises (+0.70). Family X: **unresolved**. With its position trend
+  removed, the readout does not beat no signal significantly: +0.014
+  [−0.022, 0.050] and +0.024 [−0.001, 0.048].
+- **Post hoc (deviation 3):** a rule with no readout reproduces the readout's
+  advantage over no signal. The rule is "stop at the first menu chunk if it
+  comes within the first T tokens":
+  - falling rule − no signal: +0.082 and +0.100;
+  - readout − falling rule: −0.024 [−0.070, 0.015] and −0.025 [−0.046, 0.001].
+- **The mechanism is the estimand.** Abstention counts as safe and rules are
+  matched on *mean* saving, so a few very early, mostly unsafe stops score
+  well. At 0.5·B\* on `main`:
+  - the falling rule has 4 safe stops out of 23 and the highest safe rate (0.842);
+  - the readout has 12 of 32;
+  - the probe has 95 of 120.
+
+  D69's wording, "selects safer stops", is inaccurate. The results note
+  corrects it; `REANALYSIS_2026-10-19.md` is left as written.
+- **Truncation.**
+  - Before `i*`, 54–57% of forced completions are cut off at 48 tokens. Those
+    disagree with the continuations' majority 98–99% of the time, while that
+    majority equals the final answer 96–98% of the time.
+  - Cut-off answers re-force identically, so they are reliable but not valid.
+  - If a cut-off completion is read as committed to the final answer, every
+    comparison collapses to no signal, and D69 becomes *uninformative*.
+  - Reading it as uncommitted changes almost nothing (31 and 70 labels).
+  - The readout's advantages are therefore **dependent on the forcing
+    budget** (plan §B.4).
+
+**Found while auditing the D75 pipeline. Nothing has been run on `rep1`
+beyond its traces stage.** Both items need a decision before
+`force_all_boundaries.py` runs on `rep1`:
+1. `force_all_boundaries.py` re-forces `N_REPRO = 200` stored boundaries by
+   default; `REPLICATION_PLAN.md` §3 says 100. `--n-repro 100` follows the
+   plan; 200 is stricter.
+2. `force_all_boundaries.py` hardcodes forcing blocks of 4
+   (`MAX_BLOCK = 4`). D78 says blocks become 2, and the traces stage uses
+   `min(4, batch_size)` = 2. `rep1`'s completed answers would then come from a
+   different block size than its stored ones. The ≥ 0.95 re-forcing check
+   measures exactly this, so the analysis is protected, but the record and
+   the code disagree.
+

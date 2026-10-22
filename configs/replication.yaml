@@ -1,0 +1,57 @@
+# Confirmatory replication of the D69 design-A comparison on fresh problems (D75).
+#
+# Identical to main.yaml in everything that defines the measurement: model,
+# layer, generation, chunking, the AST criteria and budgets, and the
+# verbaliser's windows and samples. It differs in five places, each recorded
+# in D75:
+#
+# - run_id: a new, unique run directory;
+# - data: fresh problems, chosen by scripts/prepare_fresh_problems.py to
+#   exclude every id used by any earlier run (the counts below are its targets);
+# - semantic_entropy.n_samples: 0. Semantic entropy has no operating point
+#   below the oracle bound on this model, because 82 of 120 problems tie at
+#   confidence 1.0 (D69), so it cannot enter the comparison. Its 8 samples per
+#   problem were the largest single generation cost;
+# - faithfulness.verbaliser_only_control: false. The Gaussian-control
+#   verbalisations serve RQ2 and never enter the O3 score (the stopping score
+#   excludes them by design). Dropping them removes a third of verbaliser
+#   tokens. Real samples are drawn from their own seeds, so they are unaffected;
+# - nla.max_problems: 0, so every problem with a tail is verbalised;
+# - generation.batch_size: 2, not 4 (D78). A measured engineering change: on
+#   this 6.1 GB card, batch 4 spills to shared memory and decodes at 9.2 tok/s,
+#   against 33.0 tok/s at batch 2. K, T, the budgets and the forcing call are
+#   unchanged; only which random draws the sampled continuations take differs.
+
+run_id: rep1
+description: "Confirmatory replication of D69 design A on fresh problems (D75)."
+
+data:
+  n_gsm8k: 240
+  n_math: 160
+
+generation:
+  max_new_tokens: 768
+  batch_size: 2
+  force_answer_max_new_tokens: 48
+
+ast:
+  k_continuations: 5
+  continuation_max_new_tokens: 200
+
+nla:
+  n_samples: 2
+  windows_per_problem: 2
+  max_new_tokens: 256
+  max_problems: 0
+
+semantic_entropy:
+  n_samples: 0
+
+faithfulness:
+  verbaliser_only_control: false
+
+causal:
+  max_problems: 60
+
+analysis:
+  bootstrap_iterations: 10000
