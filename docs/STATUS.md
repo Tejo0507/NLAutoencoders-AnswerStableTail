@@ -3,6 +3,14 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-22.
 
+> **Update 2026-10-22, 20:19 IST: resumed (D93).** The pipeline was paused
+> at 16:43 (D92) and relaunched at 20:19 with the unchanged
+> `resume_rep1.py`. Verbalisation was skipped (2,227 windows, 0 remaining);
+> reconstruction restarted from 0/2,227. Every recorded hash was re-verified
+> first. Live checkpoint, parameters and hashes:
+> [`CHECKPOINT_2026-10-22.md`](CHECKPOINT_2026-10-22.md). The table below is
+> the state at the 16:43 pause, kept as written.
+>
 > **Update 2026-10-22 (paused at 16:43): the confirmatory replication (D75)
 > is past traces and verbalisation. Its verdict is not known.** Everything below this
 > block is the 2026-10-17 state and stays as written. Records: D75–D91 in
