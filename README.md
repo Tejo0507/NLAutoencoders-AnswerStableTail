@@ -46,8 +46,19 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
   - **semantic entropy cannot be compared**: it has no operating point
     where safe stopping is possible.
 
-  So the readout carries stopping-relevant information. Its value beyond the
-  probe is not established.
+  **Corrected 2026-10-20 (D79, D81, D84; exploratory).** The advantage over
+  no signal does *not* show that the readout carries stopping information:
+  - a rule with no readout, "stop at the first candidate if it is early",
+    matches it;
+  - the readout's score adds nothing beyond position and the probe (ΔAUC
+    −0.001 [−0.002, −0.000]);
+  - when it stops, the stop is unsafe more often than chance.
+
+  The explanation *text* does encode reasoning phase ("concluding" against
+  "setting up"), but no more than a linear probe on the same activation. See
+  [`docs/UNDEREXPLORED_RESULTS_2026-10-20.md`](docs/UNDEREXPLORED_RESULTS_2026-10-20.md).
+  A confirmatory replication on 400 fresh problems
+  ([`docs/REPLICATION_PLAN.md`](docs/REPLICATION_PLAN.md), D75) is running.
 - **Tails are common and long, and they are not post-answer text.** They are
   found non-trivially on 0.948 of 250 problems and cover a mean 0.378 of the
   chunks, a floor that depends on the 48-token forcing budget. They usually
