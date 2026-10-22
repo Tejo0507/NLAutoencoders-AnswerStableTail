@@ -86,9 +86,17 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
   ([`docs/RQ3_FOLLOWUP_DESIGN.md`](docs/RQ3_FOLLOWUP_DESIGN.md)); it has not
   been run.
 
-**Status: complete (2026-10-19).** The report is frozen at `32b5539`, and the
-run artifacts are published as a GitHub release. The Zenodo deposit is
-prepared but not made, so there is no DOI yet.
+**Status.**
+- **Registered report:** complete (2026-10-19), frozen at `32b5539`, with its
+  run artifacts published as a GitHub release. The Zenodo deposit is
+  prepared but not made, so there is no DOI yet.
+- **Confirmatory replication (D75, 400 fresh problems): in progress.**
+  - Traces are complete and validated, and the activation verbaliser has
+    run on every window.
+  - The registered 48-token analysis has **not** run yet, so there is no
+    verdict.
+  - Live state and next steps: [`docs/STATUS.md`](docs/STATUS.md).
+  - Resume procedure: [`docs/RESUME_2026-10-20.md`](docs/RESUME_2026-10-20.md).
 
 | Looking for | Where |
 |---|---|
