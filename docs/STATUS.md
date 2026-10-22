@@ -3,7 +3,7 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-22.
 
-> **Update 2026-10-22, about 21:00 IST: the D75 verdict exists (D94).**
+> **Update 2026-10-22, about 20:55 IST: the D75 verdict exists (D94).**
 > - Stages A–D (reconstruction, 48-token forcing, the confirmatory analysis,
 >   the D79 audit) completed, and every runbook gate passed. Re-forcing
 >   agreement was 0.965 on 200.

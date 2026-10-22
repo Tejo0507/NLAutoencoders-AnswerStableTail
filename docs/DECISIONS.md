@@ -3694,7 +3694,7 @@ changed. The D91 provenance gap in D69's plan and the D85/D91
 
 ## D94. The D75 confirmatory verdict, and the D79 position audit beside it
 
-**Recorded 2026-10-22, about 21:00 IST**, from
+**Recorded 2026-10-22, about 20:55 IST**, from
 `runs/rep1_o3_registered/o3_registered.json` (written 20:50 IST) and
 `runs/rep1_position_audit/position_truncation.json` (20:51 IST). Both
 runbook gates passed. Nothing was chosen after the outcomes were seen. Every
