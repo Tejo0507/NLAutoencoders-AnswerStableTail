@@ -28,7 +28,6 @@ Writes ``runs/stage1_power_audit/power.json``.
 
 from __future__ import annotations
 
-import json
 import logging
 import sys
 import time
