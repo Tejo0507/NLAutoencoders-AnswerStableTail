@@ -3403,3 +3403,220 @@ unblocked):
 
 It stops at the first failed step.
 
+## D86. rep1 paused cleanly at 231/400 because the machine must shut down
+
+**Recorded 2026-10-20 17:35 IST.** The researcher could not keep the laptop
+on overnight.
+
+**What was found.**
+- The traces stage resumes per problem, with per-problem seeds, so a resumed
+  problem regenerates identically.
+- A truncated last line is dropped and redone.
+- A problem that raises an exception is written as a permanent `ok: false`
+  row. Leaving the job running through sleep therefore risks writing CUDA
+  errors after the wake into the replication as failed problems.
+
+**What was done.**
+1. The two waiting orchestrators (runbook, queue) were stopped. Neither had
+   launched anything; both log directories were empty.
+2. The traces process was terminated 1 s after trace 231 was flushed
+   (17:32:16). The only loss is the partly generated problem 232.
+
+**Verified.**
+- 231 rows, all ok, no failure rows, a complete last line, an exact prefix of
+  the frozen order;
+- plan, config and problem hashes unchanged;
+- the GPU idle.
+
+**Not a deviation.** D75 §5 lets generation stop and continue. The same
+config resumes the same problems in the same order, and no outcome was
+computed during the pause.
+
+**Resume:** `scripts/resume_rep1.py` (one command); pause:
+`scripts/safe_stop.ps1`. See `docs/RESUME_2026-10-20.md`.
+
+## D87. Resumed; queue reordered for time; claims about the explanations stay string-level
+
+**Recorded 2026-10-20 18:05 IST, with the researcher's approval** (plan:
+`docs/TIME_PLAN_2026-10-20.md`).
+
+**Resumed.** `resume_rep1.py` restarted the traces stage at 17:37. It
+reported "231 already done, 169 to do", and the first new trace was the
+expected `math-algebra-test-00942`, ok, in order. It now runs at about 89 s
+per trace, against about 285 s before the pause. That is consistent with the
+long-running process having spilled GPU memory (D78). `resume_rep1.py` holds
+a per-process wake request (`SetThreadExecutionState`). No power setting
+was changed.
+
+**Reordered.** After D75 and D79, the queue now runs:
+1. the rep1 CPU secondaries;
+2. D82 on rep1;
+3. Stage 1;
+4. D82 on `main_nla240`, last.
+
+D82 §6 had listed `main_nla240` first. This is an order of runs only: no
+method, sample size, decision rule or registered quantity changes, and every
+item still runs. `main_nla240`'s pass is exploratory on already-seen data;
+rep1's is pre-specified on fresh data. The edit is to `post_rep1_queue.py`,
+which the running `resume_rep1.py` launches only after D75. The traces
+stage was not touched.
+
+**Explanations: string-level claims only.** The researcher declined a human
+rating of the phase lexicon. The paper therefore claims only that
+explanation text carries string-level predictive information. It makes no
+semantic or faithfulness claim.
+
+**Primary result expected** at about 01:00–05:00 on 21 October. The range
+comes mainly from the nla stage's speed.
+
+## D88. A misplaced deviation repaired in the leakage-resistant design
+
+**Recorded 2026-10-21, found while building the topic-branch commits.** The
+deviation-1 version of `docs/LEAKAGE_RESISTANT_DESIGN.md`, reconstructed by
+cutting before deviation 2, did not reproduce its recorded hash
+(`7d9294db…e7ef`, D84).
+
+**Cause.** The D85 edit inserted deviation 2 in the middle of deviation 1's
+last sentence. The sentence's second half ("A rule can have low selective
+risk by stopping only at the very end. The two numbers are reported together
+and never ranked as one.") was left stranded after deviation 2.
+
+**Repair.** The stranded words were moved back. No word was added, removed
+or changed.
+- The deviation-1 prefix of the repaired file reproduces `7d9294db…e7ef`
+  exactly, which confirms the diagnosis.
+- The file's hash changes from `2bb536f2…7756` (recorded in D85) to
+  `514818cf567b8ad0248190f0d74f912ca27d57256754a6e1b48fa4d88fb06afe`.
+- No gate reads this hash. Stage 1 records it as provenance when its
+  positions are drawn, which has not happened yet.
+
+## D89. A GPU memory spill caused by another application, removed with approval
+
+**Recorded 2026-10-21 about 02:00 IST.**
+- **The symptom.** After the laptop restarted, rep1 resumed correctly (261
+  done, 139 to do) but ran at 1,274 s, 597 s and 1,280 s per trace, against
+  about 89 s after the previous resume.
+- **The cause.** Windows GPU process counters showed the traces process
+  with 5,222 MiB in dedicated VRAM and **770 MiB spilled into shared system
+  memory**. `HP.OMEN.VadRedirectHelper` (OMEN Command Center) held 567 MiB of
+  dedicated VRAM; its parent `OmenCommandCenterBackground.exe` respawned it
+  when it was stopped. GPU power was 29 W at 100% utilisation, with no
+  throttling, on AC: memory-bound.
+- **What was done, with the researcher's approval:**
+  1. The OMEN background process and its two helpers were stopped. The
+     system service was left alone.
+  2. `safe_stop.ps1` stopped the traces stage just after trace 264 was
+     flushed.
+  3. With 0 MiB in use, `resume_rep1.py` was relaunched.
+
+  After the restart the process holds 5,895 MiB dedicated and 168 MiB
+  shared.
+- **Data.** 264 rows, all ok, in the frozen order, last line complete. The
+  only loss is the in-progress problem 265, which is redone.
+- **Safeguard.** `resume_rep1.py` now warns, read-only, if any other process
+  holds over 100 MiB of GPU memory before it launches anything. OMEN Command
+  Center may start again at the next boot.
+- **Not a deviation.** Same config, same problems, same order; only the
+  speed changed.
+
+## D90. A PyTorch allocator setting removes the remaining spill (approved engineering change)
+
+**Recorded 2026-10-21 about 02:50 IST.**
+- **The problem remained.** With OMEN gone, traces still ran at 322–881 s
+  (1.49 s/token). The process alone filled the card: 5,799 MiB dedicated,
+  with shared memory growing to 304 MiB as the KV caches expanded.
+- **Every process followed the same pattern.**
+
+  | phase | s/token |
+  |---|---|
+  | first 100 traces | 0.36 |
+  | traces 101–231 | 1.16 |
+  | first resume | 0.38 |
+
+  So the caching allocator's held blocks pushed the process over the card's
+  edge.
+- **The change**, approved by the researcher. After `safe_stop.ps1` (269 rows,
+  all ok, in order), the run was relaunched with
+  `PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.8`, which makes
+  PyTorch return cached blocks before the card fills.
+- **The effect:** 70, 55 and 39 s for the first three traces, about
+  0.2 s/token. Shared usage fell to 78 MiB, and the GPU drew 66.7 W against
+  about 29 W: compute-bound again.
+- **What it does not change:** kernels, seeds, batch sizes, budgets,
+  problems and order. It is an engineering setting like D78's batch size,
+  outside the measurement.
+- `resume_rep1.py` now sets it by default, so later stages and manual
+  restarts inherit it.
+- Whether the speed holds over hours is checked as the run continues.
+
+## D91. Repository review of the stacked PRs: findings, fixes, and the verified 400-trace milestone
+
+**Recorded 2026-10-22.** An AI-assisted repository review of PRs #33–#37, in
+dependency order, in an isolated worktree. The pipeline's checkout and its
+running processes were not touched. This is not an independent human review.
+
+**Checks on every PR head:**
+- the CPU suite;
+- ruff (F, E9, B006, B008) on the PR's own Python diff;
+- a scan for credentials, user paths, generated or large files;
+- `check_run_consistency.py` on the stored `runs/main`, read-only: **171
+  checks, 0 mismatched, 0 warnings** at every head, so the registered
+  historical result still reproduces under each PR's code.
+
+Across the whole stack:
+- the frozen report sections (`paper/0*.md`, `REPORT.md`) and the
+  registered pipeline code are byte-unchanged against `main`;
+- PROJECT_PLAN.md gains only an appended note;
+- every frozen plan and config hash listed in D75–D90 reproduces, with
+  one exception (finding 1).
+
+**Findings:**
+1. **A provenance gap in D69.**
+   - `docs/O3_REGISTERED_REANALYSIS_PLAN.md` hashes to `02735946…9876`. Both
+     stored analyses (`runs/main_o3_registered`, `runs/main_nla240_o3_registered`)
+     recorded that same hash, so the committed plan is the one they used.
+   - But D69 records only the pre-deviation hash `6e0cc75d…f429`. The
+     amended hash appears in no record before this entry.
+   - The plan's own text dates its one deviation (the closed-form no-signal
+     rule) "before any registered-outcome result was computed".
+     `docs/REANALYSIS_2026-10-19.md` says the same.
+   - **The pre-deviation bytes cannot be reconstructed** by removing the
+     deviation section (three variants tried). The file was untracked until
+     2026-10-21, and no backup holds it. So the repository cannot show that
+     the deviation was the only edit.
+   - **Scope:** the historical, post-hoc D69 reanalysis only. The D75
+     confirmatory plan's hashes reproduce byte-exactly.
+   - **Recorded here.** No result is changed.
+2. **The fixture checks cited for D82/D85 were not reproducible** (they were
+   scratchpad scripts). They are now `tests/test_fixture_reproduction.py`,
+   marked `integration`. Run against the stored data: 2 passed.
+3. **Unused imports** in `bench_decode_batch.py`, `selective_risk_menu.py`
+   and `stage1_power_audit.py` are removed. There is no behaviour change.
+   `stage1_power_audit.py` therefore no longer matches the `64eaa58e…` that
+   D85 recorded for the version that produced `power.json`; the only
+   difference is the removed import line.
+4. **Not changed:**
+   - `tests/test_paraphrase_qc.py` in #33 imports `token_change`, which only
+     #34's tests use; it resolves when #34 merges.
+   - `score_baselines.py`'s unused `ast_rows` predates this work (it is on
+     `main`).
+   - The orchestration scripts (`rep1_runbook.py`, `post_rep1_queue.py`,
+     `resume_rep1.py`, `safe_stop.ps1`) use `tasklist` and PowerShell and are
+     Windows-only, matching the documented machine. They are not changed
+     while the running pipeline depends on them.
+
+**The 400-trace milestone, verified read-only** with the runbook's own gate
+functions:
+- the plan, config and problem hashes match;
+- 400 rows, 400 ok, 400 unique ids, in the exact frozen order;
+- 17 traces at the 768-token cap: all MATH, all with a parsed final answer
+  (2 correct). AST gives 15 of them no stable point, so they never reach the
+  NLA menu, and keeps the 2 with a tail flagged `truncated`, as on `main`;
+- the ast, acts (1,200 blocks, 0 clamped) and baselines (probe present)
+  gates pass;
+- the NLA partial output is complete and unique (690 rows at the check;
+  1,373 of 1,380 samples pass the integrity gate) and resuming.
+
+**400/400 traces is not a completed replication.** The nla stage, menu
+forcing, and the D75 confirmatory analysis (H1, H2) are pending.
+

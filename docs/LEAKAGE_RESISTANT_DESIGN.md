@@ -289,7 +289,9 @@ setup.
    - **Status:** post hoc everywhere it has been computed. It is specified
      here, before any outcome, for `rep1` and Stage 1, as secondary.
 
-   **What it is not.** Selective risk ignores how much a stop saves.
+   **What it is not.** Selective risk ignores how much a stop saves. A rule
+   can have low selective risk by stopping only at the very end. The two
+   numbers are reported together and never ranked as one.
 
 2. **2026-10-20, before any Stage 1 data existed: a power audit, and three
    design revisions (D85).** No Stage 1 position, verbalisation or forced
@@ -340,6 +342,4 @@ setup.
    - **Frozen now:** the code (`scripts/stage1_offmenu.py`, tests in
      `tests/test_stage1_positions.py`). It was run end to end on a scratchpad
      fixture of `main`'s menu chunks, giving Δ₁ −0.0007 [−0.004, 0.003].
-     That is a code test, not a result. A rule
-   can have low selective risk by stopping only at the very end. The two
-   numbers are reported together and never ranked as one.
+     That is a code test, not a result.
