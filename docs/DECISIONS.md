@@ -3549,3 +3549,74 @@ or changed.
   restarts inherit it.
 - Whether the speed holds over hours is checked as the run continues.
 
+## D91. Repository review of the stacked PRs: findings, fixes, and the verified 400-trace milestone
+
+**Recorded 2026-10-22.** An AI-assisted repository review of PRs #33–#37, in
+dependency order, in an isolated worktree. The pipeline's checkout and its
+running processes were not touched. This is not an independent human review.
+
+**Checks on every PR head:**
+- the CPU suite;
+- ruff (F, E9, B006, B008) on the PR's own Python diff;
+- a scan for credentials, user paths, generated or large files;
+- `check_run_consistency.py` on the stored `runs/main`, read-only: **171
+  checks, 0 mismatched, 0 warnings** at every head, so the registered
+  historical result still reproduces under each PR's code.
+
+Across the whole stack:
+- the frozen report sections (`paper/0*.md`, `REPORT.md`) and the
+  registered pipeline code are byte-unchanged against `main`;
+- PROJECT_PLAN.md gains only an appended note;
+- every frozen plan and config hash listed in D75–D90 reproduces, with
+  one exception (finding 1).
+
+**Findings:**
+1. **A provenance gap in D69.**
+   - `docs/O3_REGISTERED_REANALYSIS_PLAN.md` hashes to `02735946…9876`. Both
+     stored analyses (`runs/main_o3_registered`, `runs/main_nla240_o3_registered`)
+     recorded that same hash, so the committed plan is the one they used.
+   - But D69 records only the pre-deviation hash `6e0cc75d…f429`. The
+     amended hash appears in no record before this entry.
+   - The plan's own text dates its one deviation (the closed-form no-signal
+     rule) "before any registered-outcome result was computed".
+     `docs/REANALYSIS_2026-10-19.md` says the same.
+   - **The pre-deviation bytes cannot be reconstructed** by removing the
+     deviation section (three variants tried). The file was untracked until
+     2026-10-21, and no backup holds it. So the repository cannot show that
+     the deviation was the only edit.
+   - **Scope:** the historical, post-hoc D69 reanalysis only. The D75
+     confirmatory plan's hashes reproduce byte-exactly.
+   - **Recorded here.** No result is changed.
+2. **The fixture checks cited for D82/D85 were not reproducible** (they were
+   scratchpad scripts). They are now `tests/test_fixture_reproduction.py`,
+   marked `integration`. Run against the stored data: 2 passed.
+3. **Unused imports** in `bench_decode_batch.py`, `selective_risk_menu.py`
+   and `stage1_power_audit.py` are removed. There is no behaviour change.
+   `stage1_power_audit.py` therefore no longer matches the `64eaa58e…` that
+   D85 recorded for the version that produced `power.json`; the only
+   difference is the removed import line.
+4. **Not changed:**
+   - `tests/test_paraphrase_qc.py` in #33 imports `token_change`, which only
+     #34's tests use; it resolves when #34 merges.
+   - `score_baselines.py`'s unused `ast_rows` predates this work (it is on
+     `main`).
+   - The orchestration scripts (`rep1_runbook.py`, `post_rep1_queue.py`,
+     `resume_rep1.py`, `safe_stop.ps1`) use `tasklist` and PowerShell and are
+     Windows-only, matching the documented machine. They are not changed
+     while the running pipeline depends on them.
+
+**The 400-trace milestone, verified read-only** with the runbook's own gate
+functions:
+- the plan, config and problem hashes match;
+- 400 rows, 400 ok, 400 unique ids, in the exact frozen order;
+- 17 traces at the 768-token cap: all MATH, all with a parsed final answer
+  (2 correct). AST gives 15 of them no stable point, so they never reach the
+  NLA menu, and keeps the 2 with a tail flagged `truncated`, as on `main`;
+- the ast, acts (1,200 blocks, 0 clamped) and baselines (probe present)
+  gates pass;
+- the NLA partial output is complete and unique (690 rows at the check;
+  1,373 of 1,380 samples pass the integrity gate) and resuming.
+
+**400/400 traces is not a completed replication.** The nla stage, menu
+forcing, and the D75 confirmatory analysis (H1, H2) are pending.
+
