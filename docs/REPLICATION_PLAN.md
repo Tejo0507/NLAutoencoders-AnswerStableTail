@@ -99,3 +99,26 @@ verbalised chunks; the scores are as registered.
    - **Hashes:** the plan's SHA-256 above stays the hash of the plan as
      frozen. The analysis script is given the hash of this file as amended,
      and both are recorded in D78.
+2. **2026-10-20, before any outcome was computed, at 166 of 400 traces: the
+   instrument check re-forces 200 stored boundaries, not 100 (D80).** No
+   forced-answer completion, safety label or analysis existed for `rep1`.
+   - **Why.** The gate is unchanged: below 0.95 agreement, the analysis is
+     blocked. Only its sample grows. The binomial probability that the gate
+     blocks the analysis is:
+
+     | true agreement | n = 100 | n = 200 |
+     |---|---|---|
+     | 0.93 (should block) | 0.71 | **0.83** |
+     | 0.95 | 0.38 | 0.42 |
+     | 0.97 (`main`'s measured rate) | 0.08 | **0.04** |
+     | 0.98 | 0.015 | **0.003** |
+
+     At n = 200 the gate is right more often whichever side of 0.95 the truth
+     lies on. The cost is about 3 GPU-minutes.
+   - **Block size, for the record.** Deviation 1 already sets forcing blocks
+     of 2. `force_all_boundaries.py` hardcoded 4. It now follows the traces
+     stage's rule, `max(1, min(4, batch_size))`, so `rep1` completes its
+     answers in blocks of 2, as its stored ones were made, and `main` stays
+     at 4. This corrects the code to the plan; it is not a deviation from it.
+   - **Command:** `force_all_boundaries.py --config replication --menu-only
+     --n-repro 200`.

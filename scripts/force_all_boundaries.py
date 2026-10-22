@@ -43,8 +43,18 @@ from nlaast.trace.chunking import Chunk, prefix_text
 #: Stored boundaries re-forced to measure the instrument's reproducibility.
 N_REPRO = 200
 REPRO_SEED = 20261019
-#: The traces stage's block size: ``max(1, min(4, generation.batch_size))``.
+#: The largest forcing block the traces stage uses.
 MAX_BLOCK = 4
+
+
+def block_size(batch_size: int) -> int:
+    """The traces stage's forcing block: ``max(1, min(MAX_BLOCK, batch_size))``.
+
+    ``main`` (batch 4) forces in blocks of 4 and ``rep1`` (batch 2, D78) in
+    blocks of 2, so completed answers come from the block size of the stored
+    answers beside them (D80).
+    """
+    return max(1, min(MAX_BLOCK, int(batch_size)))
 
 
 def select_boundaries(traces: list[dict], n_repro: int, seed: int
@@ -103,7 +113,7 @@ def main() -> int:
                    help="count the work and exit without loading a model")
     p.add_argument("--batch", type=int, default=0,
                    help="batch across problems, sorted by length (D75); 0 = the "
-                        "traces stage's per-problem blocks of four")
+                        "traces stage's per-problem blocks (D80)")
     p.add_argument("--out-dir", default=None)
     p.add_argument("--repro-only", type=int, default=0,
                    help="benchmark: re-force only this many stored boundaries")
@@ -130,6 +140,7 @@ def main() -> int:
     n_missing = sum(len(v) for v in missing.values())
     n_repro = sum(len(v) for v in repro.values())
     budget = cfg.generation.force_answer_max_new_tokens
+    blk = block_size(cfg.generation.batch_size)
     print(f"{len(traces)} traces; {n_missing} boundaries without a forced answer "
           f"in {len(missing)} problems; {n_repro} stored boundaries to re-force; "
           f"at most {(n_missing + n_repro) * budget} new tokens")
@@ -148,14 +159,14 @@ def main() -> int:
         "force_answer_suffix": cfg.generation.force_answer_suffix,
         "force_answer_max_new_tokens": budget,
         "decoding": "greedy (temperature 0, top_p 1, do_sample False)",
-        "block_size": MAX_BLOCK, "n_missing": n_missing, "n_repro": n_repro,
+        "block_size": blk, "n_missing": n_missing, "n_repro": n_repro,
         "repro_seed": REPRO_SEED,
         "menu_only": bool(args.menu_only), "repro_only": int(args.repro_only),
     }
     if prov_path.exists():
         old = json.loads(prov_path.read_text(encoding="utf-8"))
         for k in ("config_hash", "traces_sha256", "force_answer_suffix",
-                  "force_answer_max_new_tokens", "repro_seed"):
+                  "force_answer_max_new_tokens", "repro_seed", "block_size"):
             if old.get(k) != prov[k]:
                 print(f"{prov_path} records {k}={old.get(k)!r}, now {prov[k]!r}; "
                       f"refusing to mix two instruments in one file", file=sys.stderr)
@@ -188,10 +199,11 @@ def main() -> int:
                    for pid, i, _ in items}
         work = cross_problem_batches(items, lengths, args.batch)
     else:
-        work = [[(pid, i, purpose) for i in blk]
+        work = [[(pid, i, purpose) for i in b]
                 for purpose, sel in (("missing", missing), ("repro", repro))
-                for pid in sorted(sel) for blk in blocks(sel[pid])]
-    prov["batching"] = f"cross-problem, size {args.batch}" if args.batch else "per-problem blocks of 4"
+                for pid in sorted(sel) for b in blocks(sel[pid], blk)]
+    prov["batching"] = (f"cross-problem, size {args.batch}" if args.batch
+                        else f"per-problem blocks of {blk}")
     started, done, n_gen = time.monotonic(), 0, 0
     try:
         with writer:

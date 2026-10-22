@@ -3083,3 +3083,323 @@ beyond its traces stage.** Both items need a decision before
    measures exactly this, so the analysis is protected, but the record and
    the code disagree.
 
+## D80. `rep1`'s forcing: blocks of 2, and 200 re-forced boundaries
+
+**Recorded 2026-10-20 at 10:30 IST, with `rep1` at 166 of 400 traces.** No
+`rep1` forced-answer completion, safety label or analysis existed. The
+traces process (PID 27992) was not touched. This settles D79's two open
+items.
+
+1. **Block size: 2, from the config.** `force_all_boundaries.py` now takes the
+   traces stage's rule, `block_size(batch_size) = max(1, min(4, batch_size))`,
+   instead of a hardcoded 4.
+   - `rep1` (batch 2, D78) completes its answers in blocks of 2, as its stored
+     answers were made. `main` stays at 4, so the D69 completion is unchanged:
+     the dry run still gives 1,236 missing boundaries and 68,928 tokens.
+   - The block size is now one of the provenance fields the script refuses
+     to mix in one output file.
+   - D78 already said forcing blocks become 2, so this corrects the code to
+     the plan, not the plan to the code. Larger forcing blocks are not used:
+     D77 measured them 3–7× slower on this card.
+   - Tests: `test_block_size_follows_the_traces_stage_rule` and
+     `test_replication_forces_in_blocks_of_two_and_main_in_blocks_of_four`.
+2. **Re-forced sample: 200, a recorded deviation from the plan's 100**
+   (`REPLICATION_PLAN.md`, deviation 2).
+   - The threshold stays at 0.95. A larger sample makes the gate right more
+     often on either side of it.
+   - At `main`'s measured agreement (0.97), the binomial probability of a
+     spurious block is 0.081 at n = 100 and 0.040 at n = 200.
+   - At a true 0.93, it catches the failure with probability 0.83 at n = 200,
+     against 0.71 at n = 100.
+   - The cost is about 3 GPU-minutes.
+
+**Hashes:**
+- plan as amended (deviations 1–2): `e45629a7…0761`
+  (`e45629a7914fb4c8eefc95758014a72ab7af53c363e670c862f441c886a60761`);
+- `force_all_boundaries.py`: `6cf14dee…0c08`;
+- frozen plan (D75) and config (D78): unchanged.
+
+**Commands for `rep1`, in order** (`scripts/rep1_runbook.py` runs them with a
+gate between each):
+
+```
+detect_answer_stable_tail.py --config replication --sweep
+extract_activations.py --config replication --layers 14 20 24
+score_baselines.py --config replication
+run_autoencoder.py --config replication
+force_all_boundaries.py --config replication --menu-only --n-repro 200
+reanalyse_o3_registered.py --config replication --forced-dir runs/rep1_forced \
+    --confirmatory docs/REPLICATION_PLAN.md --plan-sha256 e45629a7…0761
+position_truncation_audit.py --config replication --forced-dir runs/rep1_forced --confirmatory
+```
+
+## D81. An information audit of the readout, specified before it was computed
+
+**Recorded 2026-10-20T05:00Z (10:30 IST).** The plan is
+`docs/SUPPLEMENTARY_INFORMATION_PLAN.md`, SHA-256 `acba5597…2aad`
+(`acba5597b5f36f5f3cb034114e499ad25317362530bc17ee1daf0c823d3c2aad`).
+None of its quantities had been computed on any run, and `rep1` had no
+outcome.
+
+**Why.** D79 showed that the registered O3 estimand rewards abstention plus
+a few very early stops. Whether the readout *contains* information about the
+model's state is a different question, and it was never asked directly. The
+plan asks it, using cheaper information sources as controls:
+- **Q1:** does the readout's score predict a menu chunk's safety beyond
+  position and the probe?
+- **Q2:** does the explanation *text* add anything beyond the trace text the
+  model has already written?
+- **Q3:** does the text name the final answer before the trace writes it?
+  The test is against a cross-problem null.
+
+The plan uses grouped cross-validation, a problem-cluster bootstrap, and
+Holm correction over the three primaries.
+
+**Status.**
+- `main_nla240`: primary for the plan, but exploratory, because its other
+  results were known.
+- `rep1`: pre-specified and secondary to D75. It is computed only after
+  D75's confirmatory analysis exists, and serves as the independent test.
+
+Every result is about information at the menu's outcome-selected points. It
+says nothing about a deployable rule. The registered O3 test, D69 and D75 are
+unchanged.
+
+**Run on `main_nla240` and `main`, 2026-10-20 (exploratory; CPU only).**
+Results: `runs/main_nla240_information/`, `runs/main_information/` and
+`docs/UNDEREXPLORED_RESULTS_2026-10-20.md`. Plan as amended (deviations 1–2,
+both post hoc): `c8aabc93…1b34`. Primary run `main_nla240`: 1,206 menu
+chunks, 240 problems.
+- **Q1: the readout score adds nothing** beyond position and the probe:
+  −0.001 [−0.002, −0.000], *no practically relevant increment*. It is not
+  noisy: its two samples correlate 0.94.
+- **Q2: the explanation text adds +0.073 AUC** [0.058, 0.087] beyond
+  position and the last 600 characters of the trace (*increment detected*).
+  - It survives the multiplicity check (+0.073) and the whole prefix as
+    control (+0.078). The noise-text null is −0.003.
+  - Its heaviest terms name the reasoning phase: "final answer",
+    "concluding", "therefore" against "first", "let's", "expecting
+    continuation".
+- **But a linear probe on the same layer-20 activation, trained for the
+  same label, is better** (deviation 1, post hoc):
+  - AUC 0.889 against 0.860 on registered safety, and 0.948 against 0.917 on
+    tail membership;
+  - the text adds nothing to it: −0.001 [−0.004, 0.002] and −0.000
+    [−0.002, 0.001];
+  - an unfitted ensemble of the two is no better than the probe alone
+    (deviation 2).
+- **Q3: no latent answer.** Before the trace writes the final answer, the
+  explanations name it no more often than another problem's answer: 3.1%
+  against 4.0%, −0.010 [−0.022, 0.004].
+- **`main` (120)** agrees on every point.
+
+**Reading.** The verbaliser makes legible a reasoning-phase signal that is
+linearly present in its own input. On these data it is an interpretable view
+of the activation, not an additional source of information.
+
+## D82. An extended-budget forcing pass, specified before any extended answer
+
+**Recorded 2026-10-20.** The plan is `docs/EXTENDED_FORCING_PLAN.md`,
+SHA-256 `615171a2…08d3`
+(`615171a21ef6a9ad30998d32cf5cbf87982154946530add692f97db409f108d3`). No
+extended-budget answer had been generated on any run.
+
+**Why.** D79 bracketed the 48-token cut-off between two extreme readings,
+and every readout advantage depends on which one is right. Only a
+measurement can decide it.
+
+**The pass:**
+- every design-A menu boundary whose registered completion was cut off is
+  re-forced with the registered call, at 256 tokens instead of 48;
+- the tokens are counted exactly;
+- a seeded 50 finished boundaries serve as the stability gate (≥ 0.95).
+
+**Outcomes:**
+- O48, the registered outcome, which stays the only one D75's verdict uses;
+- O256;
+- O256-u, where still unfinished means no answer;
+- continuation majority, as a diagnostic.
+
+Each is scored with both registered savings and *net* savings, which charge
+the forced tokens. The primary reading is O256 with net savings.
+
+**Fixed now:** the share `f` of pre-tail cut-offs whose 256-token answer
+equals the final answer decides the wording: ≥ 0.80, "commitment within 48
+tokens"; ≤ 0.20, "registered reading supported"; otherwise "mixed".
+
+**Code, tested before any GPU use:**
+- `scripts/force_extended.py`;
+- `scripts/extended_forcing_analysis.py`;
+- `tests/test_extended_forcing.py`.
+
+**Checks on the code:**
+- The analysis was run end to end on an *identity fixture* in the
+  scratchpad: "extended" answers equal to the registered ones. With it, every
+  O256 cell reproduced O48 exactly, and the registered analysis reproduced
+  first. The fixture is a code test, not a result.
+- Dry runs: 428 cut-off menu boundaries on `main_nla240` (at most 122k tokens)
+  and 216 on `main`.
+- On `main`, only 29 of 120 problems have continuation answers at every menu
+  boundary, so the continuation diagnostic is small.
+
+**Order:**
+1. `main_nla240`, once `rep1` no longer needs the GPU;
+2. `rep1`, after D75's confirmatory analysis exists.
+
+Neither is part of `scripts/rep1_runbook.py`.
+
+## D83. A leakage-resistant design: Stage 0 on stored data, Stage 1 for review
+
+**Recorded 2026-10-20.** The design is `docs/LEAKAGE_RESISTANT_DESIGN.md`,
+SHA-256 `b26f902d…8a17`
+(`b26f902d2169acf053b75cedb4e5b6c972c290f7819bbedad45eadffe8a08a17`).
+
+**The leak it removes.** Design A's menu always contains `i* − 1` and `i*`,
+because the matched-position window ends just before the tail start and the
+tail window starts at it. Every rule evaluated there is told where the
+outcome changes.
+
+**Stage 0** (stored data; CPU; exploratory; frozen before it was computed):
+- every chunk boundary of `main`'s 250 traces is a unit;
+- this is possible because `main_forced` completed O48 at every boundary;
+- it measures position, the registered probe, a same-label activation probe
+  and the raw trace text, as information and as stopping policies against
+  no signal and the oracle;
+- it has no NLA, which exists only on the menu.
+
+**Stage 1** (new GPU work; **not run**):
+- 200 `rep1` problems, with 4 boundaries each drawn by a seeded rule that
+  reads only the number of chunks;
+- verbalisation, reconstruction and 256-token forcing at each;
+- primary estimand: Δ₁ = AUC(`pos+A+E`) − AUC(`pos+A`), with an equivalence
+  margin of 0.01;
+- an estimated 4–6 GPU-hours.
+
+It waits for three things: D75's analysis, D82's `rep1` pass and the `rep1`
+information audit, and the researcher's review.
+
+**A cost fact recorded with it.** On `main_nla240`, a verbaliser sample is
+134 tokens on average (median 135, none at the 256 cap). A mean trace is 325
+tokens. One check of 2 samples therefore costs 0.83 of a trace before
+reconstruction. An online rule that verbalises at each candidate cannot save
+compute on this setup. Stage 1 is an information test, not an efficiency
+test.
+
+## D84. Stage 0 and selective risk run; a lexicon frozen for `rep1`; the paper re-planned
+
+**Recorded 2026-10-20. CPU only. The `rep1` traces stage was untouched
+throughout** (175/400 at 10:52 IST).
+
+**Stage 0** (`scripts/offmenu_stage0.py` → `runs/main_offmenu_stage0/stage0.json`,
+`176487fd…7efa`; exploratory). Units are all 2,756 boundaries of 250
+problems; there is no menu.
+- **Information:** a same-label activation probe adds +0.091 [0.066, 0.115]
+  AUC over position for safety (AUC 0.861). The registered probe adds +0.026
+  and raw text −0.002.
+- **As stopping rules under the registered estimand:** the probe beats no
+  signal by +0.046 [0.017, 0.072], but an information-free falling-position
+  rule beats it. Probe − falling: −0.032 [−0.083, 0.009] on registered
+  savings and −0.093 [−0.147, −0.043] on net savings. D79's artefact is
+  therefore a property of the estimand, not of the menu.
+
+**Selective risk at matched coverage** (D83 deviation 1, post hoc; plan as
+amended `7d9294db…e7ef`). Code: `src/nlaast/analysis/selective.py`, tested,
+with the no-signal closed form checked against Monte Carlo.
+- **On the menu** (`scripts/selective_risk_menu.py`), when the readout stops,
+  the stop is more often unsafe than chance: +0.14 [0.05, 0.21] at coverage
+  0.5 on the 240 arm, +0.16 [0.04, 0.26] on `main`.
+- **Everywhere**, the probes' stops are almost never unsafe (0.01–0.02), but
+  they save only 2–5% of the trace.
+- No single estimand measures stop quality here, and both views are
+  reported.
+
+**Lexicon frozen** (D81 deviation 3; plan as amended `5c351b65…6567`):
+`runs/main_nla240_information/lexicon.json`,
+`11674b0a01a18c3d423a7e4ae26a25579a437f4c659d3f5c7f1e3aff73cdb079`. The 40
+phase terms are fixed for `rep1`. Its AUC of 0.925 on `main` is **in
+sample**, and the output file says so.
+
+**A labelling defect, found and fixed.** The lexicon run first labelled
+`main` "out of sample", because the code only checked the directory. `main`'s
+120 problems are inside the lexicon's 240. The status now comes from
+problem overlap with the source run, and the file was regenerated.
+
+**Documents:**
+- `docs/UNDEREXPLORED_RESULTS_2026-10-20.md` (results);
+- `paper/CLAIM_EVIDENCE_MATRIX.md`;
+- `paper/PUBLICATION_STRATEGY.md` (directions, backlog, go/no-go);
+- `paper/MANUSCRIPT_OUTLINE.md`;
+- figures from stored JSON only (`scripts/make_paper_figures_v2.py` →
+  `paper/figures_v2/`).
+
+**Recommendation:** direction E. B's evaluation lessons frame D's finding,
+that the text is legible but not incremental. The fallback is B alone. The
+frozen report is not edited.
+
+**Tests:** 1,105 passed, 3 skipped (30 GPU or integration tests
+deselected), up from 1,074.
+
+## D85. Runbook gates fixed; the extended-forcing code audited; Stage 1 approved as revised
+
+**Recorded 2026-10-20, about 13:00–15:00 IST. The `rep1` traces process
+(PID 27992) was never touched.** It was at 193/400, all ok, in the frozen
+order, with no error lines; plan, config and problem hashes unchanged.
+
+**1. Two runbook gate defects, fixed before they could act.**
+- The acts gate read `total_clamped_positions` at the top level of
+  `acts/summary.json`. It sits under `alignment`, so the gate would have
+  halted the runbook after acts even on a good run.
+- The baselines gate tested for `probe.json`, which `score_baselines.py`
+  writes even when the probe is skipped. It now reads the manifest's rule
+  list.
+- Every gate now passes on `main`'s finished artifacts and fails on a missing
+  run.
+- The waiting runbook was replaced. Only its own processes were stopped.
+  `rep1_runbook.py`: `5da4593c…11a7`.
+
+**2. The extended-forcing code, audited against its frozen plan** (D82
+deviation 1; plan as amended `027f1bc0…d555`).
+- **Gaps closed:**
+  - the information audit under O256 was missing;
+  - §4.5's split by position covered only one side;
+  - the `f` statistic read a stored flag instead of recomputing.
+- **Checks, all exact:**
+  - the identity fixture reproduces O48 and the registered analysis;
+  - a final-answer fixture reproduces D79's independently computed
+    committed-to-final scenario (B\* 0.6058 and every gap and CI);
+  - the O256 information path reproduces all 12 stored D81 contrasts.
+- `extended_forcing_analysis.py`: `849d8674…869a`;
+  `information_audit.py`: `7b26afe8…8d56`.
+
+**3. Stage 1: power audit and decision** (D83 deviation 2; design as amended
+`2bb536f2…7756`).
+- `scripts/stage1_power_audit.py` → `runs/stage1_power_audit/power.json`
+  (`85300f39…18a1`), stored data only.
+- With real explanation text, 200 × 4 resolves equivalence in 100% of
+  simulations.
+- Under Stage 1's exact sampling, with raw text standing in, only 40% resolve
+  at 200 × 4, against 80% at 250 × 8. The cause is a small out-of-sample
+  penalty that puts the CI across the margin.
+- The bootstrap is not over-confident: the spread across refits is at or
+  below the bootstrap SE.
+
+**Decision: Stage 1 is approved and will run, revised before any Stage 1 data
+existed:**
+- every ok `rep1` problem (up to 400) × 4 positions;
+- TOST-style readings, because the first rule could call a negligible,
+  significant negative Δ "probe better";
+- an attrition gate of 75% of drawn positions.
+
+The cost is about 8–12 GPU-hours, all local. `stage1_offmenu.py`:
+`9c9a3c2f…bf01`.
+
+**4. Order after `rep1`** (`scripts/post_rep1_queue.py`, `8a1d29f3…16a4`;
+it waits for the runbook and refuses to start unless D75's analysis exists
+unblocked):
+1. D82 on `main_nla240`;
+2. the `rep1` secondaries (CPU);
+3. D82 on `rep1`;
+4. Stage 1.
+
+It stops at the first failed step.
+
