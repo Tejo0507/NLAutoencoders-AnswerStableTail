@@ -3646,3 +3646,49 @@ reruns reconstruction.
 
 **Not a deviation:** nothing in the measurement changed.
 
+## D93. rep1 resumed after the D92 pause; every recorded hash re-verified
+
+**Recorded 2026-10-22, about 20:30 IST.** The researcher asked for the
+pipeline to be resumed and run through the registered analysis and the
+approved queue, with nothing in the experiment changed.
+
+**Preflight, read-only, before anything was launched:**
+- no python process was running, so nothing was duplicated;
+- on AC power, Windows sleep after "never" (AC and DC);
+- every hash recorded in D75–D92 was recomputed in the pipeline's checkout
+  (table in `docs/CHECKPOINT_2026-10-22.md`). All match, including the
+  plan as amended (`e45629a7…0761`), the config (`d31383f6…5f23`) and the
+  problems (`e633885f…d248`);
+- `verbalisations.jsonl`: 2,227 rows, 2,227 unique ids, 4,439/4,454 samples
+  passing integrity; no `reconstructions.jsonl`.
+
+**OMEN, as in D89.** `HP.OMEN.VadRedirectHelper` held 567 MiB of VRAM.
+`OmenCommandCenterBackground.exe` and its three helpers were stopped; the HP
+services were left running. GPU memory then read 0 MiB.
+
+**Relaunched at 20:19:11** from the pipeline's checkout with the unchanged
+command (`resume_rep1.py`, PID 25260). The runbook skipped traces through
+baselines. `run_autoencoder.py` logged "verbalise: 2227 windows, 0
+remaining" and started reconstruction from 0/2,227.
+
+**Three record discrepancies, explained and left as they are:**
+1. **Reconstruction speed.** Before the pause it ran at about 66 s per 20
+   windows. Now it runs at about 7 s. The earlier process loaded the
+   reconstructor right after verbalising, with 7.03 GB allocated on the
+   6.1 GB card (`AR ready` line in `nla.log`). The fresh process loaded it
+   with 3.64 GB. No OMEN warning was printed at the earlier launch. So the
+   spill came from the verbaliser's memory still being held in the same
+   process, not from OMEN. This is an engineering observation: the
+   reconstruction computation is the same.
+2. **Integrity counts.** `nla.log` reports 3,329/3,338 samples well-formed.
+   That count covers only the windows verbalised in the last session. The
+   whole file holds 4,439/4,454 (99.7%), the figure in D92 and STATUS.
+3. **Bootstrap replicates.** `configs/replication.yaml` sets
+   `analysis.bootstrap_iterations: 10000`. The registered analysis does not
+   read it: `reanalyse_o3_registered.py` fixes `REPS = 2000` and
+   `SEED = 20261019`, as the plan's §4 registers.
+
+**Not a deviation.** Nothing in the measurement, the plan or the config
+changed. The D91 provenance gap in D69's plan and the D85/D91
+`stage1_power_audit.py` hash note stand as recorded.
+
