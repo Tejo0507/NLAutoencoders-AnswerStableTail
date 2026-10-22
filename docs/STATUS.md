@@ -3,6 +3,18 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-22.
 
+> **Update 2026-10-22, about 20:55 IST: the D75 verdict exists (D94).**
+> - Stages A–D (reconstruction, 48-token forcing, the confirmatory analysis,
+>   the D79 audit) completed, and every runbook gate passed. Re-forcing
+>   agreement was 0.965 on 200.
+> - **H1 supported** (+0.047 [0.019, 0.075], Holm p 0.002). **H2
+>   supported** (+0.057 [0.039, 0.076], Holm p 0.001).
+> - D79: both families are **unresolved**. A falling-position rule beats the
+>   readout by 0.025 [0.005, 0.044]. The position-residualised readout does
+>   not beat no signal (+0.007, p 0.54).
+> - Full record and limits: D94. The approved queue (F below) started at
+>   20:52.
+>
 > **Update 2026-10-22, 20:19 IST: resumed (D93).** The pipeline was paused
 > at 16:43 (D92) and relaunched at 20:19 with the unchanged
 > `resume_rep1.py`. Verbalisation was skipped (2,227 windows, 0 remaining);

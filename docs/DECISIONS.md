@@ -3692,3 +3692,86 @@ remaining" and started reconstruction from 0/2,227.
 changed. The D91 provenance gap in D69's plan and the D85/D91
 `stage1_power_audit.py` hash note stand as recorded.
 
+## D94. The D75 confirmatory verdict, and the D79 position audit beside it
+
+**Recorded 2026-10-22, about 20:55 IST**, from
+`runs/rep1_o3_registered/o3_registered.json` (written 20:50 IST) and
+`runs/rep1_position_audit/position_truncation.json` (20:51 IST). Both
+runbook gates passed. Nothing was chosen after the outcomes were seen. Every
+reading below is the plan's mechanical rule.
+
+**Instrument and run:**
+- 380 problems with a tail. 599 menu boundaries completed with 48-token
+  forcing, in blocks of 2.
+- Re-forcing agreement 0.965 on 200 stored boundaries, against the
+  registered 0.95, so the analysis was not blocked.
+- Plan hash `e45629a7…0761` checked. B\* = 0.414; 9 of 9 budgets matched.
+- Forced answers `2dc5dee4…e1bd`; traces `7364257a…92d0`.
+
+**The D75 verdict (confirmatory).** Paired problem bootstrap with 2,000
+replicates and seed 20261019; Holm over {H1, H2}:
+
+| | Δ | 95% CI | p | Holm p | reading |
+|---|---|---|---|---|---|
+| H1 readout − layer-20 probe | +0.047 | [0.019, 0.075] | 0.002 | 0.002 | **supported** |
+| H2 readout − no signal | +0.057 | [0.039, 0.076] | 0.0005 | 0.001 | **supported** |
+
+- H1's interval spans the 0.05 margin. An advantage of 0.05 or more over the
+  probe is neither shown nor excluded.
+- p = 0.0005 is the floor at 2,000 replicates.
+- Secondary, not in the verdict: readout − probe is +0.055 [0.026, 0.085] at
+  layer 14 and +0.044 [0.016, 0.073] at layer 24. Neither the probe nor
+  convergence beats no signal.
+
+**The D79 audit (secondary, specified before any rep1 outcome; plan
+`bffc9e08…c877`).**
+
+| | comparison | Δ | 95% CI | Holm p |
+|---|---|---|---|---|
+| X1 | readout − `position_tokens` | +0.156 | [0.125, 0.187] | 0.002 |
+| X2 | `position_tokens` − no signal | −0.099 | [−0.119, −0.079] | 0.002 |
+| X3 | probe − `position_tokens` | +0.109 | [0.081, 0.136] | 0.002 |
+| X4 | `readout_residualised` − no signal | +0.007 | [−0.016, 0.029] | 0.54 |
+| Y1 | readout − `position_tokens_falling` | −0.025 | [−0.044, −0.005] | 0.016 |
+| Y2 | `position_tokens_falling` − no signal | +0.089 | [0.066, 0.108] | 0.001 |
+
+- **Family X: unresolved.** X1 is significant, but X4 is not. So the
+  readout is not shown to carry stopping information beyond its log-position
+  trend. X1's upper bound is above 0.05, so an advantage over position is
+  not excluded either. X2 is significant only with Δ < 0, so its qualifier
+  does not apply.
+- **Family Y: unresolved.** The falling-position rule beats no signal (Y2),
+  and the readout does not beat it. Y1 is significant in the other
+  direction: the falling-position rule, which uses only `prefix_tokens`,
+  selects safer stops than the readout, by 0.025. Neither fixed reading's
+  condition holds: "reproduces" requires Y1's interval to contain 0, and
+  "readout beats" requires Δ > 0.
+- **Descriptive:**
+  - readout_residualised − probe is −0.003 [−0.035, 0.028];
+  - the within-problem Spearman correlation with `prefix_tokens` is −0.23
+    for the readout and +0.66 for the probe;
+  - the readout's stops are increasingly cut-off forced answers as the
+    budget grows (6% at the lowest budget, 23% by the fourth).
+
+**What this means, and what it does not:**
+- H1 and H2 are supported as registered. The verdict stands and is not
+  reworded by the audit.
+- But a rule with no access to the activation (Y2, +0.089) does better than
+  the readout's advantage over no signal (H2, +0.057). With the log-position
+  trend removed, the readout no longer beats no signal (X4) or the probe
+  (descriptive).
+- So these data do not show that the readout's advantage comes from the
+  content of its explanation, rather than from favouring earlier menu
+  positions on this menu. Nothing here bears on whether the explanations
+  are faithful.
+- The D82 256-token pass and Stage 1 (outcome-blind positions) in the
+  queue are the pre-specified follow-ups for exactly this question.
+
+**Provenance.** Both outputs record `git.dirty: true` at `b17c131` on
+`research/d69-d75-followup`. That checkout keeps the stack's files
+uncommitted. Against `main` (`d510a96`), `rep1_runbook.py`,
+`resume_rep1.py`, `post_rep1_queue.py`, `force_all_boundaries.py`,
+`reanalyse_o3_registered.py`, `position_truncation_audit.py`, the plan and
+the config are byte-identical. `run_autoencoder.py` differs only in line
+endings.
+
