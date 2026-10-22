@@ -2472,3 +2472,383 @@ repository at `4713607` and to the GitHub release) and `ZENODO_UPLOAD.md`
 publishing. Record the DOI here only once Zenodo shows the record as
 published.
 
+## D68. A post-hoc scientific audit; its findings go in an addendum, not the frozen sections
+
+**Recorded 2026-10-19, after the freeze (D66).** An audit traced each headline
+claim from the registered definition through code and artifacts to its
+interpretation. The findings are in `docs/SCIENTIFIC_AUDIT_2026-10-19.md`.
+**Every analysis in it is post hoc and exploratory.** No registered number,
+verdict, protocol or stored artifact is changed.
+
+**Why an addendum.** D66 freezes `paper/`. This decision authorises one new
+file there, `paper/ADDENDUM_2026-10-19.md`, and a pointer to it in
+`paper/README.md`. The section files and `REPORT.md` are unchanged. Editing
+them would erase the record of what was frozen and when.
+
+**Deviations and defects found. Recorded here, not fixed in the registered
+pipeline:**
+
+1. **The O3 safety outcome deviates from PROJECT_PLAN §5.** §5 registers
+   the answer *forced* from `P_s`. `score_baselines.build_rows` scores the
+   answer *parsed* from the prefix text. It was not recorded before. Stopping
+   at the tail start is safe on 0.275 of the NLA problem set as implemented,
+   and on 1.000 as registered. The O3 results are kept as computed, because
+   recomputing them under the registered outcome needs forced answers at
+   boundaries the run never forced, which means GPU work. The code comment in
+   `build_rows` now states the deviation.
+2. **The O3 comparison window lies beyond the oracle bound.** The largest
+   mean saving with no unsafe stop is 0.174 as implemented and ≥ 0.314 as
+   registered. The comparisons were made at 0.613 and 0.722. An
+   information-free rule beats every compared rule there. The registered O3
+   verdict, "no significant difference", stands. Its reading as evidence
+   about incremental value is withdrawn (addendum A1).
+3. **F10 and RQ2's family tests pool non-independent units.** F10 pools
+   samples and RQ2 pools claims, the error D29 and D41 corrected elsewhere. At
+   the problem level the BH family has 4 significant tests (evaluable
+   convention) or 3 (planned family), not 5 and 5. So §5.5's "the convention
+   decides nothing" does not survive the unit correction. The registered
+   tests are left as they are, so `check_run_consistency.py` still certifies
+   the frozen record. The problem-level versions are in the audit output.
+4. **`random_dir` is not matched on edit size.** It is a unit direction like
+   the candidate, so the same coefficient removes about 19× less of each
+   activation (1.1% against 21.8% of its norm). The module docstring said
+   "matched norm" and is corrected. The arm itself is unchanged.
+5. **A sentence in D62 and `RQ3_DECISION_BRIEF.md` reads a no-contrast
+   observation as a control result** ("controls unchanged"). The controls ran
+   only at dose 1.0, where the candidate changed 1 of 60 answers. Both
+   documents are kept as written, and this entry corrects them. Report §6.5
+   was already correct.
+
+**Interpretations narrowed** (addendum A1–A8): what O3 can say; that the tail
+marks recoverability within the forcing budget, not determinacy; that RQ1's
+association is not separable from trace length (post-hoc logistic, p = 0.68
+with log tokens as a covariate); that RQ2 establishes reconstruction
+dependence and nothing about content; and that F8 is a partial replication
+of the activation half only.
+
+**Not done, and why.** No GPU work was run. The highest-value next
+experiment is O3 rescored with forced answers at every boundary, compared
+below the oracle bound (under 1 GPU-hour: 554 forced answers of at most 48 tokens). Its design is in the audit's
+§5.6 and §11. A follow-up to RQ3 is designed, not run, in
+`docs/RQ3_FOLLOWUP_DESIGN.md`. It opens a *new* question, the causal
+redundancy of the tail, and RQ3 stays not tested. Running either needs its own
+dated decision.
+
+**Provenance.**
+- `scripts/audit_claims_posthoc.py`, SHA-256 `23565f99…9926`.
+- `src/nlaast/analysis/posthoc.py`, SHA-256 `70bc198e…7f37`; tested by
+  `tests/test_posthoc_audit.py`.
+- The output is `runs/main_claims_audit/claims_audit.json`, SHA-256
+  `b5b044f6…2914`, seed 20261019. It records the SHA-256 of each input.
+- It was run from a working tree based on `b17c131` with the audit's files
+  uncommitted, so the file records `dirty: true`.
+- The script reproduces both registered O3 head-to-heads before it reports
+  anything, and refuses to run otherwise.
+
+## D69. O3 is re-scored on the registered outcome, under a plan fixed before the data
+
+**Recorded 2026-10-19T14:01Z, before any forced answer was generated for a
+missing boundary.** The researcher asked for the primary comparison to be
+recomputed under PROJECT_PLAN §5's outcome. That outcome is the answer
+*forced* from `P_s`. The run scored the *parsed* answer (D68 §1).
+
+**Code.**
+- `score_baselines.build_rows` takes `outcome="parsed" | "forced"`. `parsed`
+  stays the default, so the stored run and `check_run_consistency.py` keep
+  reproducing; it is the historical analysis.
+- `forced` reads stored forced answers and fills the rest from a completion
+  file (`stopping.forced_answer_sequence`).
+- A rule that stops at a boundary with no measured forced answer raises
+  `OutcomeUnknown`. It is not scored as incorrect, because that would invent
+  an outcome.
+- Tests: `tests/test_registered_outcome.py`.
+
+**Missing answers.** The traces stage forced answers only at boundaries the
+AST scan evaluated: 1,520 of 2,756 boundaries in the corpus, and 554 are
+missing on the 120-problem NLA arm. `scripts/force_all_boundaries.py`
+(SHA-256 `b8b849fc…bd04`) fills all 1,236 missing boundaries with the
+traces stage's own forcing call. It also re-forces 200 stored boundaries to
+measure whether the instrument reproduces. That is at most 68,928 generated
+tokens on the RTX 4050 with the NF4 target already on disk (5.2 GB). The
+output goes to `runs/main_forced/`; `runs/main/` is not touched.
+
+**Why this GPU run needs no further decision.** The researcher's instruction
+names this computation ("recover or compute the forced answers needed at the
+554 boundaries"). It is a fixed, measurement-only completion of the
+registered instrument, under an hour. It is not an experiment with free
+design choices. Computing the 682 boundaries outside the NLA arm at the same
+time serves the exploratory 240-problem arm (D54) and the full-corpus
+baselines, at about 30k tokens more.
+
+**Analysis plan, fixed now.** `docs/O3_REGISTERED_REANALYSIS_PLAN.md`,
+SHA-256 `6e0cc75d…f429`. In brief:
+- Every rule may stop only where the readout can (design A), because under
+  the registered outcome the readout's window positions straddle the tail
+  start and would otherwise leak the outcome.
+- Budgets lie below this outcome's oracle bound.
+- The primary estimand is the mean safe-rate gap over budgets, with a paired
+  problem bootstrap and Holm within each family.
+- A pre-specified check asks whether any rule beats a rule with no signal.
+- The decision rules for *established*, *excluded* and *unresolved* are fixed
+  in advance, with a margin of 0.05.
+
+The analysis is **corrected and post hoc**, because the parsed-outcome result
+had been seen. The registered O3 test stays in the record as computed.
+
+## D70. RQ2's paraphrase null: validity criteria fixed before their effect is measured
+
+**Recorded 2026-10-19.** The audit (D68) found that 29.2% of paraphrase-null
+draws have an effect of exactly 0. The cause is mechanical
+(`faithfulness/claims.paraphrase_claim`):
+
+- **Variant 0** swaps the first match from a 13-entry synonym table. Where no
+  entry matches, it returns the claim unchanged.
+- **Variant 1** prepends a discourse marker and lowercases the first
+  character.
+- **Variant 2** reorders around the first comma, or, where there is no comma,
+  prepends a second marker.
+
+Paraphrase texts are not stored, but `paraphrase_claim` is deterministic, so
+they can be regenerated exactly from the stored explanations.
+
+**Classes, fixed now and computed by `faithfulness/paraphrase_qc.py`.**
+Content words are lowercased alphanumeric tokens, numbers included, minus a
+fixed stopword list and the discourse markers.
+
+| class | definition | as a null draw |
+|---|---|---|
+| `identical` | the same string | **invalid**: nothing was perturbed |
+| `normalised_identical` | equal after case folding, whitespace collapse and punctuation removal | **invalid** |
+| `prefix_only` | a discourse marker plus the original, modulo the first character's case | valid; surface addition |
+| `lexical_swap` | the content words differ only by one synonym-table pair | valid; surface substitution |
+| `reorder` | the same content-word multiset in a different order | valid as a perturbation; **meaning preservation unverified** |
+| `content_changed` | the content-word multiset differs in any other way | **invalid**: possibly meaning-changing |
+
+**Reanalyses, fixed now.** Each recomputes every explanation's 95th-percentile
+threshold from its own pooled `|effect|` values. An explanation with no
+remaining draw is reported as *not evaluable*, never dropped silently.
+
+- **N1:** valid draws only: `prefix_only`, `lexical_swap` and `reorder`.
+- **N2:** surface-verified draws only: `prefix_only` and `lexical_swap`.
+
+The registered null, all draws, stays the RQ2 result of record. A conclusion
+"survives" the correction only if it holds under both N1 and N2.
+
+**Checks before any number is used.**
+- Regenerated claim texts must equal the stored `claim_text` on every claim.
+- Every `identical` draw must have a stored effect of exactly 0. This
+  validates the mapping from variants to stored effects.
+
+**What this cannot establish.** None of these classes verifies meaning
+preservation semantically. That needs paraphrases judged by people or a
+validated model, which this study does not have (PROJECT_PLAN §8).
+
+## D71. What the verbalisations say about their context is checked against the trace; the rest gets a protocol
+
+**Recorded 2026-10-19, before any check was run on real explanations.**
+RQ2 has no validated test of claim content (D68). Almost every explanation
+follows the verbaliser's template:
+- it names the **final token** in quotes (99.9%);
+- it **quotes context** it says precedes the activation;
+- it says what it **expects next** (97.6%).
+
+Each of these has an objective ground truth in the stored trace. The
+activation is read at the chunk's last generated token, which `offsets` maps
+to text. So the three are checked by string comparison, with no annotator and
+no model judge (`faithfulness/claim_checks.py`, `scripts/validate_claim_semantics.py`).
+
+**Fixed now:**
+- **Units.** Every activation-driven explanation of the NLA arm that passed
+  the integrity gate; none is selected.
+- **Context.** The question plus the trace up to and including the
+  activation's token.
+- **Continuation.** The 200 characters after it.
+- **Metrics.**
+  - Final token: `exact_suffix`, `last_word` and `last_char`.
+  - Context quotes of 4 or more words: the share with contiguous support ≥ 0.8.
+  - Expectations: `first_word` and `any_word_in_first_10`.
+- **Controls**, each scored with the same code:
+  1. *Mismatched trace:* the same explanation checked against the next
+     problem in sorted order, at the same relative chunk position.
+  2. *Shifted position:* the same trace at chunk `(c + ⌊n/2⌋) mod n`.
+  3. *Gaussian control:* the verbaliser's output for a matched-norm noise
+     vector at the same window, checked against the true position.
+- **Inference.** The paired difference, real minus control, per explanation,
+  with a problem-cluster bootstrap (10,000 replicates).
+- **Decision rule.** A metric is called **content-specific** iff the real
+  rate exceeds *all three* controls, with each 95% interval excluding 0.
+
+**What this can and cannot validate.**
+- A matching final token shows the claim names the position's content.
+- A supported quote shows the quoted text exists, not that what the claim
+  says about it is true.
+- A matching expectation shows agreement with the model's subsequent output,
+  which is behavioural agreement, not faithfulness to the computation.
+
+Interpretation, accuracy of descriptions and mechanistic assertions are
+outside these checks. `docs/CLAIM_VALIDATION_PROTOCOL.md` specifies a human
+protocol for them. That protocol is **not run**: no independent annotator
+exists, and no LLM judge is used as ground truth.
+
+## D72. F10 and RQ2 get corrected analyses beside the registered tests, which stay
+
+**Recorded 2026-10-19.** D68 found that the registered F10 and RQ2 tests pool
+dependent observations: about 4 samples per problem in F10, and 6,007 claims
+from 120 problems in RQ2. The registered tests stay in `results.json` as
+computed. `scripts/corrected_f10_rq2.py` (module `analysis/clustered.py`,
+tests `tests/test_clustered.py`) adds:
+
+- **F10.** The question is whether tail windows reconstruct differently from
+  matched windows *in the same trace*. Windows are nested in problems and
+  paired by design. **Estimand:** the mean over problems of the
+  within-problem difference between window-kind means, with a problem
+  bootstrap CI. A mixed model, with a random intercept per problem and a
+  variance component per window, estimates the same contrast weighted by
+  precision. The Wilcoxon test on problem means (a pseudo-median) is
+  reported as well.
+- **RQ2.** The question concerns the population of claims, so the
+  claim-weighted mean stays the estimand. Its uncertainty is clustered:
+  - a bootstrap over problems;
+  - a problem-level Wilcoxon test;
+  - a mixed model with problem and explanation-within-problem effects.
+
+**Result.**
+- RQ2 is unchanged in substance: 0.0324 [0.0301, 0.0347] by cluster
+  bootstrap, and 0.0367 [0.0300, 0.0435] (p = 2e-26) by mixed model. All 120
+  problems are positive, and d_z = 2.46.
+- F10 tail − matched-position: −0.0052 [−0.0118, 0.0016]. Wilcoxon p = 0.012;
+  mixed model −0.0050 [−0.0129, 0.0029], p = 0.21.
+- F10 tail − matched-length: −0.0031 [−0.0088, 0.0027]. Wilcoxon p = 0.053;
+  mixed model p = 0.46.
+- **The F10 tail-versus-matched differences are not robust.** The
+  mean-difference estimand's interval includes 0 under both the bootstrap
+  and the mixed model. The rank test disagrees for matched-position. This
+  choice was not fixed before the numbers were seen, so the disagreement is
+  reported, not resolved in either direction. F10's substantive reading,
+  *fidelity is not higher in the tail*, holds under every version.
+- **BH family**, significant tests under the evaluable and planned-family
+  conventions:
+  - registered: 5 and 5;
+  - problem-level Wilcoxon: 4 and 3;
+  - mixed model: 2 and 2, namely RQ2 and F10 against the Gaussian control.
+
+  RQ1's significance depends on which correction is used, so RQ1 is **not
+  robustly significant** once the units are corrected. Report §6.7's "5
+  significant, and the convention decides nothing" holds only under the
+  registered units.
+
+**For any future run**, F10 and RQ2 should be registered at the problem
+level. The pipeline's registered functions are not changed here, so the
+stored run still reproduces.
+
+## D73. Experimental coverage: what the stored artifacts could test, and the replication that matters
+
+**Recorded 2026-10-19.** The study has one model, one autoencoder layer, one
+generation seed, and 120 problems in the NLA arm with no counting and
+probability. Without new inference, three of these could vary:
+- **The verbaliser seed.** Each window has two samples.
+- **The probe's layer.** Activations are stored at 14, 20 and 24.
+- **Benchmark coverage.** The exploratory 240-problem arm (D54) includes 23
+  counting-and-probability problems.
+
+The generation seed matters only for the stochastic stages, because the
+traces are greedy. These checks ran through `scripts/coverage_robustness.py`
+and the registered-outcome reanalysis on `main_nla240`
+(`docs/COVERAGE_PLAN.md`). All are **exploratory and post hoc**.
+
+**Result.**
+- The readout's score beating chance is robust:
+  - each verbaliser seed alone: +0.044 and +0.051;
+  - the 240-problem arm: +0.069 [0.049, 0.093];
+  - design B there: +0.039;
+  - GSM8K and algebra separately.
+- The readout beating the probe is **not** robust. It falls to +0.006
+  [−0.045, 0.059] against a layer-24 probe, which itself beats chance. It
+  vanishes in design B. It is significant only on the post-hoc 240-problem
+  arm (+0.057 [0.023, 0.091]).
+- The 23 counting-and-probability problems are uninformative.
+
+**Not run, and why.** The decisive experiment is a preregistered design-A
+comparison on fresh problems, with the probe's layer fixed in advance. At the
+observed precision it needs N of about 200–900, depending on the true gap:
+20–90 GPU-hours on this machine. A run of that size needs the researcher's
+decision. Cross-model coverage needs autoencoder checkpoints whose
+availability was not verified here.
+
+## D74. The RQ3 follow-up pilot: three defects found, corrected code, and the run left for a decision
+
+**Recorded 2026-10-19. Nothing was generated.** The follow-up in
+`docs/RQ3_FOLLOWUP_DESIGN.md` was checked against the stored causal rows and
+by a CPU dry run (`scripts/run_rq3_pilot.py --dry-run`). Three defects
+changed the design.
+
+1. **The answer-change effect it was powered on is a truncation artefact.**
+   The causal stage caps continuations at 200 tokens. At dose 2.0, 39 of 60
+   continuations hit that cap, and **all 13** answer changes are among them;
+   at dose 1.5, 3 of 4 are. The answer was then parsed from a text that had
+   not finished, and one "change" (`} \frac{8}{7}. \]` against
+   `\frac{8}{7}`) is a parse artefact. The 0.217 rate used for power is
+   therefore not evidence of an effect on answers. The texts were not stored,
+   so whether the long continuations are degenerate cannot be checked.
+2. **"Size-matched" by coefficient is a different edit.** Scaling a random
+   unit direction's coefficient about 19× to match the candidate's 21.8%
+   removal reflects and amplifies a component; it does not remove one. The
+   corrected controls are the same edit at the same coefficient, matched on
+   what they remove.
+   - *Variance-matched random directions:* on held-out eval activations they
+     remove 21–25% of the norm, against the candidate's 21.8%.
+   - *Permuted-label difference-in-means directions,* orthogonalised to the
+     candidate and size-filtered. Raw permuted directions ranged from 0.33×
+     to 1.20× the candidate's size, with cosines up to ±0.77; the accepted
+     ones remove 20–22%.
+3. **The candidate is largely a position direction.**
+   - It is real: ‖Δ‖ is 39.8 against a within-problem permutation null of
+     5.0 (95th percentile 6.5, p = 0.0005). On 141 held-out eval problems it
+     separates tail from pre windows with AUC 0.918, higher in every problem.
+   - But its projection correlates with relative position at ρ = 0.81, and
+     its cosine with a direction fitted from position alone on pre-tail
+     boundaries is 0.357.
+   - A position-only control arm is added. It is reported, not used in the
+     decision.
+
+**Code** (tests: `tests/test_rq3_pilot_controls.py`):
+- `causal/controls.py`;
+- `projection_editor` now records the norm it removes (bookkeeping only);
+- `scripts/run_rq3_pilot.py`. It reads `runs/main/` and writes only
+  `runs/main_rq3_pilot/`. Continuations get 768 tokens, and a capped one is
+  forced to commit. Each row stores its text, whether it finished, the
+  removed norm and a degeneration flag.
+
+**Configuration** (constants in the script; changing one is a new decision):
+- Problems: the registered causal arm's 60.
+- Candidate doses: {0, 1.5, 2.0}.
+- Controls at {1.5, 2.0}: 5 variance-matched, 5 permuted-label and 1
+  position direction.
+- Size tolerance ±10%; seed 20261019.
+
+**Staged, with go/no-go rules fixed now:**
+- **Stage 0** (`--stage0`): candidate only, doses 0 and 2.0. That is 120
+  generations, 0.2–1.3 GPU-hours.
+  - *Invalid* if dose 0 does not reproduce every baseline answer.
+  - *No-go* if fewer than 10% of answers change at dose 2.0 once
+    continuations may finish.
+  - Otherwise, go to stage 1.
+- **Stage 1:** all arms, 1,500 generations, 1.5–16 GPU-hours. The range
+  depends on whether the controls also lengthen the output.
+  - *Invalid manipulation* if dose 0 is not identical, or if fewer than 90%
+    of either control's replicates remove within ±10% of the candidate's
+    realised norm.
+  - *No-go* if ≥ 50% of the candidate's answer changes are degenerate
+    continuations, which would mean the outcome measures disruption; or if
+    the candidate exceeds either control by ≤ 0.05.
+  - *Go* if the gap's lower 95% bound is above 0 and both control rates are
+    ≤ 0.10. Then register the confirmatory run on the 83 held-out problems,
+    with N computed from the measured control rate.
+  - Otherwise, go only if the N for power 0.8 is ≤ 240.
+
+**Status: ready to run, not run.** Stage 0 needs only the NF4 target, which
+is on disk. **Running it is the researcher's decision.** The pilot asks a new
+question, the causal redundancy of the tail along this direction. RQ3 stays
+*not tested* (D62), and the exploratory dose–response in answer change is
+withdrawn as evidence of an effect (defect 1).
+

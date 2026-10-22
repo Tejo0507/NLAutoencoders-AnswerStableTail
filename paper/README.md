@@ -4,6 +4,14 @@ The final report's sections, one file each, and how they become one document.
 **All nine sections are written** and the report is frozen at the commit
 recorded in `docs/DECISIONS.md` D66.
 
+**Read it with [`ADDENDUM_2026-10-19.md`](ADDENDUM_2026-10-19.md).** A
+post-hoc audit after the freeze (D68) changed no registered number, but it
+narrows how several results should be read. The most consequential: the
+primary comparison was made at budgets where a rule using no signal beats
+every compared rule, so it is not evidence about the readout's incremental
+value either way. The addendum is not a section and is not assembled into
+`REPORT.md`.
+
 ## Assembling it
 
 [`REPORT.md`](REPORT.md) is the whole report in one file, **generated** by
