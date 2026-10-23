@@ -145,7 +145,12 @@ def fig_truncation():
     t = d["truncation_descriptive"]
     cut = t["forced_cut_off_arm_boundaries"]["by_position"]
     dis = t["forced_vs_continuation_majority_disagree_by_cut_off_and_position"]
-    fig, axes = plt.subplots(1, 2, figsize=(9, 3.6))
+    # D82: what the pre-tail 48-token cut-offs do when given 256 tokens
+    ext = [(name, e["cut_off_meaning"]["by_position"]["before"])
+           for name, rel in (("rep1 [S]", "runs/rep1_extforced/analysis.json"),
+                             ("240 arm [X]", "runs/main_nla240_extforced/analysis.json"))
+           if (e := _load(rel)) is not None]
+    fig, axes = plt.subplots(1, 3 if ext else 2, figsize=(13.5 if ext else 9, 3.6))
     ax = axes[0]
     keys = ["before", "at or after"]
     ax.bar(range(2), [cut[k]["rate"] for k in keys], color=[C["readout"], C["probe"]])
@@ -162,7 +167,24 @@ def fig_truncation():
     ax.set_xticks(range(3))
     ax.set_xticklabels(["cut off,\nbefore i*", "finished,\nbefore i*", "finished,\nat/after i*"], fontsize=8)
     _axes(ax, "Forced answer ≠ continuations' majority", "", "share of boundaries")
-    fig.suptitle("Forced-answer truncation (main, 120-problem arm)", fontsize=10, x=0.01, ha="left")
+    if ext:
+        ax = axes[2]
+        w = 0.38
+        for j, (name, b) in enumerate(ext):
+            for dx, key, col in ((-w / 2, "equals_final", C["A"]),
+                                 (w / 2, "still_cut_off", C["readout"])):
+                ax.bar(j + dx, b[key], w, color=col)
+                ax.text(j + dx, b[key] + 0.01, f"{b[key]:.3f}", ha="center", fontsize=7)
+        ax.set_xticks(range(len(ext)))
+        ax.set_xticklabels([f"{n}\nn={b['n']}" for n, b in ext], fontsize=8)
+        ax.set_ylim(0, 1.1)
+        ax.legend(handles=[plt.Rectangle((0, 0), 1, 1, color=C["A"]),
+                           plt.Rectangle((0, 0), 1, 1, color=C["readout"])],
+                  labels=["reaches the final answer (f)", "still cut off at 256"],
+                  fontsize=7, frameon=False, loc="upper right")
+        _axes(ax, "Pre-tail 48-token cut-offs at 256 (D82)", "", "share of cut-offs")
+    fig.suptitle("Forced-answer truncation (left two panels: main, 120-problem arm)", fontsize=10,
+                 x=0.01, ha="left")
     fig.tight_layout()
     return _save(fig, "fig_v2_3_truncation")
 
