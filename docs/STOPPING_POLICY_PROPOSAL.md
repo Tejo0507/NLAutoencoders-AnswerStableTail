@@ -413,7 +413,8 @@ the slash):
    unsafe-stop rates of 2.5–5%, position-only hardly stops at all (coverage
    2–5%). The probe stops on 81–91% of problems.
 2. **At matched coverage, position "saves more" only by stopping unsafely
-   7–10 times as often.** This is why the proposal compares policies at
+   7–11 times as often** (risk ratios 10.8, 7.5 and 7.2 at coverage 0.25,
+   0.50 and 0.75). This is why the proposal compares policies at
    matched risk (C2), not at matched coverage.
 3. **The absolute savings are small.** In-sample, at 2.5–5% risk, the probe
    saves about **5–8% of trace tokens** net of the forced answer. The
