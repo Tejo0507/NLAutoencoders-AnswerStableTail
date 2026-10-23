@@ -648,6 +648,56 @@ class TestTheReplication:
         assert any("rep1_stage1/provenance.json" in f for f in rep.failures)
         assert crc.replication_exit_code(rep) == 1
 
+    # --- malformed outputs: reported with the file named, never a traceback ---
+
+    def test_a_malformed_required_output_is_a_named_failure(self, tree, rep):
+        runs, docs, _ = tree
+        (runs / "rep1_o3_registered" / "o3_registered.json").write_text(
+            '{"confirmatory": {', encoding="utf-8")       # truncated
+        crc.check_replication(runs, docs, rep)
+        msgs = [f for f in rep.failures if "o3_registered.json" in f]
+        assert msgs and all("not valid JSON" in m for m in msgs)
+        assert crc.replication_exit_code(rep) == 1
+
+    def test_a_malformed_optional_output_fails_rather_than_skips(self, tmp_path, rep):
+        runs, docs = tmp_path / "runs", tmp_path / "docs"
+        self._d82_and_stage1(runs, docs)
+        (runs / "rep1_stage1" / "analysis.json").write_bytes(b"\xff\xfe not json")
+        crc.check_replication(runs, docs, rep)
+        assert any("rep1_stage1" in f and "analysis.json" in f and "UTF-8" in f
+                   for f in rep.failures)
+        assert "Stage 1 numbers" not in rep.skipped
+
+    def test_a_malformed_row_names_its_line_and_later_sections_still_run(
+            self, tmp_path, rep):
+        runs, docs = tmp_path / "runs", tmp_path / "docs"
+        self._d82_and_stage1(runs, docs)
+        p = runs / "rep1_stage1" / "forced.jsonl"
+        p.write_text(p.read_text(encoding="utf-8") + '{"id": "d", "purp\n',
+                     encoding="utf-8")
+        crc.check_replication(runs, docs, rep)
+        assert any("forced.jsonl" in f and "line 4" in f for f in rep.failures)
+        # section 3 still ran: with no DECISIONS.md it records a skip
+        assert "decision record" in rep.skipped
+        assert crc.replication_exit_code(rep) == 1
+
+    def test_read_json_names_the_file_and_place(self, tmp_path):
+        p = tmp_path / "x.json"
+        p.write_text('{"a": 1,\n "b": }', encoding="utf-8")
+        with pytest.raises(crc.MalformedOutput) as e:
+            crc.read_json(p)
+        assert str(p) in str(e.value) and "line 2" in str(e.value)
+
+    def test_the_cli_exits_nonzero_with_context_on_a_malformed_results_file(
+            self, tmp_path, monkeypatch, capsys):
+        run = tmp_path / "run"
+        (run / "analysis").mkdir(parents=True)
+        (run / "analysis" / "results.json").write_text("{", encoding="utf-8")
+        monkeypatch.setattr(sys, "argv", ["check_run_consistency.py", "--run", str(run),
+                                          "--no-staleness"])
+        assert crc.main() == 1
+        assert "malformed output" in capsys.readouterr().err
+
     def test_contrast_arithmetic_is_checked(self, rep):
         crc.check_contrast_arithmetic("x", {"c": {"auc_a": 0.8, "auc_b": 0.7,
                                                   "delta_auc": 0.2}}, rep)

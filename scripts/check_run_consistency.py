@@ -164,15 +164,42 @@ def _same(a: Any, b: Any) -> bool:
     return a == b
 
 
+class MalformedOutput(Exception):
+    """A stored output that exists but cannot be parsed. It names the file and
+    the place, so a truncated or corrupted artifact is reported as such
+    instead of as a traceback from deep inside a check."""
+
+    def __init__(self, path: Path, detail: str):
+        super().__init__(f"{path}: {detail}")
+        self.path = path
+
+
 def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise MalformedOutput(path, f"not valid JSON (line {e.lineno}, column {e.colno}: "
+                                    f"{e.msg})") from e
+    except UnicodeDecodeError as e:
+        raise MalformedOutput(path, f"not UTF-8 text ({e.reason} at byte {e.start})") from e
 
 
 def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip()]
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        raise MalformedOutput(path, f"not UTF-8 text ({e.reason} at byte {e.start})") from e
+    rows = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError as e:
+            raise MalformedOutput(path, f"line {n} is not valid JSON ({e.msg})") from e
+    return rows
 
 
 # --- 1. the analysis against the artifacts it came from ---
@@ -755,7 +782,11 @@ def _load(runs: Path, rel: str, rep: Report, label: str, *,
     optional one is a listed skip."""
     path = runs / rel
     if path.exists():
-        return read_json(path)
+        try:
+            return read_json(path)
+        except MalformedOutput as e:
+            rep.fail(label, str(e))
+            return None
     if required:
         rep.fail(label, f"required output {rel} is missing")
     else:
@@ -1094,12 +1125,21 @@ def check_replication(runs: Path, docs: Path, rep: Report, *,
                       complete: bool = False) -> None:
     print(f"checking the rep1 replication under {runs}"
           f"{' (every output required)' if complete else ''}\n")
-    print("1. recorded hashes against the files on disk")
-    check_replication_hashes(runs, docs, rep, complete=complete)
-    print("\n2. readings, shared numbers, arithmetic and gates")
-    check_replication_numbers(runs, rep, complete=complete)
-    print("\n3. RECORD_CHECKS: listed numbers in DECISIONS.md D94-D96")
-    check_replication_record(runs, docs, rep, complete=complete)
+    # Outputs read through _load report a malformed file as a failure and go
+    # on. A malformed row file read inside a section (forced.jsonl and the
+    # like) ends that section only, as a failure; the next section still runs.
+    for title, section in (
+            ("1. recorded hashes against the files on disk",
+             lambda: check_replication_hashes(runs, docs, rep, complete=complete)),
+            ("2. readings, shared numbers, arithmetic and gates",
+             lambda: check_replication_numbers(runs, rep, complete=complete)),
+            ("3. RECORD_CHECKS: listed numbers in DECISIONS.md D94-D96",
+             lambda: check_replication_record(runs, docs, rep, complete=complete))):
+        print(f"\n{title}" if not title.startswith("1.") else title)
+        try:
+            section()
+        except MalformedOutput as e:
+            rep.fail(f"section {title[:2].strip('.')}", f"malformed output: {e}")
 
 
 def replication_exit_code(rep: Report) -> int:
@@ -1131,6 +1171,15 @@ def main() -> int:
                     help="print the checks that pass as well as those that fail")
     args = ap.parse_args()
 
+    try:
+        return _run(args)
+    except MalformedOutput as e:
+        # anything not already reported as a failure inside a check
+        print(f"\nmalformed output: {e}\nnothing after it was checked", file=sys.stderr)
+        return 1
+
+
+def _run(args) -> int:
     if args.replication:
         rep = Report(args.verbose)
         check_replication(args.runs_root, args.docs, rep, complete=args.complete)
