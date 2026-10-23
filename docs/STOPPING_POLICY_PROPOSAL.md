@@ -1,4 +1,4 @@
-# Proposal: a safety-constrained stopping-policy evaluation (draft, 2026-10-23)
+# Proposal: a safety-constrained stopping-policy evaluation (draft 2, 2026-10-23)
 
 > **STATUS: NOT APPROVED. NOT RUN. NOT FROZEN.**
 > - This is a proposal for review. It authorises no generation, forcing,
@@ -9,6 +9,23 @@
 > - Every item marked **DECISION** is the researcher's to make before it
 >   could be frozen. Nothing here was chosen after looking at evaluation
 >   data, because no evaluation data exist.
+
+## 0. Provisional choices (researcher, 2026-10-23)
+
+These are the researcher's **provisional** design choices. They narrow the
+design; they do not freeze it, and they do not authorise a run. Each keeps
+the justification still owed before freezing.
+
+| # | choice | status | what is still owed |
+|---|---|---|---|
+| 0.1 | **α = 0.05**: the maximum unsafe-stop rate (selective risk) as the initial design target | provisional | A justification for 5% that does not rest on affordability, such as the cost of a wrong early answer in the intended use. §6.4 shows what 0.05 costs; the cost must not be the reason to pick it |
+| 0.2 | **A 95% one-sided upper confidence bound** on the unsafe-stop rate, Clopper–Pearson (exact binomial) | provisional | The acceptance rule's slack ε (0 unless argued) and whether C1 sits in a Holm family with C2 (§6.1) |
+| 0.3 | **A calibration target α_cal below α** | provisional; **value open** | Compare candidate targets (§6.5) before choosing one, on cost *and* on the coverage and saving they leave, from the replay (§6.6), never from evaluation data |
+| 0.4 | **Fresh held-out evaluation problems**, disjoint by problem id from training and calibration | adopted (§3) | Check that the pool is large enough |
+| 0.5 | **Outcome-blind candidates**: every boundary, walked in order | adopted (§3) | none |
+| 0.6 | **Net compute savings** after all signal-generation costs, with exact generated-token counts | adopted (§5) | none |
+| 0.7 | **Answers still truncated at 256 tokens:** primary rule *unsafe*, with a pre-specified sensitivity analysis (§3) | adopted as stated | none |
+| 0.8 | **Separate safety and utility go/no-go** (§8) | adopted | δ_save (§9) |
 
 ## 1. Why this study, and what it cannot show
 
@@ -86,9 +103,20 @@ threshold τ, and emits the 256-token forced answer from that prefix.
   (D82, `force_answer_max_new_tokens = 256`) has the same correctness as
   the trace's final answer. This is the registered safety definition,
   under O256.
-  - **DECISION:** a completion still cut off at 256 is either counted as
-    unsafe (conservative) or has no answer (O256-u). Recommendation:
-    unsafe.
+  - **Truncated at 256 (provisional choice 0.7):**
+    - **Primary rule:** a completion still cut off at 256 tokens counts as
+      an **unsafe** stop, whatever its partial answer parses to. A policy
+      that stops where the model cannot finish its answer has not saved
+      anything usable.
+    - **Pre-specified sensitivity analysis:** the same analysis with the
+      truncated completion's parsed answer used as stored (O256's
+      convention), and with it treated as no answer (O256-u).
+    - **Reporting:** the truncated share at each policy's stops is always
+      reported. If the conclusion of C1 or C2 changes between rules, the
+      result is reported as *dependent on the truncation rule*, and the
+      primary rule stands.
+    - **Reference rates:** 7.6% of rep1 Stage 1's positions and 9.1% of
+      rep1's cut-off menu boundaries were still cut off at 256 (D95, D96).
 - **Instrument checks, before any outcome is used:**
   - re-force a seeded sample of boundaries and require agreement ≥ 0.95
     (as D80);
@@ -262,6 +290,88 @@ P0.
 - **The fresh pool must hold N_eval plus the calibration problems.** This
   is unchecked (§3).
 
+### 6.4 At α = 0.05: how N grows as the true risk approaches α
+
+The method is as in §6.1: 80% probability that the 95% one-sided
+Clopper–Pearson bound lands at or below 0.05.
+
+| r/α | true risk r | stopped problems | N_eval at coverage 0.25 | 0.50 | 0.75 | 1.00 |
+|---|---|---|---|---|---|---|
+| 0.25 | 0.0125 | 153 | 612 | 306 | 204 | 153 |
+| 0.40 | 0.0200 | 234 | 936 | 468 | 312 | 234 |
+| 0.50 | 0.0250 | 386 | 1,544 | 772 | 515 | 386 |
+| 0.60 | 0.0300 | 671 | 2,684 | 1,342 | 895 | 671 |
+| 0.70 | 0.0350 | 1,148 | 4,592 | 2,296 | 1,531 | 1,148 |
+| 0.75 | 0.0375 | 1,679 | 6,716 | 3,358 | 2,239 | 1,679 |
+| 0.80 | 0.0400 | 2,698 | 10,792 | 5,396 | 3,598 | 2,698 |
+| 0.90 | 0.0450 | 11,266 | 45,064 | 22,532 | 15,022 | 11,266 |
+
+**Two levers set the cost:**
+- **The ratio r/α.** Above about 0.7, C1 is out of reach at this machine's
+  throughput (§7).
+- **Coverage.** Halving coverage doubles N_eval.
+
+**These numbers are not a universal requirement.** The often-quoted "about
+770 evaluation problems" is the r/α = 0.5, coverage = 0.5 cell only. Both
+r and coverage are unknown until the replay (§6.6) estimates them on
+existing data.
+
+**Power is not monotone in n.** With an exact binomial bound, power is a
+sawtooth in n. At r = 0.025 it is 0.754 at n = 380, falls to 0.740 at
+n = 385, and jumps to 0.826 at n = 386; it then decays until the next jump.
+"The smallest n with power ≥ 0.80" is correct, but a slightly larger n can
+fall back below 0.80. **Before freezing,** pick N at or just after a jump,
+and report the power at the chosen N, not only the threshold n.
+
+### 6.5 Choosing the calibration target α_cal (provisional choice 0.3)
+
+**What α_cal does:** it sets the *expected* evaluation risk r, and with it
+the cost in §6.4. The table assumes calibration lands the evaluation risk
+near α_cal. That is optimistic when the calibration set is small, so the
+real r is somewhat higher.
+
+| α_cal | expected r/α | stopped problems for C1 | price paid |
+|---|---|---|---|
+| 0.0375 | ≈ 0.75 | ≈ 1,700 | little coverage lost; C1 barely affordable |
+| 0.025 | ≈ 0.50 | ≈ 390 | moderate coverage and saving lost |
+| 0.0167 | ≈ 0.33 | ≈ 210 | larger loss; may leave too few stops for C2 |
+
+**What a lower α_cal costs** is coverage and saving, which in turn feeds
+back into N through coverage. That trade-off is **not known** without the
+replay (§6.6). It measures coverage and mean net saving at each candidate
+α_cal on existing data. **α_cal is chosen after the replay and before any
+evaluation data exist.**
+
+### 6.6 The planning replay (designed; runs only when approved)
+
+`scripts/replay_stopping_policy.py`:
+- **What it does:** it replays P0 and P1 (out-of-fold, problem-grouped, as
+  Stage 1 fits them) on the 1,600 stored rep1 Stage 1 positions, with
+  256-token labels and exact forced-token counts.
+- **What it reports:**
+  - coverage, selective risk and mean net saving at each threshold;
+  - P1 − P0 per problem at matched risk (0.025, 0.05, 0.10) and at matched
+    coverage (25%, 50% and 75%), with the SD σ_d;
+  - the §6 tables re-read with the measured σ_d, r and coverage.
+- **Labels:** both truncation rules (as stored, and conservative).
+
+**Limits:**
+- Stage 1 drew 4 positions per problem, so the replay walks a thinned trace,
+  not every boundary;
+- thresholds are chosen in-sample;
+- one model and one layer.
+
+Its numbers are **planning inputs, not evidence**, and are labelled so in
+its output.
+
+**Read-only by construction:**
+- it hashes every input before and after, and fails if any changed;
+- it refuses an output directory that exists or lies inside the runs
+  directory;
+- the activation store only reads. Its constructor calls
+  `mkdir(exist_ok=True)` on the existing `blocks/` directory, which is a
+  no-op there.
+
 ## 7. Cost estimate (planning only; nothing authorised)
 
 The scale column uses N_eval = 600 for illustration only. §6.3's typical
@@ -291,27 +401,50 @@ cloud spending.
 - attrition is ≥ 75% of planned boundaries with a valid signal (as Stage 1).
 Otherwise, report "instrument failed" and stop.
 
-**After the analysis:**
-- a practical "probe-based early stopping is safe here" claim requires C1
-  *and* C2;
-- C1 without C2 means safe but not worth more than position;
-- C2 without C1 means not safe enough at α;
-- neither result bears on faithfulness.
+**After the analysis, two separate gates (provisional choice 0.8):**
+
+| gate | passes when | fails when |
+|---|---|---|
+| **Safety (C1)** | P1's evaluation selective risk has a one-sided 95% upper bound ≤ α (plus ε), under the primary truncation rule, at coverage > 0 | The bound exceeds α, or P1 never stops (coverage 0 is safe but useless, and reported as such) |
+| **Utility (C2)** | At matched α, P1's mean net saving exceeds P0's, Holm-significant with Δ > 0 | Not significant; equivalence is read only from the interval against ±δ_save |
+
+**Reading the four outcomes:**
+- **Safety and utility both pass:** probe-based early stopping is safe and
+  worth more than position here.
+- **Safety passes, utility fails:** safe, but not worth more than position.
+- **Utility passes, safety fails:** saves more, but not safe enough at α.
+  **This is not a success.** A policy that saves many tokens but stops
+  unsafely too often fails.
+- **Both fail:** no practical stopping value shown.
+
+The safety gate is read first and reported on its own, so that a utility
+result can never stand in for a failed safety result. Neither gate bears on
+faithfulness.
 
 ## 9. Open decisions (the researcher's)
 
-1. α (and its grid for the frontier), ε, δ_conf, and the internal
-   calibration target α_cal (§6.1: it decides r/α, and with it the cost).
-2. The calibration procedure (Clopper–Pearson or Learn-then-Test) and the
-   τ grid.
-3. N_eval, the calibration set size, the source of the calibration set,
-   and the GSM8K/MATH split.
-4. Whether a boundary still cut off at 256 counts as unsafe or as no
-   answer.
-5. δ_save, the practical margin for net saving.
-6. P3's scope: everything, a subset, or none.
-7. The compute budget.
-8. Whether the study is confirmatory (a frozen plan with hashes, as D75) or
-   an exploratory pilot first.
-9. Whether to approve the CPU replay that estimates σ_d from existing data
-   (§6.2) before N is fixed.
+**Taken provisionally (§0), justification still owed:**
+- α = 0.05;
+- a 95% one-sided Clopper–Pearson bound;
+- α_cal below α;
+- truncated-at-256 counts as unsafe, with a sensitivity analysis;
+- separate safety and utility gates.
+
+**Still open:**
+1. The **justification for α = 0.05** (§0.1), and the frontier grid.
+2. **ε**, the acceptance slack; and whether C1 sits in a Holm family with
+   C2.
+3. **α_cal**, chosen from §6.5 after the replay.
+4. The **τ grid**, and whether Learn-then-Test replaces a single
+   Clopper–Pearson calibration.
+5. **N_eval and the calibration set:** size, source and the GSM8K/MATH
+   split, read from §6.4 at the replay's measured r and coverage, at a
+   sawtooth peak.
+6. **δ_save**, the practical margin for net saving. It must be argued from
+   the use case, not from what N makes affordable.
+7. **P3's scope:** everything, a subset, or none.
+8. **The compute budget**, and a stopping rule for the experiment itself
+   (for example, abort if attrition or the instrument gates fail).
+9. **Pilot first or confirmatory.**
+10. **Approval to run the planning replay (§6.6)**, which is read only and
+    CPU only.
