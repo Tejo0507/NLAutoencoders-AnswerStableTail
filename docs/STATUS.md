@@ -3,6 +3,30 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-23.
 
+> **Update 2026-10-23, evening: ready for paper writing.** No GPU work is
+> pending or authorised.
+>
+> | area | state |
+> |---|---|
+> | Evidence | complete. D94–D96; claim matrix §R maps every claim to its class |
+> | Results draft | `paper/v2/04_results_replication.md`, with the introduction updated |
+> | Figures | Figs 2–7 regenerate from stored JSON (`make_paper_figures_v2.py`); Fig 1 (schematic) still to draw; Fig 6's D82 panel open |
+> | Tables | Tables 2–3 generated (`make_paper_tables_v2.py` → `paper/v2/tables_generated.md`); Table 1 (setting and preregistration timeline) to write |
+> | Checks | `check_run_consistency.py --replication --complete` (169 checks); CPU tests on every PR (`cpu-tests`) |
+> | Archive (#32) | the builder classifies every run directory; a draft archive was built and verified against source hashes (3,264 files, 0 unmatched); final build and publishing are manual |
+> | Next study | `docs/STOPPING_POLICY_PROPOSAL.md`, **not approved**; the planning replay ran (§6.7) |
+>
+> **Paper work, in order (#31):**
+> 1. Reorder Results around the replication draft.
+> 2. Write Table 1 and draw Fig 1.
+> 3. Do the related-work sweep (DEER, Dynasor, ThinkBrake, EAT, NEAT;
+>    LatentQA).
+> 4. Write Discussion and Limitations from the claim matrix (§R and E).
+> 5. Write the final contribution statement.
+>
+> Stage 0 and D76 are deferred
+> (`docs/STAGE0_D76_DECISION_NOTE.md`).
+>
 > **Update 2026-10-23, 09:50 IST: the replication pipeline is complete
 > (D96).** It was resumed at 08:00. Stage 1 and D82 on `main_nla240` ran,
 > and every gate passed.
