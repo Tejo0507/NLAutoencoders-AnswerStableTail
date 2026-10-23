@@ -3,8 +3,20 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-23.
 
-> **Update 2026-10-23, evening: ready for paper writing.** No GPU work is
-> pending or authorised.
+> **Update 2026-10-23, 22:00 IST (D97): manuscript drafted; D76 run;
+> archive verified, not published.** No GPU work is running or authorised.
+>
+> | area | state |
+> |---|---|
+> | Manuscript | every section drafted in `paper/v2/`: abstract, §1 with the contribution statement (§1.1), §2 with the related-work sweep ([33]–[38]), §3, §4, §5 Discussion and conclusion, §6 Limitations, §7 Reproducibility. Fig 6's D82 panel added. Numbers and all 48 intervals reconciled against the claim matrix and DECISIONS. **Needs the researcher's review and a recorded freeze** |
+> | D76 | ran as specified, isolated (`D:\NLAutoencoders-experiments\d76-2026-10-23\`), about 101 GPU-minutes. Dependent rate 0.764 [0.685, 0.834] under the rewording null against 0.797 [0.729, 0.856] under the registered null, on 246 claims. Exploratory; not a faithfulness test; the 313 rewordings' meaning is unvalidated |
+> | Branch protection | **enabled** on `main`: `pytest` and `GitGuardian Security Checks` required, a PR with 0 approvals, no force pushes or deletion |
+> | Archive (#32) | release candidate `D:\NLAutoencoders-release\rc-2026-10-23\` built from `56f66e5` and verified: 3,264 run files, 3,272/3,272 checksums, 95 sanitised files traced, blinding preserved. **Not published.** It waits on the write-up freeze, bundle B's local paths, a Zenodo account, and whether D76 joins (`docs/ARCHIVE_PLAN_REP1.md` §7) |
+> | Stopping-policy pilot | protocol drafted (`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`), **not frozen, not run**. Decisions D1–D9 (α's justification, α_cal, calibration source, N, δ_save, budget, run conditions) are the researcher's. About 9–20 local GPU-hours once decided |
+> | Pipeline checkout | unchanged: 3,415 files, `HEAD`, status and diff match the pre-work manifest |
+>
+> **Update 2026-10-23, evening (earlier): ready for paper writing.** No GPU
+> work was then pending or authorised.
 >
 > | area | state |
 > |---|---|

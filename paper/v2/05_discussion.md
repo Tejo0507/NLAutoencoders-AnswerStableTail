@@ -79,7 +79,16 @@ The reconstruction-dependence rate of RQ2 (0.749 of 6,007 claims; C6)
 belongs to the same family of caveats. It says that deleting most claims
 moves the reconstruction more than the registered null does. It does not
 say the claims are true, and the registered null is mostly no edit or an
-added discourse marker (D70).
+added discourse marker (D70). A rewording null, specified before
+generation (D76) and run on 60 explanations, partly addresses the second
+point [X]. Rewordings written by the target model under fixed form checks
+move the reconstruction about three times as much as the registered
+paraphrases (mean |effect| 0.0045 against 0.0015). Yet the dependent rate
+on the same 246 claims changes only from 0.797 [0.729, 0.856] to 0.764
+[0.685, 0.834]. So, if those rewordings preserve meaning, the rate is not
+mainly an artefact of a null that barely edits. Whether they do is
+unvalidated by people, fewer than half the claims received a rewording,
+and none of this bears on faithfulness.
 
 ## 5.3 How evaluation choices manufacture a stopping advantage
 
