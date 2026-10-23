@@ -55,7 +55,10 @@
   but was not run, and the blinded annotation sheets are withheld.
 - The reconstruction-dependence rate (C6, 0.749) rests on a registered
   paraphrase null that is mostly no edit or an added discourse marker
-  (D70). Reconstruction dependence is not faithfulness.
+  (D70). The exploratory rewording null (D76) changed the rate little on
+  a 60-explanation sample, but its rewordings were checked for form, not
+  meaning, and only 117 of 246 claims received one. Reconstruction
+  dependence is not faithfulness.
 
 **Stopping at deployment is untested (E4).**
 - The selective-risk results (R7) use the outcome-selected menu and

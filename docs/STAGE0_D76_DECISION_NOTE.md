@@ -1,7 +1,15 @@
 # Stage 0 on rep1 and D76: should either come before the stopping-policy study? (2026-10-23)
 
-> Decision note. **Neither study is authorised or run.** Their costs are
-> estimates from rep1's measured rates.
+> **Update 2026-10-23, evening (D97): D76 was authorised and run**, in an
+> isolated tree, exactly as specified. It took about 101 GPU-minutes, not
+> 30. Under the rewording null, C6's dependent rate on 246 sampled claims is
+> 0.764 [0.685, 0.834], against 0.797 [0.729, 0.856] under the registered
+> null. This is exploratory, the rewordings' meaning is unvalidated, and it
+> is not a faithfulness test. **Stage 0 on rep1 is still not authorised or
+> run.**
+>
+> Decision note, as written before that update. Neither study is
+> authorised or run. Their costs are estimates from rep1's measured rates.
 
 ## Stage 0 on rep1
 

@@ -1,4 +1,4 @@
-# Claim–evidence matrix (2026-10-20; rep1 results added 2026-10-23)
+# Claim–evidence matrix (2026-10-20; rep1 results and D76 added 2026-10-23)
 
 Every claim the revised paper could make is mapped here to its evidence, its
 status, its weakest point and the test that would settle it. **No claim
@@ -51,7 +51,7 @@ anything about a deployable rule.
 | C3 | That information describes a reasoning **phase**: concluding against setting up | The heaviest terms are "final answer", "concluding", "therefore", "summary" against "first", "let's", "worked example", "expecting continuation". A frozen 40-term lexicon reaches AUC 0.925 for tail membership *in sample* | descriptive, in sample | Not yet tested out of sample. Not a faithfulness claim | Done: R5 (transfers out of sample). Human labels optional |
 | C4 | The text adds **nothing** beyond a linear probe on its own input activation trained for the same label | Text over probe: −0.001 [−0.004, 0.002] (safety) and −0.000 [−0.002, 0.001] (tail). Probe beats text head to head by 0.029 and 0.031. An unfitted ensemble does not beat the probe (−0.005) | post hoc (deviations 1–2) | Menu only; a linear probe and TF-IDF text | Done: R6 |
 | C5 | Explanations do not reveal the final answer before the trace writes it | Own-answer mention 3.1% against 4.0% for other problems' answers: −0.010 [−0.022, 0.004]. Above noise text (+0.028) only because real explanations contain more numbers | exploratory | String matching; a paraphrased answer would be missed | Done: R5 |
-| C6 | Most explanation claims carry reconstruction weight | 0.749 of 6,007, robust to clustering and invalid nulls (0.73–0.78) | registered, with post-hoc corrections (D70–D72) | Reconstruction dependence is not faithfulness; the rewording null is unvalidated by people | Human annotation (`docs/ANNOTATOR_PACKET.md`) |
+| C6 | Most explanation claims carry reconstruction weight | 0.749 of 6,007, robust to clustering and invalid nulls (0.73–0.78). D76 (exploratory, 60 explanations, 246 claims): under a model-written rewording null the rate is 0.764 [0.685, 0.834], against 0.797 [0.729, 0.856] under the registered null on the same claims; rewordings move reconstruction about 3× as much as rule-based paraphrases (mean \|effect\| 0.0045 vs 0.0015), deletions 0.0267 (D97) | registered, with post-hoc corrections (D70–D72); D76 exploratory | Reconstruction dependence is not faithfulness. The rewordings' meaning preservation is unvalidated by people, and only 117 of 246 claims received an accepted rewording | Human judgement of the 313 rewordings (`rewording_validation_sheet.csv`); human annotation (`docs/ANNOTATOR_PACKET.md`) |
 | C7 | Some explanation content checks out against the trace | The next word is right on 52% of explanations, against 3–10% under controls; "quoted" context is rarely verbatim (D71) | post hoc | String checks, not semantics | Human annotation |
 
 ## D. Cheap signals and cost
