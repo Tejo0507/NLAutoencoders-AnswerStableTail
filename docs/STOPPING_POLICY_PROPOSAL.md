@@ -186,27 +186,87 @@ count, recorded at generation, never a re-tokenised one.
 
 ## 6. Precision and sample size
 
-Every number below is a planning approximation from existing data.
-**DECISION:** N_eval and the calibration size, once α is fixed.
-- **C1 (safety):**
-  - selective risk is a binomial share of *stopped* problems;
-  - to certify α = 0.05 with a 95% one-sided Clopper–Pearson bound when
-    the true rate is about 0.02, roughly 300 stopped problems are needed
-    (upper bound about 0.04);
-  - at 50% coverage that means about 600 evaluation problems;
-  - at α = 0.10 the requirement roughly halves.
-- **C2 (utility):**
-  - D75's mean safe-rate gap had SE ≈ 0.014 at N = 400; savings
-    differences have not been measured at outcome-blind positions;
-  - **proposed:** before freezing, estimate the SE of the net-saving
-    difference by simulation on *existing* data (rep1 Stage 1 positions and
-    Stage 0 on `main`), never on evaluation data, and set N_eval for a 95%
-    half-width ≤ δ_save / 2.
-- **Calibration set:** large enough that the τ chosen at α is not driven by
-  a handful of stops. The same Clopper–Pearson reasoning gives a few
-  hundred problems.
+These are planning scenarios, computed 2026-10-23 from the binomial and
+normal formulas below. They use no evaluation data, because none exists.
+They are inputs to the DECISIONs, not choices.
+
+### 6.1 C1, safety: stopped problems needed
+
+**Method:**
+- n_stopped is the smallest n for which the probability that the one-sided
+  95% Clopper–Pearson upper bound on selective risk falls at or below α is
+  at least 0.80, when the true selective risk is r. It is exact binomial,
+  with ε = 0.
+- N_eval = n_stopped / coverage.
+
+| α | true risk r | r/α | n_stopped | N_eval at coverage 0.25 | 0.50 | 0.75 |
+|---|---|---|---|---|---|---|
+| 0.02 | 0.005 | 0.25 | 386 | 1,544 | 772 | 515 |
+| 0.02 | 0.010 | 0.50 | 969 | 3,876 | 1,938 | 1,292 |
+| 0.02 | 0.015 | 0.75 | 4,318 | 17,272 | 8,636 | 5,758 |
+| 0.05 | 0.0125 | 0.25 | 153 | 612 | 306 | 204 |
+| 0.05 | 0.025 | 0.50 | 386 | 1,544 | 772 | 515 |
+| 0.05 | 0.0375 | 0.75 | 1,679 | 6,716 | 3,358 | 2,239 |
+| 0.10 | 0.025 | 0.25 | 61 | 244 | 122 | 82 |
+| 0.10 | 0.050 | 0.50 | 179 | 716 | 358 | 239 |
+| 0.10 | 0.075 | 0.75 | 803 | 3,212 | 1,606 | 1,071 |
+
+**What the table implies:**
+- **The ratio r/α dominates the cost.** If τ is calibrated to the *most
+  permissive* threshold that meets α, the true evaluation risk will sit
+  close to α (r/α → 1), and C1 becomes very expensive. The design choice
+  that avoids this is to calibrate to an internal target α_cal below α
+  (for example α/2), which buys the r/α ≈ 0.5 rows at the price of less
+  coverage and saving. **DECISION: α_cal.**
+- **α = 0.02 is impractical** at this machine's throughput (§7) unless
+  coverage is high and r/α is small.
+- **Holm is not included here.** If C1 enters a Holm family with C2, its
+  first-step level is 0.025. That raises these numbers by roughly 10–20%;
+  recompute when the family is fixed.
+
+### 6.2 C2, utility: problems needed for the paired net-saving difference
+
+**Method:** the normal approximation for a paired mean difference, where
+σ_d is the per-problem SD of the difference in net saving between P1 and
+P0.
+
+| σ_d | δ_save | n for 80% power (two-sided 0.05, true difference = δ_save) | n for a 95% half-width ≤ δ_save / 2 |
+|---|---|---|---|
+| 0.15 | 0.02 | 442 | 865 |
+| 0.15 | 0.05 | 71 | 139 |
+| 0.15 | 0.10 | 18 | 35 |
+| 0.25 | 0.02 | 1,227 | 2,401 |
+| 0.25 | 0.05 | 197 | 385 |
+| 0.25 | 0.10 | 50 | 97 |
+| 0.35 | 0.02 | 2,404 | 4,706 |
+| 0.35 | 0.05 | 385 | 753 |
+| 0.35 | 0.10 | 97 | 189 |
+
+**About σ_d:**
+- **It is an assumption, not a measurement.** No stored output has
+  per-problem net savings at outcome-blind positions on O256. Savings are
+  fractions of the trace, so σ_d ≤ about 0.5. The table spans 0.15–0.35.
+- **Before freezing,** estimate σ_d on *existing* data only, by replaying P0
+  and a same-label probe policy over `main`'s Stage 0 boundaries and rep1
+  Stage 1's positions. Then read N from this table. This is a CPU analysis
+  of stored data, but it is still analysis work and **needs approval**.
+
+### 6.3 Combining them
+
+- N_eval must meet both C1 and C2. In most plausible cells (α = 0.05,
+  coverage 0.5, r/α ≈ 0.5, σ_d about 0.25, δ_save = 0.05), **C1 drives N:
+  about 770 evaluation problems.**
+- **The calibration set** needs a similar number of stopped problems. That
+  is a few hundred to about 800 more problems, unless calibration reuses
+  rep1 Stage 1 (DECISION §3).
+- **The fresh pool must hold N_eval plus the calibration problems.** This
+  is unchecked (§3).
 
 ## 7. Cost estimate (planning only; nothing authorised)
+
+The scale column uses N_eval = 600 for illustration only. §6.3's typical
+cell needs about 770 evaluation problems plus the calibration set; scale
+the GPU-hours linearly.
 
 | step | per unit (rep1 rates) | scale at N_eval = 600, about 11 boundaries per trace |
 |---|---|---|
@@ -240,7 +300,8 @@ Otherwise, report "instrument failed" and stop.
 
 ## 9. Open decisions (the researcher's)
 
-1. α (and its grid for the frontier), ε and δ_conf.
+1. α (and its grid for the frontier), ε, δ_conf, and the internal
+   calibration target α_cal (§6.1: it decides r/α, and with it the cost).
 2. The calibration procedure (Clopper–Pearson or Learn-then-Test) and the
    τ grid.
 3. N_eval, the calibration set size, the source of the calibration set,
@@ -252,3 +313,5 @@ Otherwise, report "instrument failed" and stop.
 7. The compute budget.
 8. Whether the study is confirmatory (a frozen plan with hashes, as D75) or
    an exploratory pilot first.
+9. Whether to approve the CPU replay that estimates σ_d from existing data
+   (§6.2) before N is fixed.
