@@ -107,8 +107,14 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
       model commits within 48 tokens.
     - Under the 256-token outcome, H1 and H2 are both equivalent within
       ±0.05: −0.008 and −0.004.
-  - Stage 1 and D82 on `main_nla240` remain. The pipeline is paused
-    (2026-10-23, D95).
+  - **Stage 1 (D96)**, at positions chosen without the outcome: for
+    predicting these stopping labels, the explanation text adds no
+    practically relevant information beyond position and a same-label
+    linear probe on the same activation. The increment is +0.00002
+    [−0.004, 0.004] (equivalent within ±0.01). This is not a faithfulness
+    result.
+  - The pipeline finished on 2026-10-23. Claims and their evidence class:
+    [`paper/CLAIM_EVIDENCE_MATRIX.md`](paper/CLAIM_EVIDENCE_MATRIX.md) §R.
   - Live state and next steps: [`docs/STATUS.md`](docs/STATUS.md).
   - Resume procedure: [`docs/RESUME_2026-10-20.md`](docs/RESUME_2026-10-20.md).
 
