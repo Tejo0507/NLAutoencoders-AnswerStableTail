@@ -41,8 +41,8 @@ review. Tables 1–3 are generated from the outputs
 decision record (D96 §4).*
 
 **Figures and tables:** the design is in Fig 1 and Table 1. Fig 7 and
-Table 3 carry §4.1–§4.3. Table 2 and Fig 3 carry §4.4. Fig 5 carries §4.5,
-and Figs 2, 4 and 6 carry §4.6.
+Table 3 carry §4.1–§4.3, with Fig 6's right panel for §4.3. Table 2 and
+Fig 3 carry §4.4. Fig 5 carries §4.5, and Figs 2, 4 and 6 carry §4.6.
 
 ## 4.1 The registered replication [C]
 
@@ -89,7 +89,7 @@ That is why the audit was pre-specified for rep1.
 
 ## 4.3 Second qualification: the forcing budget [S]
 
-The pass (D82; Table 3b; Fig 7, left):
+The pass (D82; Table 3b; Fig 7, left; Fig 6, right):
 - **Re-forcing:** the 661 boundaries cut off at 48 tokens were re-forced
   with 256. The instrument was stable: 1.00 on 50 finished boundaries.
 - **f = 0.867.** f is computed over the 600 cut-off boundaries *before the
