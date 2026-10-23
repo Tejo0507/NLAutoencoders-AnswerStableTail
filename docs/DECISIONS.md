@@ -3904,7 +3904,7 @@ themselves.
 
 | | Y_ext (primary label) | Y_48 | Y_tail |
 |---|---|---|---|
-| **Δ₁ text over position + same-activation probe** | +0.00002 [−0.004, 0.004] | −0.000 [−0.004, 0.004] | +0.000 [−0.001, 0.001] |
+| **Δ₁ text over position + same-label probe** | +0.00002 [−0.004, 0.004] | −0.000 [−0.004, 0.004] | +0.000 [−0.001, 0.001] |
 | text over position | +0.071 [0.052, 0.089] | +0.067 [0.051, 0.083] | +0.079 [0.064, 0.094] |
 | same-label probe over position | +0.102 [0.075, 0.129] | +0.093 [0.071, 0.115] | +0.107 [0.086, 0.129] |
 | text against same-label probe, head to head | −0.031 [−0.047, −0.015] | −0.026 [−0.041, −0.011] | −0.028 [−0.038, −0.019] |
@@ -3942,7 +3942,7 @@ trained for the row's label. It is not the registered correctness probe.
 
 | | O48 | O256 |
 |---|---|---|
-| readout − probe | +0.056 [0.023, 0.091] | +0.001 [−0.031, 0.040] |
+| readout − registered probe | +0.056 [0.023, 0.091] | +0.001 [−0.031, 0.040] |
 | readout − no signal | +0.069 [0.049, 0.093] | −0.011 [−0.034, 0.017] |
 | falling-position rule − no signal | +0.100 [0.074, 0.126] | +0.001 [−0.025, 0.027] |
 | D69 overall | established | uninformative: no rule beats the no-signal rule |
@@ -3984,7 +3984,8 @@ What it checks, exactly:
   forced-row and position counts.
 - **(f) Record:** 11 listed numbers (`RECORD_CHECKS`), against D94–D96 of
   this file. H1/H2 at O48 and O256, f on both arms, Stage 1's Δ₁ interval,
-  text and probe over position, and `main_nla240`'s two O256 gaps.
+  text and same-label probe over position, and `main_nla240`'s two O256
+  gaps.
 
 **What it does not check:**
 - any other number in D94–D96;
@@ -4006,8 +4007,8 @@ an empty runs directory and a missing D75 output
 
 **5. What the replication supports, by evidence class:**
 - **Confirmatory (D75, D94).** On the registered 48-token outcome, the
-  readout beats the layer-20 probe (H1) and no signal (H2). This stands as
-  registered.
+  readout beats the registered layer-20 correctness probe (H1) and no signal
+  (H2). This stands as registered.
 - **Secondary, and qualifying it (D79, D94).** A position-only falling rule
   beats the readout by 0.025. The position-residualised readout does not
   beat no signal. The advantage cannot be attributed to explanation
