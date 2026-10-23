@@ -101,6 +101,14 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
     trend removed, the readout does not beat no signal. Whether the
     advantage comes from the explanations' content is **unresolved**. No
     faithfulness claim is made.
+  - **The 256-token sensitivity pass (D82, D95) bounds it further.**
+    - Most answers cut off at 48 tokens reach the final answer when given
+      256 (f = 0.87). So the registered outcome mostly measures whether the
+      model commits within 48 tokens.
+    - Under the 256-token outcome, H1 and H2 are both equivalent within
+      ±0.05: −0.008 and −0.004.
+  - Stage 1 and D82 on `main_nla240` remain. The pipeline is paused
+    (2026-10-23, D95).
   - Live state and next steps: [`docs/STATUS.md`](docs/STATUS.md).
   - Resume procedure: [`docs/RESUME_2026-10-20.md`](docs/RESUME_2026-10-20.md).
 
