@@ -65,4 +65,4 @@ not that probe.
 
 **Faithfulness of stated reasoning.** Models' stated reasoning can diverge
 from what drives their answers [15, 17]. We make no faithfulness claim
-about NLA explanations. Our evidence is predictive and string-level (§9).
+about NLA explanations. Our evidence is predictive and string-level (§6).

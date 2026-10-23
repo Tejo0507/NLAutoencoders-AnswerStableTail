@@ -82,7 +82,7 @@ string-level predictive content. There is no faithfulness claim (D87).
 | not novel | The contribution statement above. General ideas are credited, and only the three specific findings are claimed. Novelty is stated as "to our knowledge", after a full-text review | `NOVELTY_REVIEW` |
 | unfair stopping comparison | Every estimand is reported side by side: registered (authoritative), selective risk, position controls, no-menu Stage 0, O48 against O256, registered against net savings. No ranking rests on one estimand | D79, D83, D82; rep1 pre-specified |
 | explanations not faithful | No faithfulness or semantic claim. The lexicon is predictive string content, in a separate section, tested out of sample on rep1 | D81 deviation 3, D87 |
-| one model / dataset | Claims limited to Qwen2.5-7B-Instruct with its released L20 NLA. Rep1 gives 400 unseen problems; GSM8K and MATH are reported separately | limitations §9 |
+| one model / dataset | Claims limited to Qwen2.5-7B-Instruct with its released L20 NLA. Rep1 gives 400 unseen problems; GSM8K and MATH are reported separately | limitations §6 |
 | weak implementation | Fidelity: cosine 0.875 against a 0.39 noise floor; FVE 0.696 against the card's 0.752; integrity 92%; sample agreement 0.94. Strong baselines. The conclusion is limited to "what linear and TF-IDF models can extract" | `runs/main_nla240/nla/summary.json`; D81 Q5 |
 
 ## 2. Related work
@@ -119,85 +119,26 @@ forced from `P_s` has the same correctness as the final answer.
 - semantic entropy;
 - a correctness probe trained on intermediate parsed answers.
 
-**Table 1** (setting summary): from `configs/main.yaml`, `configs/replication.yaml` and D75/D78.
+**Fig 1** (`fig_v2_0_schematic`) and **Table 1** (setting and
+preregistration timeline, generated from the configs and the decision
+record) present the design before any result.
 
-## 4. The registered comparison and why it was uninformative (Results I)
+## 4. Results (reordered 2026-10-23; draft: `paper/v2/04_results.md`)
 
-- The registered O3 test [R] used budgets above the oracle bound, where a
-  no-signal rule wins (D68).
-- Rescored on O48 (D69) [P]: readout − no signal +0.052; readout − probe
-  unresolved.
-- **The menu (design A) contains `i* − 1` and `i*` by construction** [A].
-  This is figure 1, a schematic still to be made.
+The replication leads; the main run's own comparison is context (§4.6).
 
-## 5. What the readout score carries (Results II)
+| § | content | class | carried by |
+|---|---|---|---|
+| 4.1 | The registered replication: H1 and H2 supported on O48 | [C] | Table 3a, Fig 7 (left) |
+| 4.2 | Qualification 1: candidate position. A position-only rule beats the readout; position-residualised, the readout does not beat no signal | [S] (main: [X]) | Table 3c, Fig 1 |
+| 4.3 | Qualification 2: the forcing budget. f = 0.867; under O256 neither hypothesis is supported (effects ≥ 0.05 excluded) | [S] | Table 3b, Fig 7 (left), Fig 6 |
+| 4.4 | What the text carries. Predictive on and off the menu; no practically relevant increment beyond a same-label probe (Stage 1, ±0.01) | [S] (main: [X], [P]) | Tables 2, 3d; Figs 3, 7 (right) |
+| 4.5 | Selective risk on the candidate menu (O48; not deployment evidence) | [S], [P] | Fig 5 |
+| 4.6 | How evaluation choices manufacture an advantage (main run): the uninformative registered O3, outcome-derived menus, the matched-mean-saving estimand, short forcing budgets, cost | [R] read post hoc, [A], [X] | Figs 2, 4, 6 |
+| 4.7 | The 240-problem arm under O256 | [X] | — |
+| 4.8 | Summary, separating prediction, incremental value and faithfulness | — | — |
 
-**Falling rule (D79) [X]:**
-- falling rule − no signal +0.082 and +0.100;
-- readout − falling −0.024 [−0.070, 0.015].
-
-**Information (D81 Q1) [X]:** ΔAUC −0.001 [−0.002, −0.000].
-
-**Selective risk [P]:** when the readout stops, the stop is more often
-unsafe than chance: +0.14 [0.05, 0.21].
-
-**Figures:**
-- **Fig 2** = `paper/figures_v2/fig_v2_2_registered_estimand.png`;
-- **Fig 5 (left)** = `fig_v2_5_selective_risk.png`.
-
-**Confirmatory (`rep1`, D75):** H1 and H2 are supported as registered [C],
-reported first and verbatim (Table 3a). They are read with the controls
-above:
-- the position audit is unresolved;
-- the 256-token sensitivity analysis makes the verdict budget-dependent
-  (Table 3b–c, Fig 7).
-
-Full draft: `paper/v2/04_results_replication.md`.
-
-## 6. What the verbalised text carries (Results III)
-
-**Text over position and raw text [X]:**
-- +0.073 [0.058, 0.087] on safety;
-- robust to multiplicity, to the whole prefix as control, and to a noise
-  null [P].
-
-**The phase vocabulary [X]:** **Table 2**, the frozen lexicon. It transfers
-to `rep1` out of sample [pre-specified]: +0.091 [0.076, 0.106] for tail
-membership.
-
-**Text against a same-activation probe [P]:**
-- −0.001 [−0.004, 0.002];
-- the probe is better head to head;
-- the ensemble is no better.
-
-**No latent answer (Q3) [X]:** 3.1% against 4.0%.
-
-**Figure:** **Fig 3** = `fig_v2_1_information_increments.png`.
-
-**Replicated on `rep1` [pre-specified]:**
-- Q1–Q3;
-- the lexicon transfer;
-- **Stage 1 off the menu:** the text over a same-label probe is +0.00002
-  [−0.004, 0.004], *equivalent within ±0.01* (Table 3d, Fig 7).
-
-See `paper/v2/04_results_replication.md` §5.3.
-
-## 7. Evaluation pitfalls, demonstrated (Results IV)
-
-1. **Outcome-derived candidate points** (§4–5) [A, X].
-2. **The matched-mean-saving estimand** (Stage 0, every boundary) [X]:
-   - an information-free rule beats an AUC-0.861 activation probe:
-     −0.093 [−0.147, −0.043] on net savings;
-   - selective risk at matched coverage reverses the ranking;
-   - **Fig 4** = `fig_v2_4_stage0_policies.png`, **Fig 5 (right)**.
-3. **Short forced-answer budgets** [X]:
-   - 54–57% of pre-tail completions are cut off;
-   - 98–99% of those disagree with the continuations;
-   - **Fig 6** = `fig_v2_3_truncation.png`;
-   - **D82 measured effect** [pending].
-4. **Cost** [A]: one NLA check costs 0.83 of a mean trace.
-
-**Recommendations for evaluating stopping signals:**
+**Recommendations for evaluating stopping signals** (§4.6, Discussion):
 - choose candidate points blind to the outcome;
 - report the saving–risk frontier and selective risk, not one matched
   estimand;
@@ -205,7 +146,7 @@ See `paper/v2/04_results_replication.md` §5.3.
   tokens;
 - compare against a same-label probe on the same activations.
 
-## 8. Discussion
+## 5. Discussion
 
 - **Legible but not incremental.** What NLAs add is interpretive access, not
   information.
@@ -213,7 +154,7 @@ See `paper/v2/04_results_replication.md` §5.3.
   region is the end of the trace (Stage 0 selective risk).
 - **What the tail is:** recoverability within a budget (A2; D82 pending).
 
-## 9. Limitations and threats to validity
+## 6. Limitations and threats to validity (draft: `paper/v2/08_limitations.md`)
 
 The draft paragraphs below can be used as written once the pending items
 report.
@@ -242,7 +183,7 @@ report.
 - **Power.** The registered H1 has power of about 0.45 for the gap D69
   estimated. An inconclusive H1 is not evidence of equivalence.
 
-## 10. Reproducibility statement
+## 7. Reproducibility statement
 
 - Every number traces to a JSON output with its SHA-256 recorded in
   `docs/DECISIONS.md` (D69–D84).
@@ -254,14 +195,14 @@ report.
 
 | | content | source | state |
 |---|---|---|---|
-| Fig 1 | Schematic: trace, chunks, `i*`, the menu's windows, forcing | to draw | todo |
+| Fig 1 | Schematic: trace, chunks, `i*`, the menu's windows (from the code's rules), Stage 1's outcome-blind draw, 48- and 256-token forcing, the NLA path | `fig_v2_0` | done (2026-10-23) |
 | Fig 2 | Registered estimand curves; stops at 0.5·B\* | `fig_v2_2` | done (exploratory data) |
 | Fig 3 | Information increments, two labels | `fig_v2_1` | done |
 | Fig 4 | Stage 0 policy gaps to no signal | `fig_v2_4` | done; rule names in words (2026-10-23) |
 | Fig 5 | Selective risk against coverage, menu and Stage 0 (`main` arms; post hoc). Not deployment evidence | `fig_v2_5` | done; labels polished (2026-10-23) |
 | Fig 6 | Truncation | `fig_v2_3` | done; add the D82 panel when measured |
 | Fig 7 | rep1: D75 H1/H2 on the 48-token (confirmatory) and 256-token (sensitivity) outcomes with the ±0.05 margin; Stage 1's increments with the ±0.01 margin. The panels have different units | `fig_v2_6` | done (2026-10-23) |
-| Table 1 | Setting and preregistration timeline (D66–D84) | DECISIONS | todo |
+| Table 1 | Setting (main and rep1) and preregistration timeline (D66–D96) | configs; DECISIONS | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
 | Table 2 | Frozen phase lexicon and its `rep1` transfer AUC | `lexicon.json`; `rep1` | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
 | Table 3 | D75 confirmatory H1/H2 verbatim, plus readings under O256, D79 and Stage 1 | `rep1_o3_registered`, `rep1_extforced`, `rep1_position_audit`, `rep1_stage1` | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
 
