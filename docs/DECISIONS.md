@@ -3775,3 +3775,104 @@ uncommitted. Against `main` (`d510a96`), `rep1_runbook.py`,
 the config are byte-identical. `run_autoencoder.py` differs only in line
 endings.
 
+## D95. The rep1 follow-ups so far, and a pause during Stage 1 forcing
+
+**Recorded 2026-10-23, about 06:00 IST.** Every result here is secondary,
+sensitivity or exploratory, as its plan labels it. None changes D94's
+registered verdict. Each step below exited 0 and passed its queue gate.
+
+**1. The pre-specified rep1 secondaries (D81, D83 deviation 1), on O48:**
+- Information audit (`runs/rep1_information/information.json`), Holm over
+  Q1–Q3:
+  - **Q1-P**, readout score over position and the probe: +0.0005 AUC
+    [−0.0015, 0.0025], Holm p 1.0, *no practically relevant increment*;
+  - **Q2-P**, explanation text over position and the trace text: **+0.077**
+    [0.063, 0.090], Holm p 0.0015, *increment detected*;
+  - **Q3-P**, the text naming the answer before the trace does: −0.002
+    [−0.016, 0.012], *no practically relevant increment*.
+- **Lexicon transfer**, frozen on `main_nla240`, 0 problems shared: position
+  plus lexicon over position is +0.091 AUC [0.076, 0.106] for `Y_tail` and
+  +0.079 [0.059, 0.099] for `Y_reg`.
+- **Selective risk at 25% coverage:**
+  - readout: risk 0.64, saving among stops 0.77;
+  - no signal: 0.44 and 0.38;
+  - probe: 0.02 and 0.03.
+
+  Risk and saving are reported together and not ranked (D83).
+
+**2. D82 extended-budget forcing on rep1** (pre-specified sensitivity;
+`runs/rep1_extforced/`):
+- **Instrument:**
+  - stability 1.00 on 50 finished boundaries (gate 0.95), so O256 is
+    interpretable;
+  - 661 cut-off boundaries forced to 256 tokens; 9.1% still cut off.
+- **Token-count check failed** (maximum difference 4 tokens; ±2 required).
+  So, by the plan, net savings are not used. Every cell, and the
+  budget-dependence comparison, uses registered savings, not the plan's
+  "O256-net".
+- **f = 0.867** (≥ 0.80). By the plan's fixed language: *the 48-token
+  outcome mostly measured "can the model commit within 48 tokens"*.
+
+| outcome | H1 readout − probe | H2 readout − no signal |
+|---|---|---|
+| O48 (registered) | +0.047 [0.019, 0.075], supported | +0.057 [0.039, 0.076], supported |
+| O256 | −0.008 [−0.036, 0.024], equivalent within ±0.05 | −0.004 [−0.024, 0.016], equivalent within ±0.05 |
+| O256-u | −0.009 [−0.035, 0.023], equivalent | −0.007 [−0.025, 0.014], equivalent |
+| Ocont (diagnostic) | −0.016 [−0.078, 0.029], advantage ≥ 0.05 excluded | −0.008 [−0.044, 0.026], equivalent |
+
+- **H1 and H2 are dependent on the forcing budget.**
+- D69's overall reading also changes: from *established* to *uninformative:
+  no rule beats the no-signal rule*.
+- The falling-position rule's advantage over no signal also disappears
+  under O256 (+0.013, p 0.29). The D79 readings stay *unresolved*.
+- **Wording, per D82 §5:** D75's registered verdict is a result about
+  commitment within 48 tokens. Once cut-off boundaries may finish, the
+  readout selects stops no safer than the probe or no signal, within ±0.05.
+
+**3. The D81 audit under O256** (`information_O256.json`; 469 of 1,927
+labels change):
+- **Q1-P**, readout over position and probe: +0.008 [0.001, 0.016],
+  p 0.034 (bootstrap, unadjusted). This file records no reading; it is
+  reported as estimated.
+- **Text over position and trace text:** +0.078 [0.064, 0.093], as on O48.
+- **A probe on the same activation over position:** +0.132 [0.104, 0.161].
+- **Text over that probe:** +0.002 [−0.002, 0.005], p 0.34.
+- **Head to head,** the probe beats the text by 0.035 [0.020, 0.052].
+
+  So under O256 the explanation text carries no stopping information that a
+  linear probe on the same activation lacks.
+
+**4. Stage 1 (D83, approved in D85), in progress:**
+- **positions:** 400 problems × K = 4 = 1,600, seed 20261020, design hash
+  `514818cf…6afe`, positions `de54f05a…3b11`;
+- **verbalise:** 1,600/1,600 in 20,662 s, with 3,182/3,200 samples
+  well-formed (99.4%);
+- **reconstruct:** 1,600/1,600 in 650 s, mean cosine 0.876.
+  `reconstruct_summary.json` is written, so the queue will skip it;
+- **force:** stopped at about 720/848 blocks (see the pause below);
+- **analyse:** not started.
+
+**The pause.** At 05:55 IST the researcher asked for the pipeline to be
+stopped for a shutdown, to be resumed later.
+- `safe_stop.ps1` stopped the orchestrators (`resume_rep1.py`,
+  `post_rep1_queue.py`). It reported, as designed, that `stage1_offmenu.py
+  force` was running, and that process was then stopped.
+- No python process remains, and the GPU is at 0 MiB.
+- `runs/rep1_stage1/forced.jsonl` has 1,488 rows, all unique and parseable,
+  and the last line is complete. Forcing resumes per row (`writer.has`), so
+  at most the interrupted block is redone.
+- Plan, config, problem, design and `stage1_offmenu.py` hashes are
+  unchanged.
+
+**Remaining:**
+- Stage 1: the rest of the forcing (about 130 blocks, about 20 min), then
+  analyse;
+- D82 on `main_nla240` (exploratory; its O48 results were already seen):
+  forcing, analysis, and the O256 information audit.
+
+**Resume:** `docs/RESUME_2026-10-20.md`. Quit OMEN first (D89), then run
+`resume_rep1.py`, unchanged. The runbook and the finished queue steps skip
+themselves.
+
+**Not a deviation.** Nothing in the measurement changed.
+
