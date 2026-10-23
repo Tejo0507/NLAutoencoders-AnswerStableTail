@@ -2,7 +2,8 @@
 
 *Status markers:*
 - **[R]** registered;
-- **[C]** confirmatory (the rep1 replication, pending);
+- **[C]** confirmatory (the rep1 replication; computed, D94);
+- **[S]** pre-specified secondary or sensitivity (rep1; D94–D96);
 - **[X]** exploratory;
 - **[P]** post hoc;
 - **[A]** analytic.
@@ -38,18 +39,25 @@ under a pre-registered plan. We report five things.
      replication].
    - When the readout's rule stops, the stop is unsafe *more* often than
      chance [P].
-   - A pre-registered replication on 400 unseen problems tests the
-     readout against the probe and against no signal [C, pending].
+   - A pre-registered replication on 400 unseen problems supports both
+     registered hypotheses on the 48-token outcome [C].
+   - A position-only rule beats the readout there [S].
+   - Under a 256-token forcing budget, neither hypothesis is supported:
+     both read *equivalent within ±0.05*, which excludes effects of 0.05
+     or more but not smaller ones [S].
 2. **The readout's score carries no stopping information beyond position
    and a probe** (ΔAUC −0.001 [−0.002, −0.000]) [X].
 3. **The readout's *text* does carry information about the reasoning
    state.**
    - It encodes a phase, concluding against setting up, beyond the raw text
      of the trace (+0.073 AUC) [X].
-   - But it carries **none beyond a linear probe on the same activation,
-     trained for the same label** (−0.001 [−0.004, 0.002]) [P].
-   - We test this at positions chosen without the outcome [Stage 1,
-     pending], and test the phase vocabulary on unseen problems [pending].
+   - But for predicting stopping safety it adds **no practically relevant
+     information beyond a linear probe on the same activation, trained for
+     the same label** (−0.001 [−0.004, 0.002]) [P].
+   - At positions chosen without the outcome, the text's increment over
+     that same-label probe, for predicting these stopping labels, is
+     +0.00002 [−0.004, 0.004]: equivalent within ±0.01 [S, Stage 1]. The phase vocabulary transfers to unseen problems
+     (+0.091 AUC) [S].
 4. **Three evaluation choices can manufacture or erase an early-stopping
    advantage.** We demonstrate each with a control:
    - *Candidate points derived from the outcome* leak it.
@@ -61,9 +69,14 @@ under a pre-registered plan. We report five things.
      forced answers are cut off, and 98–99% of those disagree with the
      model's own continuations [X].
 
-   A 256-token re-forcing measures how much this changes the conclusions
-   [pending]. Two recent early-exit methods force answers with 48- and
-   64-token budgets [28, 31].
+   - Given 256 tokens, 520 of the 600 answers cut off at 48 tokens *before
+     the tail* (87%) reach the final answer.
+   - Under that outcome the registered hypotheses are not supported [S].
+     The registered 48-token verdict stands, but it depends on the forcing
+     budget.
+
+   Two recent early-exit methods force answers with 48- and 64-token
+   budgets [28, 31].
 5. **Cost.** One NLA check costs 0.83 of a mean trace in generated tokens,
    so verbalising at each candidate point cannot save compute in this
    setting [A].

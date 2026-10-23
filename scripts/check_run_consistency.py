@@ -34,6 +34,14 @@ Usage:
 
     python scripts/check_run_consistency.py --run runs/pilot
     python scripts/check_run_consistency.py --run runs/main --no-staleness
+    python scripts/check_run_consistency.py --replication
+
+`--replication` checks the rep1 outputs instead (D75-D96): recorded hashes
+against files, readings recomputed from stored estimates by the code that
+made them, numbers two outputs share, internal arithmetic, the gates and row
+counts, and the numbers listed in RECORD_CHECKS against DECISIONS.md. It
+does not recompute bootstrap estimates, and it checks no other document. The
+D75 analysis is required; `--complete` requires every output.
 
 Exit code 0 when every check passes, 1 when any fails.
 """
@@ -115,6 +123,7 @@ class Report:
     def __init__(self, verbose: bool = False):
         self.failures: list[str] = []
         self.warnings: list[str] = []
+        self.skipped: list[str] = []
         self.checked = 0
         self.verbose = verbose
 
@@ -133,6 +142,7 @@ class Report:
         print(f"  warning  {label}\n             {detail}")
 
     def skip(self, label: str, why: str) -> None:
+        self.skipped.append(label)
         print(f"  skipped  {label} - {why}")
 
     def compare(self, label: str, got: Any, want: Any) -> bool:
@@ -698,16 +708,444 @@ def check_report_prose(run: Path, results: dict, rep: Report) -> None:
                         f"{float(test['q_value']):.4f}")
 
 
+# --- the rep1 replication (D75-D96) ---
+#
+# rep1 has no `analysis/results.json`: its results are separate files written
+# by separate scripts, each recording the hashes of what it read. The checks
+# are, exactly:
+#   (a) every input hash an output records, against the file on disk;
+#   (b) numbers that two outputs both report, against each other;
+#   (c) each output's *reading* (verdict label), recomputed from its stored
+#       estimates by the function that made it. The estimates themselves are
+#       not recomputed: that would rerun the bootstraps;
+#   (d) internal arithmetic: AUC contrasts (delta = a - b) and selective-risk
+#       differences (rule - no signal);
+#   (e) instrument and attrition gates, and row counts;
+#   (f) the numbers listed in RECORD_CHECKS, against DECISIONS.md D94-D96.
+#       No other document is checked: not the paper drafts, the claim
+#       matrix, README or STATUS.
+#
+# The D75 analysis and its inputs are required: without them there is no
+# replication to check, and the run fails. Every other output is optional,
+# because this mode is also used while the queue is still running. A missing
+# optional output is reported as skipped and listed. `--complete` makes them
+# all required, which is how the finished replication is checked. A run in
+# which no check executes fails.
+REQUIRED_OUTPUT = "rep1_o3_registered/o3_registered.json"
+
+
+def sha256_file(path: Path) -> str | None:
+    import hashlib
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def fmt_signed(x: float, nd: int = 3) -> str:
+    """As the decision record writes numbers: a sign, and U+2212 for minus."""
+    s = f"{x:+.{nd}f}"
+    return s.replace("-", "−")
+
+
+def fmt_ci(ci: list[float], nd: int = 3) -> str:
+    return "[" + ", ".join(f"{v:.{nd}f}".replace("-", "−") for v in ci) + "]"
+
+
+def _load(runs: Path, rel: str, rep: Report, label: str, *,
+          required: bool) -> dict | None:
+    """Read one output. A missing required output is a failure; a missing
+    optional one is a listed skip."""
+    path = runs / rel
+    if path.exists():
+        return read_json(path)
+    if required:
+        rep.fail(label, f"required output {rel} is missing")
+    else:
+        rep.skip(label, f"{rel} not present")
+    return None
+
+
+def check_replication_hashes(runs: Path, docs: Path, rep: Report, *,
+                             complete: bool = False) -> None:
+    # Each block reads its own output; none depends on another being present.
+    traces = sha256_file(runs / "rep1" / "traces" / "traces.jsonl")
+    forced = sha256_file(runs / "rep1_forced" / "forced.jsonl")
+    o3 = _load(runs, REQUIRED_OUTPUT, rep, "D75 hashes", required=True)
+    if o3 is not None:
+        inputs = o3["inputs_sha256"]
+        rep.compare("D75 inputs.traces = traces.jsonl", inputs["traces"], traces)
+        rep.compare("D75 inputs.forced = rep1_forced/forced.jsonl", inputs["forced"], forced)
+        rep.compare("D75 inputs.reconstructions = reconstructions.jsonl",
+                    inputs["reconstructions"],
+                    sha256_file(runs / "rep1" / "nla" / "reconstructions.jsonl"))
+        rep.compare("D75 inputs.boundary_scores = boundary_scores.json",
+                    inputs["boundary_scores"],
+                    sha256_file(runs / "rep1" / "baselines" / "boundary_scores.json"))
+        rep.compare("D75 plan_sha256 = REPLICATION_PLAN.md", o3["plan_sha256"],
+                    sha256_file(docs / "REPLICATION_PLAN.md"))
+    prov_forced = _load(runs, "rep1_forced/provenance.json", rep,
+                        "rep1_forced provenance", required=True)
+    if prov_forced is not None:
+        rep.compare("rep1_forced provenance.forced_sha256 = file",
+                    prov_forced["forced_sha256"], forced)
+
+    pos = _load(runs, "rep1_position_audit/position_truncation.json", rep, "D79 hashes",
+                required=complete)
+    if pos is not None:
+        rep.compare("D79 plan_sha256 = POSITION_TRUNCATION_PLAN.md", pos["plan_sha256"],
+                    sha256_file(docs / "POSITION_TRUNCATION_PLAN.md"))
+
+    # D82 on rep1 (pre-specified) and on main_nla240 (exploratory)
+    for name, ext_dir, forced_path, traces_path, info_dir in (
+            ("rep1", "rep1_extforced", "rep1_forced", "rep1", "rep1_information"),
+            ("main_nla240", "main_nla240_extforced", "main_forced", "main",
+             "main_nla240_information")):
+        ext = _load(runs, f"{ext_dir}/analysis.json", rep, f"D82 {name} hashes",
+                    required=complete)
+        if ext is None:
+            continue
+        prov = ext["ext_provenance"]
+        rep.compare(f"D82 {name} plan_sha256 = EXTENDED_FORCING_PLAN.md", ext["plan_sha256"],
+                    sha256_file(docs / "EXTENDED_FORCING_PLAN.md"))
+        rep.compare(f"D82 {name} traces_sha256 = traces.jsonl", prov["traces_sha256"],
+                    sha256_file(runs / traces_path / "traces" / "traces.jsonl"))
+        rep.compare(f"D82 {name} registered_forced_sha256 = {forced_path}/forced.jsonl",
+                    prov["registered_forced_sha256"],
+                    sha256_file(runs / forced_path / "forced.jsonl"))
+        rep.compare(f"D82 {name} forced_ext_sha256 = forced_ext.jsonl",
+                    prov["forced_ext_sha256"], sha256_file(runs / ext_dir / "forced_ext.jsonl"))
+        labels = sha256_file(runs / ext_dir / "labels_O256.jsonl")
+        rep.compare(f"D82 {name} labels_O256_sha256 = labels_O256.jsonl",
+                    ext["labels_O256_sha256"], labels)
+        info256 = _load(runs, f"{info_dir}/information_O256.json", rep,
+                        f"D81-under-O256 {name} hashes", required=complete)
+        if info256 is not None:
+            rep.compare(f"D81-under-O256 {name} labels_sha256 = labels_O256.jsonl",
+                        info256["labels_sha256"], labels)
+
+    lex = _load(runs, "rep1_information/information_lexicon.json", rep,
+                "lexicon transfer hashes", required=complete)
+    if lex is not None:
+        rep.compare("lexicon transfer: lexicon_sha256 = main_nla240 lexicon.json",
+                    lex["lexicon_sha256"],
+                    sha256_file(runs / "main_nla240_information" / "lexicon.json"))
+
+    st1 = _load(runs, "rep1_stage1/analysis.json", rep, "Stage 1 hashes", required=complete)
+    if st1 is not None:
+        # an analysis without its provenance has lost its input record
+        prov1 = _load(runs, "rep1_stage1/provenance.json", rep, "Stage 1 provenance",
+                      required=True)
+        positions = sha256_file(runs / "rep1_stage1" / "positions.jsonl")
+        if prov1 is not None:
+            rep.compare("Stage 1 provenance.positions_sha256 = positions.jsonl",
+                        prov1["positions_sha256"], positions)
+            rep.compare("Stage 1 traces_sha256 = traces.jsonl", prov1["traces_sha256"],
+                        traces)
+        rep.compare("Stage 1 analysis.positions_sha256 = positions.jsonl",
+                    st1["positions_sha256"], positions)
+        rep.compare("Stage 1 design_sha256 = LEAKAGE_RESISTANT_DESIGN.md",
+                    st1["design_sha256"], sha256_file(docs / "LEAKAGE_RESISTANT_DESIGN.md"))
+
+
+def _contrasts(node: Any, path: str = ""):
+    """Every AUC contrast (a dict with auc_a, auc_b and delta_auc) under node."""
+    if isinstance(node, dict):
+        if {"auc_a", "auc_b", "delta_auc"} <= node.keys():
+            yield path, node
+        for k, v in node.items():
+            yield from _contrasts(v, f"{path}.{k}" if path else k)
+
+
+def check_contrast_arithmetic(label: str, doc: dict, rep: Report) -> None:
+    for path, c in _contrasts(doc):
+        rep.compare(f"{label} {path}: delta = a - b", c["auc_a"] - c["auc_b"], c["delta_auc"])
+
+
+def check_replication_numbers(runs: Path, rep: Report, *, complete: bool = False) -> None:
+    from extended_forcing_analysis import cut_off_reading
+    from information_audit import MARGIN as INFO_MARGIN
+    from nlaast.analysis.information import reading as info_reading
+    from nlaast.analysis.o3_registered import holm
+    from nlaast.analysis.position import falling_reading, position_reading
+    from position_truncation_audit import FAMILY_X, FAMILY_Y
+    from reanalyse_o3_registered import MIN_AGREEMENT, confirmatory_verdict
+
+    # D75 (required). Its numbers anchor the cross-checks below, which are
+    # skipped, not failed, when it is missing: that failure is already counted.
+    o3 = _load(runs, REQUIRED_OUTPUT, rep, "D75 numbers", required=True)
+    conf = agree = None
+    if o3 is not None:
+        rep.compare("D75 not blocked", "blocked" in o3, False)
+        agree = o3["instrument"]["reproducibility_agreement"]
+        rep.compare(f"D75 instrument agreement >= {MIN_AGREEMENT}", agree >= MIN_AGREEMENT,
+                    True)
+        conf = o3["confirmatory"]
+        again = confirmatory_verdict(o3["design_A_shared_menu"])
+        for k, v in conf.items():
+            for field in ("gap", "ci95", "p", "p_holm", "reading"):
+                rep.compare(f"D75 {k}.{field} recomputed", again[k][field], v[field])
+
+    p = _load(runs, "rep1_position_audit/position_truncation.json", rep, "D79 numbers",
+              required=complete)
+    if p is not None:
+        ro = p["registered_outcome"]
+        gaps = ro["gaps"]
+        hx = holm({k: gaps[k]["p_bootstrap"] for k in FAMILY_X})
+        hy = holm({k: gaps[k]["p_bootstrap"] for k in FAMILY_Y})
+        for k in FAMILY_X:
+            rep.compare(f"D79 holm_X[{k}].p_holm recomputed", hx[k]["p_holm"],
+                        ro["holm_X"][k]["p_holm"])
+        for k in FAMILY_Y:
+            rep.compare(f"D79 holm_Y[{k}].p_holm recomputed", hy[k]["p_holm"],
+                        ro["holm_Y"][k]["p_holm"])
+        rep.compare("D79 position_reading recomputed", position_reading(gaps, hx),
+                    ro["position_reading"])
+        rep.compare("D79 falling_reading recomputed", falling_reading(gaps, hy),
+                    ro["falling_reading"])
+        if conf is not None:
+            rep.compare("D79 instrument_agreement = D75's", p["instrument_agreement"], agree)
+            for k, v in conf.items():
+                for field in ("gap", "ci95", "p_holm", "reading"):
+                    rep.compare(f"D79 reproduces D75 {k}.{field}",
+                                ro["d75_confirmatory"][k][field], v[field])
+
+    sel = _load(runs, "rep1_selective/selective_menu.json", rep, "selective risk",
+                required=complete)
+    if sel is not None:
+        if agree is not None:
+            rep.compare("selective risk instrument_agreement = D75's",
+                        sel["instrument_agreement"], agree)
+        for cov, rules in sel["selective_risk_at_coverage"].items():
+            ns = rules["no_signal"]["selective_risk"]
+            for rule, v in rules.items():
+                if rule == "no_signal" or not v.get("at"):
+                    continue
+                rep.compare(f"selective risk {rule}@{cov}: risk - no signal",
+                            v["at"]["selective_risk"] - ns, v["risk_minus_no_signal"])
+
+    info = _load(runs, "rep1_information/information.json", rep, "D81 numbers",
+                 required=complete)
+    if info is not None:
+        prim = info["primaries"]
+        adj = holm({k: v["p"] for k, v in prim.items()})
+        for k, v in prim.items():
+            rep.compare(f"D81 {k}.p_holm recomputed", adj[k]["p_holm"], v["p_holm"])
+            rep.compare(f"D81 {k}.reading recomputed",
+                        info_reading(v["ci95"], adj[k]["reject"], v["delta"], INFO_MARGIN),
+                        v["reading"])
+    for name, rel in (("lexicon transfer", "rep1_information/information_lexicon.json"),
+                      ("D81-under-O256 rep1", "rep1_information/information_O256.json"),
+                      ("D81-under-O256 main_nla240",
+                       "main_nla240_information/information_O256.json")):
+        doc = _load(runs, rel, rep, f"{name} numbers", required=complete)
+        if doc is not None:
+            check_contrast_arithmetic(name, doc, rep)
+
+    for name in ("rep1", "main_nla240"):
+        ext = _load(runs, f"{name}_extforced/analysis.json", rep, f"D82 {name} numbers",
+                    required=complete)
+        if ext is None:
+            continue
+        inst = ext["instrument"]
+        rep.compare(f"D82 {name} stability gate passed",
+                    inst["stability"] >= inst["stability_gate"], True)
+        rep.compare(f"D82 {name} net savings used only if token counts agree within 2",
+                    ext["net_savings_used"], inst["check_token_count_max_abs_diff"] <= 2)
+        cm = ext["cut_off_meaning"]
+        rep.compare(f"D82 {name} cut-off reading recomputed from f",
+                    cut_off_reading(cm["f_256_equals_final"]), cm["reading"])
+        rep.compare(f"D82 {name} forced_ext rows = cut-off + check",
+                    len(read_jsonl(runs / f"{name}_extforced" / "forced_ext.jsonl")),
+                    inst["n_cut_off_forced"] + inst["n_check"])
+
+        if name != "rep1":
+            continue
+        if conf is not None:
+            for k, v in conf.items():
+                for field in ("gap", "ci95", "p_holm", "reading"):
+                    rep.compare(f"D82 O48 cell reproduces D75 {k}.{field}",
+                                ext["cells"]["O48/registered"]["d75_sensitivity"][k][field],
+                                v[field])
+        for cell, body in ext["cells"].items():
+            gaps = body["gaps"]
+            if not all(g in gaps for g in ("nla_readout - probe", "nla_readout - no_signal")):
+                continue
+            # the cells store the bootstrap p as `p` and no `evaluable` flag
+            again = confirmatory_verdict({"gaps": {
+                g: {**gaps[g], "p_bootstrap": gaps[g]["p"],
+                    "evaluable": gaps[g]["ci95"] is not None}
+                for g in ("nla_readout - probe", "nla_readout - no_signal")}})
+            for k, v in body["d75_sensitivity"].items():
+                rep.compare(f"D82 {cell} {k}.reading recomputed", again[k]["reading"],
+                            v["reading"])
+
+    st1 = _load(runs, "rep1_stage1/analysis.json", rep, "Stage 1 numbers", required=complete)
+    if st1 is not None:
+        from stage1_offmenu import MIN_TEXT_SHARE, tost_reading
+        check_contrast_arithmetic("Stage 1", st1, rep)
+        inst = st1["instrument"]
+        rep.compare("Stage 1 instrument gate passed",
+                    inst["first48_vs_separate_48_agreement"] >= inst["gate"], True)
+        rep.compare(f"Stage 1 attrition: passing text share >= {MIN_TEXT_SHARE}",
+                    st1["n_units_with_passing_verbalisation"] / st1["n_units"] >= MIN_TEXT_SHARE,
+                    True)
+        prim = st1["primary"]
+        rep.compare("Stage 1 primary.reading recomputed", tost_reading(prim["ci95"]),
+                    prim["reading"])
+        d1 = st1["Y_ext"]["contrasts"]["Δ1 E over pos+A"]
+        rep.compare("Stage 1 primary.delta = Y_ext Δ1", prim["delta"], d1["delta_auc"])
+        rep.compare("Stage 1 primary.ci95 = Y_ext Δ1", prim["ci95"], d1["ci95"])
+        rows = read_jsonl(runs / "rep1_stage1" / "forced.jsonl")
+        rep.compare("Stage 1 forced ext rows = n_units",
+                    sum(r["purpose"] == "ext" for r in rows), st1["n_units"])
+        rep.compare("Stage 1 forced ids unique", len({r["id"] for r in rows}), len(rows))
+        prov1 = _load(runs, "rep1_stage1/provenance.json", rep, "Stage 1 provenance",
+                      required=True)
+        if prov1 is not None:
+            rep.compare("Stage 1 forced check48 rows = check_rows",
+                        sum(r["purpose"] == "check48" for r in rows),
+                        len(prov1["check_rows"]))
+            rep.compare("Stage 1 positions = n_units", prov1["n_positions"], st1["n_units"])
+
+
+#: Statements in the decision record, as (label, entry, JSON path, field path,
+#: kind). Each is rendered the way the record writes it and must appear
+#: verbatim inside that entry, so a number edited by hand, or a record written
+#: from an earlier output, shows up as a mismatch.
+RECORD_CHECKS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("D75 H1", "D94", "rep1_o3_registered/o3_registered.json",
+     "confirmatory.H1_readout_minus_probe", "gap_ci"),
+    ("D75 H2", "D94", "rep1_o3_registered/o3_registered.json",
+     "confirmatory.H2_readout_minus_no_signal", "gap_ci"),
+    ("D82 O256 H1", "D95", "rep1_extforced/analysis.json",
+     "cells.O256/registered.d75_sensitivity.H1_readout_minus_probe", "gap_ci"),
+    ("D82 O256 H2", "D95", "rep1_extforced/analysis.json",
+     "cells.O256/registered.d75_sensitivity.H2_readout_minus_no_signal", "gap_ci"),
+    ("D82 f", "D95", "rep1_extforced/analysis.json",
+     "cut_off_meaning.f_256_equals_final", "f"),
+    ("Stage 1 Δ1 CI", "D96", "rep1_stage1/analysis.json", "primary.ci95", "ci"),
+    ("Stage 1 E over pos", "D96", "rep1_stage1/analysis.json",
+     "Y_ext.contrasts.E over pos", "auc_ci"),
+    ("Stage 1 A over pos", "D96", "rep1_stage1/analysis.json",
+     "Y_ext.contrasts.A over pos", "auc_ci"),
+    ("main_nla240 O256 readout - probe", "D96", "main_nla240_extforced/analysis.json",
+     "cells.O256/registered.gaps.nla_readout - probe", "gap_ci"),
+    ("main_nla240 O256 readout - no signal", "D96", "main_nla240_extforced/analysis.json",
+     "cells.O256/registered.gaps.nla_readout - no_signal", "gap_ci"),
+    ("main_nla240 f", "D96", "main_nla240_extforced/analysis.json",
+     "cut_off_meaning.f_256_equals_final", "f"),
+)
+
+
+def _decision(text: str, entry: str) -> str | None:
+    m = re.search(rf"^## {entry}\..*?(?=^## D\d+\.|\Z)", text, re.MULTILINE | re.DOTALL)
+    return m.group(0) if m else None
+
+
+def _dig_path(node: Any, dotted: str) -> Any:
+    # cell names contain '/', not '.', so a plain split works
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
+
+
+def check_replication_record(runs: Path, docs: Path, rep: Report, *,
+                             complete: bool = False) -> None:
+    path = docs / "DECISIONS.md"
+    if not path.exists():
+        if complete:
+            return rep.fail("decision record", f"no {path}")
+        return rep.skip("decision record", f"no {path}")
+    text = path.read_text(encoding="utf-8")
+    for label, entry, rel, dotted, kind in RECORD_CHECKS:
+        section = _decision(text, entry)
+        src = runs / rel
+        if section is None or not src.exists():
+            why = f"{entry} or {rel} not present"
+            if complete:
+                rep.fail(f"record[{label}]", why)
+            else:
+                rep.skip(f"record[{label}]", why)
+            continue
+        v = _dig_path(read_json(src), dotted)
+        if v is None:
+            rep.fail(f"record[{label}]", f"{rel} has no {dotted}")
+            continue
+        if kind in ("gap_ci", "auc_ci"):
+            # inline ("+0.047 [0.019, 0.075]") or as table cells
+            # ("| +0.047 | [0.019, 0.075] |"), on one line
+            gap = v["gap"] if kind == "gap_ci" else v["delta_auc"]
+            want = f"{fmt_signed(gap)} {fmt_ci(v['ci95'])}"
+            pattern = (re.escape(fmt_signed(gap)) + r"(?: \| | )"
+                       + re.escape(fmt_ci(v["ci95"])))
+        elif kind == "ci":
+            want = fmt_ci(v)
+            pattern = re.escape(want)
+        else:   # "f": stated as "f = 0.867", not just the digits anywhere
+            want = f"f = {v:.3f}"
+            pattern = r"\bf = " + re.escape(f"{v:.3f}") + r"(?!\d)"
+        if re.search(pattern, section):
+            rep.ok(f"record[{label}]", want)
+        else:
+            rep.fail(f"record[{label}]", f"{entry} does not state {want!r}")
+
+
+def check_replication(runs: Path, docs: Path, rep: Report, *,
+                      complete: bool = False) -> None:
+    print(f"checking the rep1 replication under {runs}"
+          f"{' (every output required)' if complete else ''}\n")
+    print("1. recorded hashes against the files on disk")
+    check_replication_hashes(runs, docs, rep, complete=complete)
+    print("\n2. readings, shared numbers, arithmetic and gates")
+    check_replication_numbers(runs, rep, complete=complete)
+    print("\n3. RECORD_CHECKS: listed numbers in DECISIONS.md D94-D96")
+    check_replication_record(runs, docs, rep, complete=complete)
+
+
+def replication_exit_code(rep: Report) -> int:
+    """Nonzero on any mismatch, and when nothing was checked at all: a run
+    with no checks has validated nothing and must not read as a pass."""
+    return 1 if rep.failures or rep.checked == 0 else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--run", default="runs/pilot", type=Path)
+    ap.add_argument("--replication", action="store_true",
+                    help="check the rep1 replication's outputs (D75-D96) instead "
+                         "of one run's analysis/results.json")
+    ap.add_argument("--runs-root", default=ROOT / "runs", type=Path,
+                    help="with --replication: the directory holding runs/rep1* "
+                         "(read only)")
+    ap.add_argument("--docs", default=ROOT / "docs", type=Path,
+                    help="with --replication: the docs holding the plans and "
+                         "DECISIONS.md")
+    ap.add_argument("--complete", action="store_true",
+                    help="with --replication: require every output and record "
+                         "entry, not only the D75 analysis (for the finished run)")
     ap.add_argument("--no-staleness", action="store_true",
                     help="skip the check that a stage's code has not moved "
                          "since the stage ran")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="print the checks that pass as well as those that fail")
     args = ap.parse_args()
+
+    if args.replication:
+        rep = Report(args.verbose)
+        check_replication(args.runs_root, args.docs, rep, complete=args.complete)
+        print(f"\n{rep.checked} checks, {len(rep.failures)} failed, "
+              f"{len(rep.skipped)} skipped")
+        if rep.failures:
+            print("\nfailures:")
+            for f in rep.failures:
+                print(f"  - {f.splitlines()[0]}")
+        elif rep.checked == 0:
+            print("no check ran: nothing was validated")
+        else:
+            print("every check that ran passed"
+                  + (f"; skipped: {', '.join(rep.skipped)}" if rep.skipped else ""))
+        return replication_exit_code(rep)
 
     run = args.run if args.run.is_absolute() else ROOT / args.run
     results_path = run / "analysis" / "results.json"

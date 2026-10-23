@@ -3,6 +3,23 @@
 What exists, what has run, what it found, and the next command to type.
 Last reviewed 2026-10-23.
 
+> **Update 2026-10-23, 09:50 IST: the replication pipeline is complete
+> (D96).** It was resumed at 08:00. Stage 1 and D82 on `main_nla240` ran,
+> and every gate passed.
+> - **Stage 1 (#30):** text over a same-label probe on the same activation
+>   is +0.00002 [−0.004, 0.004], *equivalent within ±0.01* for these
+>   stopping labels.
+> - **D82 on `main_nla240`** (exploratory): the rep1 pattern again, with
+>   f = 0.881. At 256 tokens no rule beats no signal, and the 48-token
+>   estimates lie outside the 256-token intervals.
+> - **Checking:** `scripts/check_run_consistency.py --replication
+>   --complete` passes on the final outputs: 169 checks, 0 failed. It checks
+>   hashes, readings, gates, arithmetic and 11 listed numbers in
+>   DECISIONS.md, not every number or document (D96 §4).
+> - **Next:** nothing runs on the GPU until the researcher decides on the
+>   next step after reviewing D96. Stage 0 on rep1 and the D76 rewording
+>   null stay deferred.
+>
 > **Update 2026-10-23, 05:55 IST: paused during Stage 1 forcing (D95).**
 >
 > | milestone | state |
