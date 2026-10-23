@@ -435,6 +435,237 @@ class TestRowCodeIsComparedBySymbol:
             assert not missing, f"{path}: {sorted(missing)}"
 
 
+class TestTheReplication:
+    """`--replication`: rep1's outputs are separate files that record each
+    other's hashes, so the defects to catch are a file changed after it was
+    read, a reading edited by hand, a gate not applied, and a decision record
+    that states a number the outputs do not."""
+
+    @staticmethod
+    def _gap(gap, lo, hi, p):
+        return {"gap": gap, "ci95": [lo, hi], "p_bootstrap": p, "evaluable": True,
+                "n_budgets_matched": 9}
+
+    @pytest.fixture
+    def tree(self, tmp_path):
+        from reanalyse_o3_registered import confirmatory_verdict
+
+        runs, docs = tmp_path / "runs", tmp_path / "docs"
+        files = {
+            runs / "rep1" / "traces" / "traces.jsonl": '{"problem_id": "p0"}\n',
+            runs / "rep1" / "nla" / "reconstructions.jsonl": '{"id": "r0"}\n',
+            runs / "rep1" / "baselines" / "boundary_scores.json": "{}",
+            runs / "rep1_forced" / "forced.jsonl": '{"id": "f0"}\n',
+            docs / "REPLICATION_PLAN.md": "# plan\n",
+        }
+        for path, text in files.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        sha = {p: crc.sha256_file(p) for p in files}
+        (runs / "rep1_forced" / "provenance.json").write_text(json.dumps(
+            {"forced_sha256": sha[runs / "rep1_forced" / "forced.jsonl"]}), encoding="utf-8")
+        design = {"gaps": {"nla_readout - probe": self._gap(0.047, 0.019, 0.075, 0.002),
+                           "nla_readout - no_signal": self._gap(0.057, 0.039, 0.076, 0.0005)}}
+        o3 = {"plan_sha256": sha[docs / "REPLICATION_PLAN.md"],
+              "inputs_sha256": {
+                  "traces": sha[runs / "rep1" / "traces" / "traces.jsonl"],
+                  "forced": sha[runs / "rep1_forced" / "forced.jsonl"],
+                  "reconstructions": sha[runs / "rep1" / "nla" / "reconstructions.jsonl"],
+                  "boundary_scores": sha[runs / "rep1" / "baselines" / "boundary_scores.json"]},
+              "instrument": {"reproducibility_agreement": 0.965},
+              "design_A_shared_menu": design,
+              "confirmatory": confirmatory_verdict(design)}
+        (runs / "rep1_o3_registered").mkdir()
+        self._write_o3(runs, o3)
+        return runs, docs, o3
+
+    @staticmethod
+    def _write_o3(runs, o3):
+        (runs / "rep1_o3_registered" / "o3_registered.json").write_text(
+            json.dumps(o3), encoding="utf-8")
+
+    def test_a_consistent_replication_passes(self, tree, rep):
+        runs, docs, _ = tree
+        crc.check_replication(runs, docs, rep)
+        assert rep.failures == []
+        assert rep.checked >= 15
+
+    def test_an_input_changed_after_the_analysis_read_it_is_caught(self, tree, rep):
+        runs, docs, _ = tree
+        (runs / "rep1_forced" / "forced.jsonl").write_text('{"id": "f1"}\n', encoding="utf-8")
+        crc.check_replication_hashes(runs, docs, rep)
+        assert any("inputs.forced" in f for f in rep.failures)
+        assert any("provenance.forced_sha256" in f for f in rep.failures)
+
+    def test_an_edited_plan_is_caught(self, tree, rep):
+        runs, docs, _ = tree
+        (docs / "REPLICATION_PLAN.md").write_text("# plan, edited\n", encoding="utf-8")
+        crc.check_replication_hashes(runs, docs, rep)
+        assert any("REPLICATION_PLAN.md" in f for f in rep.failures)
+
+    def test_a_reading_edited_by_hand_is_recomputed_and_caught(self, tree, rep):
+        runs, docs, o3 = tree
+        o3["confirmatory"]["H1_readout_minus_probe"]["reading"] = "inconclusive"
+        self._write_o3(runs, o3)
+        crc.check_replication_numbers(runs, rep)
+        assert any("H1_readout_minus_probe.reading" in f for f in rep.failures)
+
+    def test_a_blocked_or_ungated_analysis_is_caught(self, tree, rep):
+        runs, docs, o3 = tree
+        o3["blocked"] = "instrument"
+        o3["instrument"]["reproducibility_agreement"] = 0.93
+        self._write_o3(runs, o3)
+        crc.check_replication_numbers(runs, rep)
+        failed = " ".join(rep.failures)
+        assert "not blocked" in failed and "agreement" in failed
+
+    def test_the_record_must_state_the_outputs_numbers(self, tree, rep):
+        runs, docs, _ = tree
+        (docs / "DECISIONS.md").write_text(
+            "## D94. Verdict\n\n| H1 | +0.047 | [0.019, 0.075] |\n"
+            "H2: +0.058 [0.039, 0.076]\n\n## D95. Next\n", encoding="utf-8")
+        crc.check_replication_record(runs, docs, rep)
+        assert not any("D75 H1" in f for f in rep.failures)   # table form is read
+        assert any("D75 H2" in f for f in rep.failures)       # 0.058 is not 0.057
+
+    def test_a_number_in_another_entry_does_not_count(self, tree, rep):
+        runs, docs, _ = tree
+        (docs / "DECISIONS.md").write_text(
+            "## D94. Verdict\n\nnothing\n\n## D95. Later\n\n+0.047 [0.019, 0.075]\n",
+            encoding="utf-8")
+        crc.check_replication_record(runs, docs, rep)
+        assert any("D75 H1" in f for f in rep.failures)
+
+    def test_record_numbers_are_written_with_a_true_minus(self):
+        assert crc.fmt_signed(-0.0082) == "−0.008"
+        assert crc.fmt_ci([-0.036, 0.024]) == "[−0.036, 0.024]"
+
+    # --- empty and incomplete runs must not read as passes ---
+
+    def test_an_empty_runs_directory_fails(self, tmp_path, rep):
+        (tmp_path / "runs").mkdir()
+        crc.check_replication(tmp_path / "runs", tmp_path / "docs", rep)
+        assert any("required output" in f for f in rep.failures)
+        assert crc.replication_exit_code(rep) == 1
+
+    def test_zero_checks_is_not_a_pass(self, rep):
+        assert rep.checked == 0 and not rep.failures
+        assert crc.replication_exit_code(rep) == 1
+
+    def test_the_minimal_valid_run_passes_and_lists_what_it_skipped(self, tree, rep):
+        runs, docs, _ = tree
+        crc.check_replication(runs, docs, rep)
+        assert crc.replication_exit_code(rep) == 0
+        assert "Stage 1 numbers" in rep.skipped
+
+    def test_complete_mode_requires_every_output(self, tree, rep):
+        runs, docs, _ = tree
+        crc.check_replication(runs, docs, rep, complete=True)
+        assert any("rep1_stage1/analysis.json" in f for f in rep.failures)
+        assert crc.replication_exit_code(rep) == 1
+
+    @staticmethod
+    def _write(path, obj):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(obj, str):
+            path.write_text(obj, encoding="utf-8")
+        else:
+            path.write_text(json.dumps(obj), encoding="utf-8")
+
+    def _d82_and_stage1(self, runs, docs):
+        """A rep1 D82 analysis and a Stage 1 analysis, internally consistent,
+        with no D75 output beside them."""
+        w = self._write
+        w(runs / "rep1" / "traces" / "traces.jsonl", '{"problem_id": "p0"}\n')
+        w(runs / "rep1_forced" / "forced.jsonl", '{"id": "f0"}\n')
+        w(runs / "rep1_forced" / "provenance.json",
+          {"forced_sha256": crc.sha256_file(runs / "rep1_forced" / "forced.jsonl")})
+        w(docs / "EXTENDED_FORCING_PLAN.md", "# d82\n")
+        w(docs / "LEAKAGE_RESISTANT_DESIGN.md", "# design\n")
+        ext = runs / "rep1_extforced"
+        w(ext / "forced_ext.jsonl", "".join(f'{{"id": "e{i}"}}\n' for i in range(3)))
+        w(ext / "labels_O256.jsonl", '{"id": "l0"}\n')
+        traces = crc.sha256_file(runs / "rep1" / "traces" / "traces.jsonl")
+        w(ext / "analysis.json", {
+            "plan_sha256": crc.sha256_file(docs / "EXTENDED_FORCING_PLAN.md"),
+            "ext_provenance": {
+                "traces_sha256": traces,
+                "registered_forced_sha256": crc.sha256_file(runs / "rep1_forced" / "forced.jsonl"),
+                "forced_ext_sha256": crc.sha256_file(ext / "forced_ext.jsonl")},
+            "labels_O256_sha256": crc.sha256_file(ext / "labels_O256.jsonl"),
+            "instrument": {"stability": 1.0, "stability_gate": 0.95,
+                           "check_token_count_max_abs_diff": 4,
+                           "n_cut_off_forced": 2, "n_check": 1},
+            "net_savings_used": False,
+            "cut_off_meaning": {"f_256_equals_final": 0.867, "reading":
+                                "the 48-token outcome mostly measured commitment within 48 tokens"},
+            "cells": {}})
+        st = runs / "rep1_stage1"
+        w(st / "positions.jsonl", '{"p": 0}\n')
+        w(st / "forced.jsonl", '{"id": "a", "purpose": "ext"}\n{"id": "b", "purpose": "ext"}\n'
+                               '{"id": "c", "purpose": "check48"}\n')
+        w(st / "provenance.json", {"positions_sha256": crc.sha256_file(st / "positions.jsonl"),
+                                   "traces_sha256": traces, "check_rows": [1],
+                                   "n_positions": 2})
+        d1 = {"auc_a": 0.83, "auc_b": 0.83, "delta_auc": 0.0, "ci95": [-0.004, 0.004]}
+        w(st / "analysis.json", {
+            "positions_sha256": crc.sha256_file(st / "positions.jsonl"),
+            "design_sha256": crc.sha256_file(docs / "LEAKAGE_RESISTANT_DESIGN.md"),
+            "instrument": {"first48_vs_separate_48_agreement": 0.98, "gate": 0.95},
+            "n_units": 2, "n_units_with_passing_verbalisation": 2,
+            "primary": {"delta": 0.0, "ci95": [-0.004, 0.004],
+                        "reading": "equivalent within ±0.01"},
+            "Y_ext": {"contrasts": {"Δ1 E over pos+A": d1}}})
+
+    def test_a_missing_d75_does_not_hide_the_other_checks(self, tmp_path, rep):
+        runs, docs = tmp_path / "runs", tmp_path / "docs"
+        self._d82_and_stage1(runs, docs)
+        crc.check_replication(runs, docs, rep)
+        required = [f for f in rep.failures if "required output" in f]
+        assert required, "the missing D75 output must fail"
+        assert rep.failures == required, rep.failures   # D82 and Stage 1 pass
+        assert "D82 rep1 numbers" not in rep.skipped
+        assert "Stage 1 numbers" not in rep.skipped
+        assert rep.checked > len(required) + 15          # they actually ran
+        assert crc.replication_exit_code(rep) == 1
+
+    def test_a_planted_defect_in_stage1_is_caught_without_d75(self, tmp_path, rep):
+        runs, docs = tmp_path / "runs", tmp_path / "docs"
+        self._d82_and_stage1(runs, docs)
+        p = runs / "rep1_stage1" / "analysis.json"
+        st = json.loads(p.read_text(encoding="utf-8"))
+        st["primary"]["reading"] = "practically relevant increment"
+        p.write_text(json.dumps(st), encoding="utf-8")
+        crc.check_replication_numbers(runs, rep)
+        assert any("Stage 1 primary.reading" in f for f in rep.failures)
+
+    def test_contrast_arithmetic_is_checked(self, rep):
+        crc.check_contrast_arithmetic("x", {"c": {"auc_a": 0.8, "auc_b": 0.7,
+                                                  "delta_auc": 0.2}}, rep)
+        assert any("delta = a - b" in f for f in rep.failures)
+
+    def test_f_must_be_stated_as_f_not_as_any_matching_digits(self, tree, rep):
+        runs, docs, _ = tree
+        self._write(runs / "rep1_extforced" / "analysis.json",
+                    {"cut_off_meaning": {"f_256_equals_final": 0.867}})
+        self._write(docs / "DECISIONS.md", "## D95. x\n\nagreement 0.867 elsewhere\n")
+        crc.check_replication_record(runs, docs, rep)
+        assert any("record[D82 f]" in f for f in rep.failures)
+
+    @pytest.mark.integration
+    def test_the_finished_replication_passes_in_complete_mode(self, rep):
+        """The stored outputs, if present (NLAAST_TEST_RUNS), read only."""
+        import os
+        runs = Path(os.environ.get("NLAAST_TEST_RUNS",
+                                   Path(__file__).resolve().parents[1] / "runs"))
+        if not (runs / crc.REQUIRED_OUTPUT).exists():
+            pytest.skip("needs the stored rep1 outputs (set NLAAST_TEST_RUNS)")
+        crc.check_replication(runs, Path(__file__).resolve().parents[1] / "docs", rep,
+                              complete=True)
+        assert rep.failures == []
+        assert crc.replication_exit_code(rep) == 0
+
+
 class TestTheHarness:
     def test_a_nan_matches_a_nan_but_not_a_number(self):
         assert crc._same(float("nan"), float("nan"))
