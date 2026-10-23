@@ -115,12 +115,16 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
     result.
   - The pipeline finished on 2026-10-23. Claims and their evidence class:
     [`paper/CLAIM_EVIDENCE_MATRIX.md`](paper/CLAIM_EVIDENCE_MATRIX.md) §R.
-  - **The project is now in the paper-writing phase.**
-    - Results draft: [`paper/v2/04_results.md`](paper/v2/04_results.md).
+  - **The manuscript is drafted** (abstract and §1–§7 in
+    [`paper/v2/`](paper/v2/); outline:
+    [`paper/MANUSCRIPT_OUTLINE.md`](paper/MANUSCRIPT_OUTLINE.md)) and
+    awaits review and a recorded freeze.
     - Tables 1–3: [`paper/v2/tables_generated.md`](paper/v2/tables_generated.md).
     - Figures: [`paper/figures_v2/`](paper/figures_v2/).
-    - A possible follow-up study is proposed but **not approved**:
-      [`docs/STOPPING_POLICY_PROPOSAL.md`](docs/STOPPING_POLICY_PROPOSAL.md).
+    - The D76 rewording null ran (exploratory; D97).
+    - A follow-up stopping-policy pilot is drafted but **not approved or
+      run**: [`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`](docs/STOPPING_POLICY_PILOT_PROTOCOL.md)
+      (proposal: [`docs/STOPPING_POLICY_PROPOSAL.md`](docs/STOPPING_POLICY_PROPOSAL.md)).
   - Live state and next steps: [`docs/STATUS.md`](docs/STATUS.md).
   - Resume procedure: [`docs/RESUME_2026-10-20.md`](docs/RESUME_2026-10-20.md).
 
