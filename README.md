@@ -116,8 +116,8 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
   - The pipeline finished on 2026-10-23. Claims and their evidence class:
     [`paper/CLAIM_EVIDENCE_MATRIX.md`](paper/CLAIM_EVIDENCE_MATRIX.md) §R.
   - **The project is now in the paper-writing phase.**
-    - Results draft: [`paper/v2/04_results_replication.md`](paper/v2/04_results_replication.md).
-    - Tables 2–3: [`paper/v2/tables_generated.md`](paper/v2/tables_generated.md).
+    - Results draft: [`paper/v2/04_results.md`](paper/v2/04_results.md).
+    - Tables 1–3: [`paper/v2/tables_generated.md`](paper/v2/tables_generated.md).
     - Figures: [`paper/figures_v2/`](paper/figures_v2/).
     - A possible follow-up study is proposed but **not approved**:
       [`docs/STOPPING_POLICY_PROPOSAL.md`](docs/STOPPING_POLICY_PROPOSAL.md).
