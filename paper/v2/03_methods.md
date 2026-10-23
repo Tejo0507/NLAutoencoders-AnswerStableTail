@@ -1,4 +1,4 @@
-# 3. Methods (draft v2, 2026-10-21)
+# 3. Methods (draft v3, 2026-10-23)
 
 *Written from the code and the frozen plans. Each paragraph names its
 source so that it can be checked. Registered methods are described as
@@ -6,8 +6,8 @@ registered; later additions carry their decision number.*
 
 ## 3.1 Model, data and traces [R]
 
-- **Target model:** Qwen2.5-7B-Instruct, 4-bit NF4 (`configs/base.yaml`),
-  with greedy traces of up to 768 tokens.
+- **Target model:** Qwen2.5-7B-Instruct [39], 4-bit NF4 [40]
+  (`configs/base.yaml`), with greedy traces of up to 768 tokens.
 - **Problems:** GSM8K [3] and MATH [4] (algebra; counting and probability).
   - `main`: 250 problems (150 GSM8K, 100 MATH).
   - The NLA arm: 120 problems, and an exploratory 240-problem arm (D54).
@@ -62,9 +62,11 @@ both sides of the outcome change.**
 **Removing the leak:**
 - **Stage 0 [X, D83]** uses every chunk boundary as a candidate. That is
   possible only for signals that exist everywhere.
-- **Stage 1 [pending, D83/D85]** verbalises 4 boundaries per problem. They
-  are drawn by a function that receives only the problem id and the number
-  of chunks.
+- **Stage 1 [S, D83, approved as revised in D85; run D96]** verbalises
+  K = 4 boundaries in each of rep1's 400 problems (1,600 units). They are
+  drawn uniformly without replacement by a seeded function that receives
+  only the problem id and the number of chunks. It never reads `i*`, a
+  forced answer or a continuation. Every unit is forced with 256 tokens.
 
 ## 3.5 Estimands
 
@@ -72,7 +74,7 @@ both sides of the outcome change.**
    - Rules: "stop at the first allowed boundary whose score reaches t".
    - Comparison: safe rate at matched *mean* saving, `1 − prefix/total`.
    - Budgets: {0.1, …, 0.9} × the oracle bound B\*; tolerance 0.02.
-   - Uncertainty: a paired problem bootstrap (2,000), Holm.
+   - Uncertainty: a paired problem bootstrap (2,000), Holm [41].
    - The D75 replication applies it, with a margin of 0.05 and fixed
      readings.
    - A rule that never stops counts as safe.
@@ -80,15 +82,20 @@ both sides of the outcome change.**
    - Out-of-fold AUC from 10-fold, problem-grouped, outcome-stratified CV.
    - Contrasts are AUC(a) − AUC(b), with a problem-cluster bootstrap
      (exact weighted AUC).
-   - Readings use a ±0.02 margin (±0.01 in Stage 1, with TOST-style
-     readings).
+   - Readings use a ±0.02 margin (±0.01 in Stage 1, with readings in the
+     style of two one-sided tests [42]).
+   - **Stage 1's primary contrast [S]** is Δ₁ = AUC(position + same-label
+     probe + text) − AUC(position + same-label probe), on `Y_ext`: safety
+     under the 256-token forced answer, with the registered definition.
+     Its reading comes from the 95% interval against ±0.01. `Y_48` and
+     `Y_tail` (tail membership) are secondary.
 3. **Selective risk at matched coverage [P; D83 dev. 1].** Among problems
    where a rule stops before the end, the unsafe share of stops, at
    coverage 0.25 / 0.5 / 0.75, reported with the saving among stops.
 4. **Net saving [D82].** `1 − (prefix + forced tokens)/total`, which
    charges the answer emission.
 
-## 3.6 The forcing-budget measurement [pending; D82]
+## 3.6 The forcing-budget measurement [S on rep1, X on the 240 arm; D82, run D95–D96]
 
 - **Re-forcing:** every cut-off menu boundary is re-forced with the same
   call at 256 tokens, and the exact tokens are counted. A stability gate
@@ -99,6 +106,11 @@ both sides of the outcome change.**
   answer equals the final answer. It decides the wording: ≥ 0.80
   "commitment within 48 tokens"; ≤ 0.20 "registered reading supported";
   otherwise "mixed".
+- **Token counts:** a check compares the recorded forced-token counts with
+  re-tokenised ones (±2). Where it fails, as it did on both arms (D95,
+  D96), net savings are not used and every comparison uses registered
+  savings.
+- **O256 never replaces O48.** The D75 verdict is computed on O48 alone.
 
 ## 3.7 Pre-registration and deviations
 

@@ -1,9 +1,12 @@
-# 2. Related work (draft v2, 2026-10-21)
+# 2. Related work (draft v3, 2026-10-23)
 
-*Provisional.* Built from `docs/NOVELTY_REVIEW_2026-10-20.md`: abstracts and
-five full texts. The remaining checks are listed in #31. Each sentence
-saying where our work differs is phrased as a difference from the papers
-named, not as a claim that nobody has done it.
+*Built from `docs/NOVELTY_REVIEW_2026-10-20.md` (abstracts and five full
+texts) and the 2026-10-23 sweep of training-free early-exit methods
+(DEER, Dynasor, ThinkBrake, EAT, NEAT, LYNX; references [33]–[38]). This
+is a focused review, not a systematic one. Each sentence saying where our
+work differs is phrased as a difference from the papers named, not as a
+claim that nobody has done it. Findings attributed to other papers are
+theirs; ours are marked with their evidence class.*
 
 **Overthinking and answer stability.** Reasoning models often continue
 after their answer is settled [7, 8, 9].
@@ -16,7 +19,7 @@ after their answer is settled [7, 8, 9].
 Our answer-stable tail is defined by the same kind of agreement, and we
 reach the same reading: the tail marks where the answer becomes recoverable
 within a budget. We add a measurement of how that budget itself changes the
-outcome (§7).
+outcome (§4.3).
 
 **Early exit from hidden states and calibrated stopping.**
 - Probes on hidden states predict whether an intermediate answer is correct
@@ -37,6 +40,41 @@ risk. We do not claim them. Where we differ from these papers:
 - we measure the validity of the forced answers that both [28] (48 tokens)
   and [31] (64 tokens) use to label stops. Neither paper reports a
   truncation analysis.
+
+**Training-free early-exit methods.** Several methods decide online when a
+reasoning model may stop, each from a different signal:
+- **DEER** [33] treats transition words such as "Wait" as candidate exit
+  points. There it induces a trial answer and exits when the answer's
+  confidence (token probabilities, threshold 0.95 by default) is high.
+- **Dynasor** [34] probes the chain of thought at a fixed token interval by
+  appending an answer prompt, and stops once recent probed answers agree.
+- **ThinkBrake** [35] compares the log-probability of the end-of-thinking
+  token with that of the top token at sentence boundaries.
+- **EAT** [36] thresholds the entropy of the next token after an appended
+  end-of-thinking token.
+- **NEAT** [37] tracks the activations of neurons associated with exiting.
+- **LYNX** [38] trains a probe on hidden states at cue words, with labels
+  from forced exits, and wraps its scores in split conformal prediction to
+  control premature exits.
+
+Three points of contact with this paper:
+- **Candidate points.** The methods above take candidate points from the
+  generated text (transition words, sentence boundaries, cue words) or at
+  fixed intervals, not from a known answer change. The menu leak we report
+  (§4.2) concerns evaluation designs that place candidates around the
+  answer change, as our registered design did. We do not claim that these
+  methods are affected by it.
+- **Forced answers.** DEER, Dynasor and LYNX use answers forced at a
+  candidate point, for the exit decision or for training labels. We did not
+  check the budget each uses for those answers, so we make no claim about
+  them. Our measurement (§4.3) bears on any such design. With a short
+  budget, many forced answers are cut off before they finish. So the budget
+  and the truncation rate should be reported with the result.
+- **Applicability here.** ThinkBrake and EAT need an end-of-thinking
+  delimiter. The instruction-tuned model we study has none, so they are not
+  baselines in this study. LYNX's conformal control of premature exits is
+  close to the risk control that our proposed stopping-policy study would
+  use (§5.4).
 
 **Early answering as a faithfulness probe.** Truncate-and-answer was
 introduced to test whether chain-of-thought reasoning is load-bearing [16].

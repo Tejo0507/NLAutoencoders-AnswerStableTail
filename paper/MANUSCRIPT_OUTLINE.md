@@ -11,69 +11,50 @@ in `paper/CLAIM_EVIDENCE_MATRIX.md`.
 
 **Markers:**
 - **[R]**: registered;
-- **[C]**: confirmatory (`rep1`, pending);
+- **[C]**: confirmatory (`rep1`, D94);
+- **[S]**: pre-specified secondary or sensitivity (`rep1`, D94–D96);
 - **[X]**: exploratory;
 - **[P]**: post hoc;
-- **[A]**: analytic;
-- **[pending]**: not yet computed.
+- **[A]**: analytic.
+
+**Manuscript files (`paper/v2/`), all drafted as of 2026-10-23:**
+
+| § | file | state |
+|---|---|---|
+| Abstract | `00_abstract.md` | draft v1 (2026-10-23) |
+| 1 | `01_introduction.md` | draft v3; contributions led by the replication; §1.1 contribution statement |
+| 2 | `02_related_work.md` | draft v3; DEER, Dynasor, ThinkBrake, EAT, NEAT, LYNX added and verified ([33]–[38]) |
+| 3 | `03_methods.md` | draft v3; Stage 1 and D82 described as run |
+| 4 | `04_results.md` | draft v3 (reordered around the replication) |
+| 5 | `05_discussion.md` | draft v1; includes the conclusion (§5.6) |
+| 6 | `06_limitations.md` | draft v3 (renamed from `08_limitations.md`) |
+| 7 | `07_reproducibility.md` | draft v1; the rep1 archive identifier is added once published |
+| Refs | `../references.md` [1]–[27], `references_additions.md` [28]–[42] | checked against primary sources; [39]–[42] (model, NF4, Holm, TOST) added 2026-10-23 as missing citations |
 
 ## 1. Introduction (about 1 page)
 
-- Reasoning models keep writing after their answer is settled. Stopping
-  earlier needs a signal for "done".
-- NLAs (Anthropic, 2026) offer natural-language access to activations.
-  Can such a readout tell when the answer is settled, and does it add
-  anything beyond cheap probes?
-- **Contributions:**
-  1. **A pre-registered comparison and a confirmatory replication.**
-     - The verbalised readout's stopping score carries no information
-       beyond position and a probe [X; C pending].
-     - Its earlier apparent advantage is reproduced by a rule with no
-       readout [X].
-  2. **What the text does carry.** The explanation text legibly encodes
-     reasoning phase [X]. But a linear probe on the same activation, trained
-     for the same label, subsumes it [P], and an online check costs about a
-     whole trace [A].
-  3. **Three evaluation pitfalls, each demonstrated:**
-     - candidate points derived from the outcome;
-     - matched-mean-saving estimands that reward abandoning problems;
-     - short forced-answer budgets that are reliable but invalid.
+Final text: `paper/v2/01_introduction.md`. The five reported findings lead
+with the registered replication [C] and its two qualifications [S], then
+the score [X, S], the text [X, S], the three evaluation pitfalls [A, X, S]
+and cost [A].
 
-### Contribution statement (draft, 2026-10-20; conditional on the pending results)
+### Contribution statement (final draft, 2026-10-23)
 
-Prior work already establishes four things (`docs/NOVELTY_REVIEW_2026-10-20.md`):
-- stopping signals should be charged for their compute and compared at
-  matched risk (LearnStop; Thought Calibration);
-- hidden-state probes predict intermediate correctness (2504.05419);
-- verbalizer evaluations need input and probe controls (Li et al., ICML 2026);
-- truncate-and-answer reveals when answers commit (Lanham et al. 2023 and its
-  successors).
-
-**This paper does not claim any of these.** It claims:
-1. **A measured validity problem in the forced-answer instrument itself.**
-   With a 48-token budget, the setting a 2026 early-exit method also uses,
-   54–57% of pre-tail forced answers are cut off. They are reproducible but
-   disagree with the model's own continuations 98–99% of the time. A
-   256-token re-forcing shows how much this changes stopping conclusions
-   [D82, pending].
-2. **Two evaluation choices that can manufacture a stopping advantage,
-   each demonstrated with a control:**
-   - Candidate points chosen from the outcome: a rule using no readout
-     matches the NLA [D79].
-   - A matched-mean-saving estimand that counts abstention as safe: an
-     information-free rule beats an AUC-0.86 probe, at every boundary,
-     without the menu [D83 Stage 0].
-   - Selective risk reverses the rankings in both cases.
-3. **The first incremental-value test of NLA verbalisations for
-   reasoning-state information, against a same-activation, same-label
-   probe.** The control is Li et al.'s.
-   - The text carries phase information beyond the raw input text (+0.073
-     AUC).
-   - It carries none beyond the probe: −0.001 [−0.004, 0.002] on the menu,
-     [rep1 replication and Stage 1 off the menu, pending].
+In `paper/v2/01_introduction.md` §1.1. It credits prior work for charging
+signal cost and matching risk [28, 29], correctness probes [6],
+same-activation probe controls [12], truncate-and-answer [16, 31] and
+persistence of agreement [22], and claims four things:
+1. the confirmatory test with its pre-specified qualifications [C, S];
+2. the measured budget dependence of the forced-answer instrument (f =
+   0.867 on rep1, 0.881 on the 240 arm) [S, X];
+3. two demonstrated ways an evaluation manufactures a stopping advantage
+   [A, X];
+4. an incremental-value test of NLA text against a same-activation,
+   same-label probe at outcome-blind positions (equivalent within ±0.01)
+   [S].
 
 The claims are bounded to one target model and one released NLA, and to
-string-level predictive content. There is no faithfulness claim (D87).
+predictive content. There is no faithfulness claim (D87; matrix E1).
 
 ### Anticipated objections and where each is answered
 
@@ -88,12 +69,12 @@ string-level predictive content. There is no faithfulness claim (D87).
 ## 2. Related work
 
 - Probe-based and training-free early exit: self-verification probes, LYNX,
-  NEAT, EAT, DEER, Dynasor, ThinkBrake.
+  NEAT, EAT, DEER, Dynasor, ThinkBrake (swept 2026-10-23; [33]–[38]).
 - Overthinking analyses.
 - NLAs and activation verbalisers (LatentQA-style).
 - Selective prediction and risk–coverage evaluation.
-- **Backlog E4:** a systematic review is required before the novelty claims
-  in §1 are final.
+- **Backlog E4:** the review is focused, not systematic. Novelty is stated
+  as "to our knowledge, within the review of §2".
 
 ## 3. Setting and definitions (Methods I)
 
@@ -146,50 +127,36 @@ The replication leads; the main run's own comparison is context (§4.6).
   tokens;
 - compare against a same-label probe on the same activations.
 
-## 5. Discussion
+## 5. Discussion (draft: `paper/v2/05_discussion.md`)
 
-- **Legible but not incremental.** What NLAs add is interpretive access, not
-  information.
-- **Why a good state classifier saves little safely.** Its confident-safe
-  region is the end of the trace (Stage 0 selective risk).
-- **What the tail is:** recoverability within a budget (A2; D82 pending).
+- **5.1** What the replication supports: the confirmatory verdict as
+  registered, qualified by R2 (not content) and R4 (budget-dependent).
+- **5.2** Prediction, incremental value and faithfulness kept apart:
+  predictive yes, incremental no (±0.01), faithfulness untested.
+- **5.3** Four recommendations for evaluating stopping signals.
+- **5.4** Stopping: menu selective risk is not deployment evidence; the
+  NLA's cost rules out an online check; the in-sample CPU replay is
+  planning evidence only; the stopping-policy study is proposed, not run.
+- **5.5** What the tail is: recoverability within a budget (A2, R4).
+- **5.6** Conclusion.
 
-## 6. Limitations and threats to validity (draft: `paper/v2/08_limitations.md`)
+## 6. Limitations and threats to validity (draft: `paper/v2/06_limitations.md`)
 
-The draft paragraphs below can be used as written once the pending items
-report.
+Written from the matrix's weakest-point column and §E: one model, layer
+and NLA; outcome-selected points; budget dependence (with the failed
+token-count check); featurisation; no faithfulness or semantic claim
+(including C6's null); stopping at deployment untested (R7, the in-sample
+replay); post-hoc analyses and D91's provenance gap; independence of the
+240 arm; power; engineering; a focused, not systematic, review.
 
-- **Single model, layer and NLA.** Every result concerns Qwen2.5-7B-Instruct
-  in NF4 and the released layer-20 autoencoder. Other models, and reasoning
-  models that verify in prose, may differ. The bf16 check covered only the
-  target's activations (D55).
-- **Outcome-selected points.** Every NLA result was measured at chunks
-  chosen around the tail start. The cheap-signal results were reproduced
-  without that selection (Stage 0); the NLA results were not, unless Stage 1
-  runs.
-- **Outcome definition.** Safety uses a 48-token forced answer that is cut
-  off for most pre-tail positions. Conclusions that change under the
-  extended budget are flagged (D82).
-- **Featurisation.** The text is represented with TF-IDF and a linear model,
-  and the activation probes are linear. "No increment" means no increment
-  that these models can extract.
-- **Post-hoc analyses.** The falling-position control, the same-activation
-  probe and selective risk were added after related results were seen. Each
-  was specified before any outcome existed for the fresh-problem
-  replication, which is their test.
-- **String-level content checks.** The lexicon and the answer-mention test
-  match strings. Neither establishes that an explanation is faithful to the
-  computation, and the paper makes no faithfulness claim.
-- **Power.** The registered H1 has power of about 0.45 for the gap D69
-  estimated. An inconclusive H1 is not evidence of equivalence.
+## 7. Reproducibility statement (draft: `paper/v2/07_reproducibility.md`)
 
-## 7. Reproducibility statement
-
-- Every number traces to a JSON output with its SHA-256 recorded in
-  `docs/DECISIONS.md` (D69–D84).
-- Every plan was hashed before computation.
-- Commands are in `paper/PUBLICATION_STRATEGY.md` §6 and in each script's
-  docstring.
+- Every number traces to a JSON output named in `docs/DECISIONS.md`
+  (D69–D96), and every plan was hashed before computation.
+- `check_run_consistency.py --replication --complete` checks the readings,
+  gates and listed numbers (169 checks). It does not read the manuscript.
+- The rep1 archive identifier is added once the archive is published and
+  verified.
 
 ## Figure and table plan
 
@@ -200,15 +167,15 @@ report.
 | Fig 3 | Information increments, two labels | `fig_v2_1` | done |
 | Fig 4 | Stage 0 policy gaps to no signal | `fig_v2_4` | done; rule names in words (2026-10-23) |
 | Fig 5 | Selective risk against coverage, menu and Stage 0 (`main` arms; post hoc). Not deployment evidence | `fig_v2_5` | done; labels polished (2026-10-23) |
-| Fig 6 | Truncation | `fig_v2_3` | done; add the D82 panel when measured |
+| Fig 6 | Truncation: main's 48-token cut-off and disagreement rates; D82 panel (pre-tail cut-offs at 256 tokens: f = 0.867 on rep1 [S], 0.881 on the 240 arm [X]) | `fig_v2_3` | done; D82 panel added (2026-10-23) |
 | Fig 7 | rep1: D75 H1/H2 on the 48-token (confirmatory) and 256-token (sensitivity) outcomes with the ±0.05 margin; Stage 1's increments with the ±0.01 margin. The panels have different units | `fig_v2_6` | done (2026-10-23) |
 | Table 1 | Setting (main and rep1) and preregistration timeline (D66–D96) | configs; DECISIONS | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
 | Table 2 | Frozen phase lexicon and its `rep1` transfer AUC | `lexicon.json`; `rep1` | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
 | Table 3 | D75 confirmatory H1/H2 verbatim, plus readings under O256, D79 and Stage 1 | `rep1_o3_registered`, `rep1_extforced`, `rep1_position_audit`, `rep1_stage1` | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
 
 `python scripts/make_paper_figures_v2.py` regenerates every figure, and
-`python scripts/make_paper_tables_v2.py` regenerates Tables 2–3, from stored
-JSON. To read the outputs from another checkout, add
+`python scripts/make_paper_tables_v2.py` regenerates Tables 1–3, from the
+configs, the decision record and stored JSON. To read the outputs from another checkout, add
 `--runs <path>`; the figures are still written to this checkout.
 
 **Caption notes for Fig 7:**
