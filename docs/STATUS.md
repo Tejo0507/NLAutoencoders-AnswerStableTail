@@ -1,8 +1,22 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-22.
+Last reviewed 2026-10-23.
 
+> **Update 2026-10-23, 05:55 IST: paused during Stage 1 forcing (D95).**
+>
+> | milestone | state |
+> |---|---|
+> | rep1 runbook (A–E) | complete; registered verdict in D94 |
+> | rep1 secondaries (#29) | complete. Q1 readout score: no increment. Q2 text: +0.077 AUC. Q3: no latent answer. Lexicon transfers (+0.091) |
+> | D82 on rep1 (#28) | complete. f = 0.867, so O48 mostly measures commitment within 48 tokens. Under O256, H1 −0.008 and H2 −0.004, both *equivalent within ±0.05*: **budget-dependent**. Net savings not used (token-count check failed) |
+> | D81 under O256 | the text adds nothing over a probe on the same activation (+0.002, p 0.34); the probe beats the text by 0.035 |
+> | Stage 1 (#30) | positions, verbalise and reconstruct complete. **Force stopped at about 720/848 blocks** (1,488 rows saved, intact). Analyse pending |
+> | D82 on `main_nla240` | pending (exploratory) |
+>
+> **Resume:** quit OMEN, then `.venv\Scripts\python.exe scripts\resume_rep1.py`.
+> See `docs/RESUME_2026-10-20.md`. Remaining is about 1.5–2 h of GPU.
+>
 > **Update 2026-10-22, about 20:55 IST: the D75 verdict exists (D94).**
 > - Stages A–D (reconstruction, 48-token forcing, the confirmatory analysis,
 >   the D79 audit) completed, and every runbook gate passed. Re-forcing
