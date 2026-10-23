@@ -145,8 +145,14 @@ unsafe than chance: +0.14 [0.05, 0.21].
 - **Fig 2** = `paper/figures_v2/fig_v2_2_registered_estimand.png`;
 - **Fig 5 (left)** = `fig_v2_5_selective_risk.png`.
 
-**Confirmatory (`rep1`, D75):** H1 and H2 as registered [C, pending].
-Reported first and verbatim, then read with the controls above [pending].
+**Confirmatory (`rep1`, D75):** H1 and H2 are supported as registered [C],
+reported first and verbatim (Table 3a). They are read with the controls
+above:
+- the position audit is unresolved;
+- the 256-token sensitivity analysis makes the verdict budget-dependent
+  (Table 3b–c, Fig 7).
+
+Full draft: `paper/v2/04_results_replication.md`.
 
 ## 6. What the verbalised text carries (Results III)
 
@@ -155,8 +161,9 @@ Reported first and verbatim, then read with the controls above [pending].
 - robust to multiplicity, to the whole prefix as control, and to a noise
   null [P].
 
-**The phase vocabulary [X]:** **Table 2**, the frozen lexicon. Transfer to
-`rep1` [pending, pre-specified].
+**The phase vocabulary [X]:** **Table 2**, the frozen lexicon. It transfers
+to `rep1` out of sample [pre-specified]: +0.091 [0.076, 0.106] for tail
+membership.
 
 **Text against a same-activation probe [P]:**
 - −0.001 [−0.004, 0.002];
@@ -167,9 +174,13 @@ Reported first and verbatim, then read with the controls above [pending].
 
 **Figure:** **Fig 3** = `fig_v2_1_information_increments.png`.
 
-**Pending:**
-- the `rep1` replication of all of the above [pre-specified];
-- Stage 1 off the menu, if run (H1).
+**Replicated on `rep1` [pre-specified]:**
+- Q1–Q3;
+- the lexicon transfer;
+- **Stage 1 off the menu:** the text over a same-label probe is +0.00002
+  [−0.004, 0.004], *equivalent within ±0.01* (Table 3d, Fig 7).
+
+See `paper/v2/04_results_replication.md` §5.3.
 
 ## 7. Evaluation pitfalls, demonstrated (Results IV)
 
@@ -251,11 +262,12 @@ report.
 | Fig 6 | Truncation | `fig_v2_3` | done; add the D82 panel when measured |
 | Fig 7 | rep1: D75 H1/H2 on the 48-token (confirmatory) and 256-token (sensitivity) outcomes with the ±0.05 margin; Stage 1's increments with the ±0.01 margin. The panels have different units | `fig_v2_6` | done (2026-10-23) |
 | Table 1 | Setting and preregistration timeline (D66–D84) | DECISIONS | todo |
-| Table 2 | Frozen phase lexicon and its `rep1` transfer AUC | `lexicon.json`; `rep1` | pending |
-| Table 3 | D75 confirmatory H1/H2 verbatim, plus readings under O256 | `rep1_o3_registered`, `rep1_extforced` | pending |
+| Table 2 | Frozen phase lexicon and its `rep1` transfer AUC | `lexicon.json`; `rep1` | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
+| Table 3 | D75 confirmatory H1/H2 verbatim, plus readings under O256, D79 and Stage 1 | `rep1_o3_registered`, `rep1_extforced`, `rep1_position_audit`, `rep1_stage1` | done; generated in `paper/v2/tables_generated.md` (2026-10-23) |
 
-`python scripts/make_paper_figures_v2.py` regenerates every figure from
-stored JSON. To read the outputs from another checkout, add
+`python scripts/make_paper_figures_v2.py` regenerates every figure, and
+`python scripts/make_paper_tables_v2.py` regenerates Tables 2–3, from stored
+JSON. To read the outputs from another checkout, add
 `--runs <path>`; the figures are still written to this checkout.
 
 **Caption notes for Fig 7:**
