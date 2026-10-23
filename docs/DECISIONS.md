@@ -3876,3 +3876,174 @@ themselves.
 
 **Not a deviation.** Nothing in the measurement changed.
 
+## D96. Stage 1, the last D82 pass, and what the replication now supports
+
+**Recorded 2026-10-23, 10:37 IST.**
+- The pipeline was resumed at 08:00 after the D95 pause, with the unchanged
+  command, after OMEN was stopped as in D89. It finished at 09:50:26
+  ("everything done").
+- Every queue step exited 0 and passed its gate. No python process
+  remained, and the GPU read 0 MiB.
+- Every number below comes from the named JSON file. §4 lists exactly
+  which of them `scripts/check_run_consistency.py --replication` checks
+  automatically.
+
+**1. Stage 1 (D83, approved as revised in D85): pre-specified**
+(`runs/rep1_stage1/analysis.json`):
+- **Positions:** 400 problems × K = 4 = 1,600, drawn without reference to
+  the tail (seed 20261020). Positions `de54f05a…3b11`, design
+  `514818cf…6afe`.
+- **Gates:**
+  - attrition: 1,598 of 1,600 units have a passing verbalisation, against
+    the 75% gate;
+  - instrument: the first 48 tokens agree with a separate 48-token forcing
+    at 0.98, against the 0.95 gate;
+  - 7.6% of positions are still cut off at 256.
+- **Output:** `forced.jsonl` has 1,600 `ext` rows plus 50 `check48` rows,
+  all unique.
+
+| | Y_ext (primary label) | Y_48 | Y_tail |
+|---|---|---|---|
+| **Δ₁ text over position + same-label probe** | +0.00002 [−0.004, 0.004] | −0.000 [−0.004, 0.004] | +0.000 [−0.001, 0.001] |
+| text over position | +0.071 [0.052, 0.089] | +0.067 [0.051, 0.083] | +0.079 [0.064, 0.094] |
+| same-label probe over position | +0.102 [0.075, 0.129] | +0.093 [0.071, 0.115] | +0.107 [0.086, 0.129] |
+| text against same-label probe, head to head | −0.031 [−0.047, −0.015] | −0.026 [−0.041, −0.011] | −0.028 [−0.038, −0.019] |
+| readout score over position + same-label probe | −0.002 [−0.007, 0.001] | −0.002 [−0.005, 0.000] | +0.000 [−0.000, 0.001] |
+
+"Same-label probe" here is a linear probe on the same layer-20 activation,
+trained for the row's label. It is not the registered correctness probe.
+
+- **Primary reading** (`tost_reading`, margin 0.01): **equivalent within
+  ±0.01**. p = 0.982. The study is not flagged underpowered. Five CV seeds
+  give Δ₁ between −0.0008 and +0.0013.
+- **What it means:** at positions chosen without reference to the outcome,
+  the explanation text predicts these stopping labels on its own. But it
+  adds no practically relevant information for predicting them (within
+  ±0.01 AUC) beyond position and a linear probe on the same layer-20
+  activation, trained for the same label.
+- **The limits:** this holds for these labels and this design (TF-IDF
+  text, a linear probe, one model and NLA). It does not show that
+  everything the text says is linearly available in the activation. It is
+  a statement about predictive information, and says nothing about whether
+  the explanations describe the computation faithfully.
+
+**2. D82 on `main_nla240` (exploratory: its O48 results were seen)**
+(`runs/main_nla240_extforced/analysis.json`):
+- 240 problems, which include `main`'s 120, so this is not an independent
+  replication.
+- **Instrument:**
+  - stability 0.98 on 50 finished boundaries (gate 0.95);
+  - 428 cut-off boundaries forced to 256 tokens, of which 7.7% were still
+    cut off;
+  - the token-count check failed (maximum difference 5; ±2 required), so,
+    as on rep1, net savings are not used.
+- **f = 0.881**: *the 48-token outcome mostly measured commitment within
+  48 tokens*.
+
+| | O48 | O256 |
+|---|---|---|
+| readout − registered probe | +0.056 [0.023, 0.091] | +0.001 [−0.031, 0.040] |
+| readout − no signal | +0.069 [0.049, 0.093] | −0.011 [−0.034, 0.017] |
+| falling-position rule − no signal | +0.100 [0.074, 0.126] | +0.001 [−0.025, 0.027] |
+| D69 overall | established | uninformative: no rule beats the no-signal rule |
+
+This is the rep1 pattern (D95).
+- At 256 tokens, neither the readout's advantage nor the position rule's is
+  detected.
+- The 48-token estimates (+0.056 and +0.069) lie outside the 256-token 95%
+  intervals.
+- Smaller effects are not ruled out.
+
+**3. The D81 audit under O256 on `main_nla240` (exploratory)**
+(`information_O256.json`; 1,206 units, 327 labels changed):
+- readout over position and the registered probe: +0.011 [−0.001, 0.023],
+  p 0.064;
+- text over the same-label, same-activation probe: −0.001 [−0.005, 0.002];
+- text against that probe, head to head: −0.034 [−0.052, −0.016], so the
+  probe is better.
+
+These agree with rep1 under O256 (D95 §3) and with Stage 1.
+
+**4. Consistency checker.** `check_run_consistency.py --replication` is new.
+What it checks, exactly:
+- **(a) Input hashes:** every input hash that D75, D79, both D82 runs, both
+  O256 information audits, the lexicon transfer and Stage 1 record, against
+  the file on disk.
+- **(b) Readings:** each reading recomputed from the stored estimates, with
+  the function that made it. These are D75 `confirmatory_verdict`; D79
+  `position_reading` and `falling_reading` with their Holm values; D81
+  `holm` and `reading`; D82 `cut_off_reading` and the per-cell D75
+  readings; Stage 1 `tost_reading`.
+  **The estimates themselves (gaps, AUCs, intervals) are not recomputed,**
+  because that would rerun the bootstraps.
+- **(c) Shared numbers:** numbers two outputs both report, such as D75's
+  H1/H2 in D79 and in D82's O48 cell, and the instrument agreement.
+- **(d) Internal arithmetic:** each AUC contrast's Δ = a − b, and each
+  selective-risk difference from no signal.
+- **(e) Gates and counts:** the instrument and attrition gates, and the
+  forced-row and position counts.
+- **(f) Record:** 11 listed numbers (`RECORD_CHECKS`), against D94–D96 of
+  this file. H1/H2 at O48 and O256, f on both arms, Stage 1's Δ₁ interval,
+  text and same-label probe over position, and `main_nla240`'s two O256
+  gaps.
+
+**What it does not check:**
+- any other number in D94–D96;
+- the paper drafts, the claim matrix, README and STATUS. Their numbers were
+  copied from the outputs by hand and checked by review, not
+  automatically.
+
+**Pass and fail rules:**
+- the D75 analysis and its inputs are required;
+- other outputs may be missing while the queue runs, and are then listed as
+  skipped;
+- `--complete` requires all of them;
+- a run in which no check executes fails.
+
+**Result:** on the final outputs, `--replication --complete` runs 169
+checks with 0 failures and 0 skips. Its tests plant each defect, including
+an empty runs directory and a missing D75 output
+(`tests/test_run_consistency.py::TestTheReplication`).
+
+**5. What the replication supports, by evidence class:**
+- **Confirmatory (D75, D94).** On the registered 48-token outcome, the
+  readout beats the registered layer-20 correctness probe (H1) and no signal
+  (H2). This stands as registered.
+- **Secondary, and qualifying it (D79, D94).** A position-only falling rule
+  beats the readout by 0.025. The position-residualised readout does not
+  beat no signal. The advantage cannot be attributed to explanation
+  content.
+- **Sensitivity (D82 on rep1, D95).**
+  - f = 0.867, so the registered outcome measures commitment within 48
+    tokens.
+  - At 256 tokens, H1 and H2 are each equivalent within ±0.05. Their 95%
+    intervals exclude effects of 0.05 or more, but not smaller ones. The
+    48-token estimates (0.047 and 0.057) lie outside them.
+  - **The registered hypotheses are not supported under the 256-token
+    outcome.** The 48-token verdict stands as registered, but it depends on
+    the forcing budget.
+- **Pre-specified, at outcome-blind positions (Stage 1).** For predicting
+  these stopping labels, the text adds no practically relevant information
+  beyond position and a *same-label linear probe trained on the same
+  activation*: equivalent within ±0.01.
+- **Exploratory (`main_nla240`).** The same pattern appears on the
+  already-seen arm.
+- **Selective risk (D83 deviation 1).** These results use the
+  outcome-selected candidate menu and O48 labels. **They are not deployment
+  evidence.**
+  - The probe here is the **registered layer-20 correctness probe**, not
+    Stage 1's same-label probe. No selective-risk result exists for the
+    same-label probe on rep1.
+  - The registered probe's stops are low-risk but save little. The
+    readout's stops come earlier and save more, but most of them are
+    unsafe.
+  - At 50% coverage: registered probe risk 0.011 with saving 0.028; readout
+    0.632 with 0.711; no signal 0.472 with 0.413.
+  - No rule dominates. Risk and saving are reported together, not ranked.
+- **Not tested.** Whether the explanations are faithful (matrix E1).
+  Nothing here bears on it.
+
+**6. Not done, by decision.** No new experiment was started. Stage 0 on
+rep1 traces and the D76 rewording null stay deferred until the researcher
+approves them after this record is reviewed.
+

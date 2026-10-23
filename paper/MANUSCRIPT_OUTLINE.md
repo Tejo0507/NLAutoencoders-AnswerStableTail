@@ -246,12 +246,22 @@ report.
 | Fig 1 | Schematic: trace, chunks, `i*`, the menu's windows, forcing | to draw | todo |
 | Fig 2 | Registered estimand curves; stops at 0.5·B\* | `fig_v2_2` | done (exploratory data) |
 | Fig 3 | Information increments, two labels | `fig_v2_1` | done |
-| Fig 4 | Stage 0 policy gaps to no signal | `fig_v2_4` | done |
-| Fig 5 | Selective risk against coverage, menu and Stage 0 | `fig_v2_5` | done (polish labels) |
+| Fig 4 | Stage 0 policy gaps to no signal | `fig_v2_4` | done; rule names in words (2026-10-23) |
+| Fig 5 | Selective risk against coverage, menu and Stage 0 (`main` arms; post hoc). Not deployment evidence | `fig_v2_5` | done; labels polished (2026-10-23) |
 | Fig 6 | Truncation | `fig_v2_3` | done; add the D82 panel when measured |
+| Fig 7 | rep1: D75 H1/H2 on the 48-token (confirmatory) and 256-token (sensitivity) outcomes with the ±0.05 margin; Stage 1's increments with the ±0.01 margin. The panels have different units | `fig_v2_6` | done (2026-10-23) |
 | Table 1 | Setting and preregistration timeline (D66–D84) | DECISIONS | todo |
 | Table 2 | Frozen phase lexicon and its `rep1` transfer AUC | `lexicon.json`; `rep1` | pending |
 | Table 3 | D75 confirmatory H1/H2 verbatim, plus readings under O256 | `rep1_o3_registered`, `rep1_extforced` | pending |
 
 `python scripts/make_paper_figures_v2.py` regenerates every figure from
-stored JSON.
+stored JSON. To read the outputs from another checkout, add
+`--runs <path>`; the figures are still written to this checkout.
+
+**Caption notes for Fig 7:**
+- The 256-token points are the D82 sensitivity analysis, which never
+  replaces the registered verdict.
+- "Equivalent within ±0.05" excludes effects of 0.05 or more, not smaller
+  ones.
+- Stage 1's comparator is the same-label probe, not the registered
+  correctness probe.
