@@ -45,6 +45,92 @@ def _load(runs: Path, rel: str):
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
+#: The preregistration timeline: each decision's role, in the paper's words.
+#: The date comes from the decision's own "Recorded" line in DECISIONS.md.
+TIMELINE = (
+    ("D66", "registered report frozen", "main run complete"),
+    ("D68", "post-hoc audit of the frozen report", "after main's results"),
+    ("D69", "O3 rescored on the registered outcome; plan fixed first (D91: the amended "
+     "plan's hash was not recorded before the data)", "post hoc on main"),
+    ("D75", "**confirmatory replication frozen** (plan, problems, config)", "before any rep1 trace"),
+    ("D79", "position-only control and truncation audit specified", "before any rep1 outcome"),
+    ("D78", "deviation 1: batch size 2", "before any rep1 outcome"),
+    ("D80", "deviation 2: 200 re-forced boundaries; forcing in blocks of 2", "before any rep1 outcome"),
+    ("D81", "information audit specified", "before any rep1 outcome"),
+    ("D82", "256-token forcing pass specified", "before any extended answer"),
+    ("D83", "leakage-resistant design (Stage 0, Stage 1)", "before any Stage 1 data"),
+    ("D85", "Stage 1 approved as revised", "before any Stage 1 data"),
+    ("D94", "**D75 verdict computed**; D79 audit", "outcomes"),
+    ("D95", "secondaries, D82 on rep1", "outcomes"),
+    ("D96", "Stage 1 and the final D82 pass", "outcomes"),
+)
+
+
+def _deep_merge(a: dict, b: dict) -> dict:
+    out = dict(a)
+    for k, v in (b or {}).items():
+        out[k] = _deep_merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def table1(root: Path = ROOT) -> str | None:
+    import re
+
+    import yaml
+    try:
+        base = yaml.safe_load((root / "configs" / "base.yaml").read_text(encoding="utf-8"))
+        cfg = {n: _deep_merge(base, yaml.safe_load((root / "configs" / f"{n}.yaml")
+                                                  .read_text(encoding="utf-8")))
+               for n in ("main", "replication")}
+        dec = (root / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    m, r = cfg["main"], cfg["replication"]
+    rows = [
+        ("target model", f"{m['target']['repo_id']}, {m['target']['precision'].upper()}",
+         f"{r['target']['repo_id']}, {r['target']['precision'].upper()}"),
+        ("problems", f"{m['data']['n_gsm8k']} GSM8K + {m['data']['n_math']} MATH",
+         f"{r['data']['n_gsm8k']} GSM8K + {r['data']['n_math']} MATH, fresh (D75)"),
+        ("MATH subjects", ", ".join(m["data"]["math_subjects"]),
+         ", ".join(r["data"]["math_subjects"])),
+        ("traces", f"greedy, ≤ {m['generation']['max_new_tokens']} tokens",
+         f"greedy, ≤ {r['generation']['max_new_tokens']} tokens"),
+        ("answer-stable tail", f"K = {m['ast']['k_continuations']} continuations at T = "
+         f"{m['ast']['continuation_temperature']}, {m['ast']['continuation_max_new_tokens']} tokens",
+         f"K = {r['ast']['k_continuations']} at T = {r['ast']['continuation_temperature']}, "
+         f"{r['ast']['continuation_max_new_tokens']} tokens"),
+        ("registered outcome", f"{m['generation']['force_answer_max_new_tokens']}-token forced answer (O48)",
+         f"{r['generation']['force_answer_max_new_tokens']}-token forced answer (O48); 256-token "
+         "sensitivity (O256, D82)"),
+        ("probe and NLA layer", str(m["target"]["layer"]), str(r["target"]["layer"])),
+        ("NLA verbaliser / reconstructor", f"{m['nla']['av_repo']} / -ar, "
+         f"{m['nla']['precision'].upper()}", f"{r['nla']['av_repo']} / -ar, "
+         f"{r['nla']['precision'].upper()}"),
+        ("verbalisation", f"{m['nla']['n_samples']} samples × {m['nla']['max_new_tokens']} tokens, "
+         f"{m['nla']['windows_per_problem']} per window kind",
+         f"{r['nla']['n_samples']} samples × {r['nla']['max_new_tokens']} tokens, "
+         f"{r['nla']['windows_per_problem']} per window kind"),
+        # main.yaml's nla.max_problems is 80; the run used a --set override (D48)
+        ("NLA arm", "120 problems (`--set nla.max_problems=120`, D48)",
+         "every problem with a tail (380 of 400)"),
+        ("batch size", str(m["generation"]["batch_size"]),
+         f"{r['generation']['batch_size']} (D78, deviation 1)"),
+    ]
+    out = ["## Table 1. Setting and preregistration timeline", "",
+           "**(a) Setting** (from `configs/base.yaml` merged with `configs/main.yaml` and "
+           "`configs/replication.yaml`; the NLA arm size of `main` is the D48 run override).", "",
+           "| | `main` (registered study) | `rep1` (confirmatory replication) |", "|---|---|---|"]
+    out += [f"| {a} | {b} | {c} |" for a, b, c in rows]
+    out += ["", "**(b) Timeline** (dates from each decision's *Recorded* line in "
+            "`docs/DECISIONS.md`).", "",
+            "| decision | recorded | what it fixed | relative to the data |", "|---|---|---|---|"]
+    for d, what, rel in TIMELINE:
+        mm = re.search(rf"^## {d}\..*?\n\n\*\*Recorded ([^*]+?)[.,]?\*\*", dec, re.M | re.S)
+        when = mm.group(1).split(",")[0].strip() if mm else "see record"
+        out.append(f"| {d} | {when} | {what} | {rel} |")
+    return "\n".join(out)
+
+
 def table2(runs: Path) -> str | None:
     lex = _load(runs, "main_nla240_information/lexicon.json")
     tr = _load(runs, "rep1_information/information_lexicon.json")
@@ -142,10 +228,10 @@ def main() -> int:
     ap.add_argument("--runs", type=Path, default=ROOT / "runs")
     ap.add_argument("--out", type=Path, default=OUT)
     a = ap.parse_args()
-    parts = ["# Tables 2 and 3 (generated)", "",
-             "*Generated by `scripts/make_paper_tables_v2.py` from stored outputs. "
-             "Do not edit by hand; regenerate.*"]
-    for name, f in (("table2", table2), ("table3", table3)):
+    parts = ["# Tables 1-3 (generated)", "",
+             "*Generated by `scripts/make_paper_tables_v2.py` from the configs, the decision "
+             "record and stored outputs. Do not edit by hand; regenerate.*"]
+    for name, f in (("table1", lambda _runs: table1()), ("table2", table2), ("table3", table3)):
         t = f(a.runs)
         print(f"{name}: {'written' if t else 'skipped (input missing)'}")
         if t:

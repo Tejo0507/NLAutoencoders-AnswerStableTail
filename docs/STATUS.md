@@ -9,20 +9,22 @@ Last reviewed 2026-10-23.
 > | area | state |
 > |---|---|
 > | Evidence | complete. D94–D96; claim matrix §R maps every claim to its class |
-> | Results draft | `paper/v2/04_results_replication.md`, with the introduction updated |
-> | Figures | Figs 2–7 regenerate from stored JSON (`make_paper_figures_v2.py`); Fig 1 (schematic) still to draw; Fig 6's D82 panel open |
-> | Tables | Tables 2–3 generated (`make_paper_tables_v2.py` → `paper/v2/tables_generated.md`); Table 1 (setting and preregistration timeline) to write |
+> | Results | reordered around the replication: `paper/v2/04_results.md` (§4.1 verdict → §4.2–4.3 qualifications → §4.4 text → §4.5 selective risk → §4.6 main-run pitfalls) |
+> | Figures | Fig 1 (schematic) and Figs 2–7 regenerate (`make_paper_figures_v2.py`); Fig 6's D82 panel is still open |
+> | Tables | Tables 1–3 generated (`make_paper_tables_v2.py` → `paper/v2/tables_generated.md`) |
 > | Checks | `check_run_consistency.py --replication --complete` (169 checks); CPU tests on every PR (`cpu-tests`) |
 > | Archive (#32) | the builder classifies every run directory; a draft archive was built and verified against source hashes (3,264 files, 0 unmatched); final build and publishing are manual |
 > | Next study | `docs/STOPPING_POLICY_PROPOSAL.md`, **not approved**; the planning replay ran (§6.7) |
 >
 > **Paper work, in order (#31):**
-> 1. Reorder Results around the replication draft.
-> 2. Write Table 1 and draw Fig 1.
+> 1. ~~Reorder Results around the replication~~: done.
+> 2. ~~Write Table 1 and draw Fig 1~~: done.
 > 3. Do the related-work sweep (DEER, Dynasor, ThinkBrake, EAT, NEAT;
 >    LatentQA).
-> 4. Write Discussion and Limitations from the claim matrix (§R and E).
+> 4. Write Discussion and Limitations from the claim matrix (§R and E),
+>    keeping prediction, incremental value and faithfulness apart.
 > 5. Write the final contribution statement.
+> 6. Run the final consistency and release checks.
 >
 > Stage 0 and D76 are deferred
 > (`docs/STAGE0_D76_DECISION_NOTE.md`).

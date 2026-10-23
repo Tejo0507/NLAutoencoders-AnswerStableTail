@@ -28,6 +28,20 @@ def test_numbers_are_written_as_the_record_writes_them():
     assert mpt.ci([-0.036, 0.024]) == "[−0.036, 0.024]"
 
 
+def test_table1_reads_the_configs_and_the_record():
+    """From the repository's own configs and DECISIONS.md, not from runs/."""
+    t = mpt.table1()
+    assert t is not None
+    assert "240 GSM8K + 160 MATH" in t                       # replication.yaml
+    assert "`--set nla.max_problems=120`, D48" in t           # the run override, not 80
+    assert "| D75 | 2026-10-19T17:46Z |" in t                 # D75's own Recorded line
+    assert "D91" in t                                         # the D69 provenance gap
+
+
+def test_table1_is_skipped_without_the_configs(tmp_path):
+    assert mpt.table1(tmp_path) is None
+
+
 def test_missing_inputs_skip_the_table(tmp_path):
     assert mpt.table2(tmp_path) is None
     assert mpt.table3(tmp_path) is None

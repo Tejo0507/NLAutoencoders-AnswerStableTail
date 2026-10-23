@@ -83,7 +83,7 @@ under a pre-registered plan. We report five things.
 
 **What we do not claim:**
 - that the explanations are faithful to the computation (they are not
-  evaluated semantically; §9);
+  evaluated semantically; §6);
 - that cost-aware or risk-controlled evaluation is new (it is not
   [28, 29]);
 - that the results hold beyond this model and its NLA.

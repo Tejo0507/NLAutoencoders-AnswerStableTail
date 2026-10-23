@@ -261,6 +261,79 @@ def fig_selective():
     return _save(fig, "fig_v2_5_selective_risk")
 
 
+def fig_schematic():
+    """Fig 1: the design, drawn from the code's rules, not from data.
+
+    One illustrative trace of 12 chunks with tail start i* = 8. Design A's
+    menu follows `ast_detect.matched_windows` and `run_autoencoder.select_windows`:
+    two picks spread over each of the tail [i*, end], the matched-position
+    window ending at i* - 1, and a random matched-length window. So the menu
+    always holds i* - 1 and i*: it is derived from the outcome. Stage 1 draws
+    K = 4 boundaries uniformly, without the tail. The positions are
+    illustrative."""
+    from matplotlib.patches import FancyBboxPatch, Rectangle
+    n, istar = 12, 8
+    menu = {"tail": (8, 11), "matched position": (4, 7), "matched length": (2, 5)}
+    stage1 = (1, 3, 6, 10)
+    fig, axes = plt.subplots(2, 1, figsize=(10, 5.2), gridspec_kw={"height_ratios": [1.25, 1]})
+    ax = axes[0]
+    for i in range(n):
+        ax.add_patch(Rectangle((i, 0), 0.92, 0.6, color=GRID if i < istar else "#ddf4e4",
+                               ec=MUTED, lw=0.6))
+        ax.text(i + 0.46, 0.3, str(i), ha="center", va="center", fontsize=7, color=INK)
+    ax.annotate("answer-stable tail (i ≥ i*)", (istar + 1.9, 0.62), ha="center", fontsize=8,
+                color=C["A"], xytext=(istar + 1.9, 0.92),
+                arrowprops={"arrowstyle": "-", "color": C["A"], "lw": 0.8})
+    ax.axvline(istar - 0.04, color=C["A"], lw=1.2)
+    ax.text(istar + 0.08, -0.28, f"i* = {istar}", ha="left", fontsize=9, color=C["A"])
+    marks = [("tail", C["readout"], -0.55), ("matched position", C["falling"], -0.85),
+             ("matched length", C["rising"], -1.15)]
+    for name, col, y in marks:
+        lo, hi = menu[name]
+        ax.plot([lo + 0.46, hi + 0.46], [y, y], color=col, lw=1, alpha=0.35)
+        for i in (lo, hi):
+            ax.plot(i + 0.46, y, "v", color=col, ms=7)
+        ax.text(-0.3, y, f"design A: {name}", ha="right", va="center", fontsize=7.5, color=col)
+    for i in stage1:
+        ax.plot(i + 0.46, -1.5, "o", color=C["probe"], ms=6, mfc="white", mew=1.5)
+    ax.text(-0.3, -1.5, "Stage 1: K = 4 drawn without reference to the tail", ha="right",
+            va="center", fontsize=7.5, color=C["probe"])
+    ax.text(n + 0.2, -0.85, "menu always holds\ni* − 1 and i*:\noutcome-derived", fontsize=7.5,
+            color=INK, va="center")
+    ax.set_xlim(-5.2, n + 2.6)
+    ax.set_ylim(-1.8, 1.15)
+    ax.axis("off")
+    ax.set_title("Candidate stop points in one trace (chunks 0–11; positions illustrative)",
+                 fontsize=10, color=INK, loc="left")
+
+    ax = axes[1]
+    ax.axis("off")
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 2.6)
+    boxes = [
+        (0.1, 1.45, 2.3, 0.8, "prefix P_s\n(trace up to boundary s)", GRID),
+        (2.9, 1.45, 2.6, 0.8, "+ \"Therefore, the answer is\"\ngreedy forcing", "#fff4d6"),
+        (6.0, 1.85, 3.8, 0.55, "48 new tokens → O48 (registered)", "#fde2e2"),
+        (6.0, 1.15, 3.8, 0.55, "256 new tokens → O256 (D82 sensitivity)", "#e8eaee"),
+        (0.1, 0.1, 2.3, 0.8, "layer-20 activation\nat boundary s", GRID),
+        (2.9, 0.1, 2.6, 0.8, "NLA verbaliser → text\nreconstructor → cosine", "#efe6fb"),
+        (6.0, 0.1, 3.8, 0.8, "via the NLA: readout cosine, text\n(probes read the activation directly)", "#ddf4e4"),
+    ]
+    for x, y, w, h, label, col in boxes:
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02", fc=col, ec=MUTED,
+                                    lw=0.6))
+        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center", fontsize=7.5, color=INK)
+    for (x0, y0), (x1, y1) in (((2.4, 1.85), (2.9, 1.85)), ((5.5, 2.05), (6.0, 2.12)),
+                               ((5.5, 1.65), (6.0, 1.42)), ((2.4, 0.5), (2.9, 0.5)),
+                               ((5.5, 0.5), (6.0, 0.5))):
+        ax.annotate("", (x1, y1), xytext=(x0, y0),
+                    arrowprops={"arrowstyle": "->", "color": INK, "lw": 0.8})
+    ax.text(0.1, 2.45, "Outcome at s: safe iff the forced answer's correctness equals the final "
+            "answer's", fontsize=8.5, color=INK)
+    fig.tight_layout()
+    return _save(fig, "fig_v2_0_schematic")
+
+
 def fig_replication():
     """rep1 (D94-D96): the registered comparisons by forcing budget, and Stage 1.
 
@@ -333,8 +406,8 @@ def main() -> int:
     p.add_argument("--runs", type=Path, default=ROOT / "runs",
                    help="directory holding the stored run outputs (read only)")
     RUNS = p.parse_args().runs
-    for f in (fig_increments, fig_stopping, fig_truncation, fig_stage0, fig_selective,
-              fig_replication):
+    for f in (fig_schematic, fig_increments, fig_stopping, fig_truncation, fig_stage0,
+              fig_selective, fig_replication):
         out = f()
         print(f"{f.__name__}: {out or 'skipped (input missing)'}")
     return 0
