@@ -124,3 +124,64 @@ file to its original hash.
   run's provenance, with new work done in a worktree on `main`.
 - Removing anything from it (Option B) remains a separate decision for the
   researcher, and is not required by this archive.
+
+## 7. Release candidate, built and verified 2026-10-23 (not published)
+
+Built by steps 3.2–3.6 and §5, from a fresh clean clone of `main` at
+`56f66e5`, reading the pipeline checkout's `runs/` read-only. The output is
+`D:\NLAutoencoders-release\rc-2026-10-23\`, a new directory outside both
+checkouts. The earlier draft (`rep1-2026-10-23-draft`) was not touched.
+
+**Package (`--status final`, date 2026-10-23):**
+- 3,273 staged files, of which 3,264 are run files; 95 sanitised; archive
+  `nlaast-runs-2026-10-23.tar.gz`, 240,109,648 bytes, SHA-256
+  `e1f31aec259e1d54b7bc8e221940d323da59eb9928033521c18fa569e6a28df7`.
+
+**Checks, all on the actual files:**
+
+| check | result |
+|---|---|
+| originals unchanged (step 3.2/5.5) | the 3,415 files under the pipeline checkout's `runs/`, `configs/` and `docs/` hash identically to a manifest taken before any work that day; its `HEAD`, `git status` and tracked diff are unchanged |
+| replication consistency (step 3.3) | `check_run_consistency.py --replication --complete`: 169 checks, 0 failed |
+| scan, package and archive (step 3.6) | exactly one finding, `abs_windows_root` in the pinned F6 validator (the D65 retained file) |
+| extraction (§5.1–5.2) | extracted into a new directory; `sha256sum -c SHA256SUMS.txt`: 3,272 of 3,272 entries OK; the archive's `.sha256` verifies |
+| provenance (§5.3) | of the 3,264 run files, 3,169 are byte-identical to `runs/`; the other 95 are each listed in `TRANSFORMS.json` with an original hash equal to the source file's and a released hash equal to the extracted file's. 0 mismatches; 0 source files missing from a released run; no unclassified entry |
+| exclusions | the 7 `EXCLUDED` entries are absent, including `main_claim_annotation` (blinded sheets and `key.json`) |
+| spot checks (§5.4) | `rep1_o3_registered`: H1 +0.0471 [0.0190, 0.0754], Holm p 0.002; H2 +0.0571 [0.0388, 0.0763], Holm p 0.001, both "supported" (D94). `rep1_stage1`: Δ₁ +0.0000233 [−0.0041, 0.0041], p 0.982, "equivalent within ±0.01" (D96) |
+| bundle B (step 5) | `checkout_state_rep1/`: the 90 changed or untracked files at `b17c131` on `research/d69-d75-followup`, with `git status`, `HEAD`, branch and a SHA-256 manifest; every copy equals its source. `scripts/stage1_power_audit.py` is `64eaa58e…5716`, D85's version (§4) |
+
+**Blinding.** `main_rq2probe/` ships 7 annotation-sheet files, 3 of them
+`key.json` unblinding keys for amendment A1 (D56–D57). All 7 are
+byte-identical to the files already published in `data-runs-2026-10-19`,
+so this package adds no new exposure. Those sheets can no longer serve a
+blind annotation, because their keys are public. The D71 human-annotation
+sheets stay withheld.
+
+**Not published, because three decisions are open:**
+1. **The write-up freeze** (PUBLISHING.md gate 1). The manuscript's
+   Discussion, Limitations, abstract and contribution statement were
+   drafted on 2026-10-23 (#52). The researcher has not recorded a freeze.
+   The README pins the release to the commit it is built from, so the
+   final build is repeated at the freeze commit.
+2. **Bundle B's local paths.** The scan finds 15 absolute local paths
+   (backup, release and model directories) in three of the copied
+   documents (`docs/AUDIT_2026-10-17.md`, `docs/DECISIONS.md`,
+   `docs/RQ3_FOLLOWUP_DESIGN.md`). Bundle B exists to be byte-identical to
+   the run's code state, so sanitising it would defeat its purpose. The
+   options are to retain these files pinned by hash (as D65 did for the F6
+   validator), to sanitise them with a `TRANSFORMS.json`, or to leave
+   bundle B out of the public release.
+3. **The destination.** The repository's practice is a GitHub release
+   (D67), then Zenodo for a DOI. Zenodo needs the researcher's account,
+   which this machine does not have.
+4. **D76's outputs** (D97) are in
+   `D:\NLAutoencoders-experiments\d76-2026-10-23\`, not under the
+   pipeline's `runs/`. They are not in this candidate. Including them, for
+   example as a separate release asset with their hash list, is a
+   decision.
+
+**Also to update at release:** `CITATION.cff` still describes v0.1.0 (the
+frozen main-run report at `4713607`). Its abstract, version, commit and
+date, and a data reference for the rep1 archive, must be updated together
+with the release. GitHub reports the MIT `LICENSE` as `NOASSERTION`
+because of its appended third-party note. The text is correct.
