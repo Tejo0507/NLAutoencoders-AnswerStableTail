@@ -830,13 +830,17 @@ def check_replication_hashes(runs: Path, docs: Path, rep: Report, *,
 
     st1 = _load(runs, "rep1_stage1/analysis.json", rep, "Stage 1 hashes", required=complete)
     if st1 is not None:
-        prov1 = read_json(runs / "rep1_stage1" / "provenance.json")
+        # an analysis without its provenance has lost its input record
+        prov1 = _load(runs, "rep1_stage1/provenance.json", rep, "Stage 1 provenance",
+                      required=True)
         positions = sha256_file(runs / "rep1_stage1" / "positions.jsonl")
-        rep.compare("Stage 1 provenance.positions_sha256 = positions.jsonl",
-                    prov1["positions_sha256"], positions)
+        if prov1 is not None:
+            rep.compare("Stage 1 provenance.positions_sha256 = positions.jsonl",
+                        prov1["positions_sha256"], positions)
+            rep.compare("Stage 1 traces_sha256 = traces.jsonl", prov1["traces_sha256"],
+                        traces)
         rep.compare("Stage 1 analysis.positions_sha256 = positions.jsonl",
                     st1["positions_sha256"], positions)
-        rep.compare("Stage 1 traces_sha256 = traces.jsonl", prov1["traces_sha256"], traces)
         rep.compare("Stage 1 design_sha256 = LEAKAGE_RESISTANT_DESIGN.md",
                     st1["design_sha256"], sha256_file(docs / "LEAKAGE_RESISTANT_DESIGN.md"))
 
@@ -990,13 +994,16 @@ def check_replication_numbers(runs: Path, rep: Report, *, complete: bool = False
         rep.compare("Stage 1 primary.delta = Y_ext Δ1", prim["delta"], d1["delta_auc"])
         rep.compare("Stage 1 primary.ci95 = Y_ext Δ1", prim["ci95"], d1["ci95"])
         rows = read_jsonl(runs / "rep1_stage1" / "forced.jsonl")
-        prov1 = read_json(runs / "rep1_stage1" / "provenance.json")
         rep.compare("Stage 1 forced ext rows = n_units",
                     sum(r["purpose"] == "ext" for r in rows), st1["n_units"])
-        rep.compare("Stage 1 forced check48 rows = check_rows",
-                    sum(r["purpose"] == "check48" for r in rows), len(prov1["check_rows"]))
         rep.compare("Stage 1 forced ids unique", len({r["id"] for r in rows}), len(rows))
-        rep.compare("Stage 1 positions = n_units", prov1["n_positions"], st1["n_units"])
+        prov1 = _load(runs, "rep1_stage1/provenance.json", rep, "Stage 1 provenance",
+                      required=True)
+        if prov1 is not None:
+            rep.compare("Stage 1 forced check48 rows = check_rows",
+                        sum(r["purpose"] == "check48" for r in rows),
+                        len(prov1["check_rows"]))
+            rep.compare("Stage 1 positions = n_units", prov1["n_positions"], st1["n_units"])
 
 
 #: Statements in the decision record, as (label, entry, JSON path, field path,

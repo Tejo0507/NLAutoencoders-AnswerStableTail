@@ -639,6 +639,15 @@ class TestTheReplication:
         crc.check_replication_numbers(runs, rep)
         assert any("Stage 1 primary.reading" in f for f in rep.failures)
 
+    def test_a_stage1_analysis_without_its_provenance_fails_cleanly(self, tmp_path, rep):
+        """It used to raise FileNotFoundError instead of reporting a failure."""
+        runs, docs = tmp_path / "runs", tmp_path / "docs"
+        self._d82_and_stage1(runs, docs)
+        (runs / "rep1_stage1" / "provenance.json").unlink()
+        crc.check_replication(runs, docs, rep)
+        assert any("rep1_stage1/provenance.json" in f for f in rep.failures)
+        assert crc.replication_exit_code(rep) == 1
+
     def test_contrast_arithmetic_is_checked(self, rep):
         crc.check_contrast_arithmetic("x", {"c": {"auc_a": 0.8, "auc_b": 0.7,
                                                   "delta_auc": 0.2}}, rep)
