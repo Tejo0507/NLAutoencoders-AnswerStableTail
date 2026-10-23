@@ -32,18 +32,36 @@ file count, number of sanitised files and original size. In short:
 | `runs/main_rq2probe/` | **exploratory** | RQ2 amendment A1 (D56–D57): an independent-probe control on rule-derived claim labels without human validation. Includes `annotation_sheet_v3.ai_claude_not_independent.jsonl`, an AI-produced annotation sheet that is **not** an independent human annotation, and two superseded blank sheets. |
 | `runs/main_f6_audit/` | **exploratory diagnostic** | Label statistics of F6's `np.resize` shuffle (`docs/F6_RESIZE_AUDIT.md`). |
 | `runs/main_f6_diag/`, `runs/main_f6_diag_validation/` | **exploratory diagnostic** | F6's length-correct diagnostic (D58–D60), 100 draws, and its independent validation (27 checks, 0 failed). |
+| `runs/rep1/`, `runs/rep1_forced/`, `runs/rep1_o3_registered/` | **confirmatory** | The pre-registered replication on 400 fresh problems (D75–D80). `rep1_o3_registered/o3_registered.json` holds the D75 verdict (D94). |
+| `runs/rep1_position_audit/`, `runs/rep1_information/`, `runs/rep1_selective/` | **pre-specified secondary** | The position/truncation audit (D79), information audit and lexicon transfer (D81), and selective risk (D83 deviation 1), on rep1 (D94–D95). Not part of the verdict. |
+| `runs/rep1_extforced/` | **pre-specified sensitivity** | The 256-token forcing pass (D82, D95). It qualifies the verdict and never replaces it. |
+| `runs/rep1_stage1/` | **pre-specified** | Stage 1: NLA text against a same-label probe at outcome-blind positions (D83, D85, D96). |
+| `runs/rep1_runbook/`, `runs/post_rep1_queue/` | **logs** | The replication pipeline's runbook, resume and queue logs. |
+| `runs/main_forced/`, `runs/main_o3_registered/`, `runs/main_nla240_o3_registered/`, `runs/main_claims_audit/`, `runs/main_claim_checks/`, `runs/main_paraphrase_qc/`, `runs/main_corrected_tests/` | **post hoc / corrected** | The post-hoc reanalysis of `main` (D68–D72, `docs/REANALYSIS_2026-10-19.md`). D91 records a provenance gap in the O3 reanalysis plan. |
+| `runs/main_coverage/`, `runs/main_position_audit/`, `runs/main_nla240_position_audit/`, `runs/main_information/`, `runs/main_nla240_information/`, `runs/main_offmenu_stage0/`, `runs/main_nla240_extforced/` | **exploratory** | Analyses on already-seen data (D73, D79, D81, D83–D84, D96). |
+| `runs/main_selective/`, `runs/main_nla240_selective/` | **post hoc** | Selective risk on the candidate menu (D83 deviation 1). Not deployment evidence. |
+| `runs/main_rq3_pilot/`, `runs/main_rq3_pilot_stage0/` | **exploratory pilot** | RQ3 follow-up pilot; Stage 0 was a no-go (D74, D77). |
+| `runs/stage1_power_audit/` | **planning** | Stage 1's power audit on stored data (D85). |
+| `runs/bench_*` | **engineering benchmark** | Batch-size benchmarks behind D77 and D78. |
 
-**Exploratory and partial results are not registered confirmatory
-results** and must not be read as such. The registered conclusions are those
-of `runs/main/`; F6's registered result is `runs/main/robustness/robustness.json`
-and the diagnostic does not change it. RQ3 is reported as *not tested* on
-this model (D62).
+**Only `runs/main/` (the registered study) and the rep1 confirmatory
+directories carry registered or confirmatory results.**
+- Everything else is pre-specified secondary, sensitivity, exploratory,
+  post hoc, planning or engineering, and must not be read as confirmatory.
+- F6's registered result is `runs/main/robustness/robustness.json`, and the
+  diagnostic does not change it.
+- RQ3 is reported as *not tested* on this model (D62).
+- No directory here establishes that the NLA explanations are faithful.
 
-**Left out**, as not results: `calib`, `mlcorpus` (traces from before the
-chunker and parser fixes), `smoke`, `tiny` (synthetic test fixture) and
-`main_f5` (a 2-problem timing check for the deferred F5 sweeps), plus the
-empty `manifest.json.lock` files every run directory holds while a stage
-writes.
+**Left out:**
+- as not results: `calib`, `mlcorpus` (traces from before the chunker and
+  parser fixes), `smoke`, `tiny` (synthetic test fixture), `main_f5` (a
+  2-problem timing check for the deferred F5 sweeps) and
+  `main_rq3_pilot_smoke`;
+- the empty `manifest.json.lock` files every run directory holds while a
+  stage writes;
+- **withheld:** `main_claim_annotation`, the blinded human-annotation sheets
+  and their unblinding key, until the human annotation is complete.
 
 ## Layout of a run directory
 
