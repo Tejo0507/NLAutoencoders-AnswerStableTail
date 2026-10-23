@@ -342,7 +342,7 @@ replay (§6.6). It measures coverage and mean net saving at each candidate
 α_cal on existing data. **α_cal is chosen after the replay and before any
 evaluation data exist.**
 
-### 6.6 The planning replay (designed; runs only when approved)
+### 6.6 The planning replay (approved and run 2026-10-23; see §6.7)
 
 `scripts/replay_stopping_policy.py`:
 - **What it does:** it replays P0 and P1 (out-of-fold, problem-grouped, as
@@ -371,6 +371,102 @@ its output.
 - the activation store only reads. Its constructor calls
   `mkdir(exist_ok=True)` on the existing `blocks/` directory, which is a
   no-op there.
+
+### 6.7 Replay results (2026-10-23): planning only, in-sample
+
+**The run:**
+- **Approved and run** on 2026-10-23, 15:19–15:23 IST, on the CPU, from
+  `main` at `516b87b`, with no GPU visible.
+- **Output:** `docs/planning/stopping_replay_2026-10-23.json`
+  (SHA-256 `01d188c9…`).
+- **Inputs untouched:** the script's own check passed. Independently, a
+  SHA-256 manifest of all 1,231 files under `runs/rep1`, `runs/rep1_stage1`
+  and `runs/stage1_power_audit`, taken before and after, is identical, and
+  no file is newer than the first manifest.
+
+**These numbers are planning inputs, not evidence:**
+- thresholds are fitted on the same data they score;
+- the walk is thinned to 4 positions per problem;
+- one model, one layer.
+
+They establish **nothing about out-of-sample safety**.
+
+**Matched risk**, label as stored (the conservative label is given after
+the slash):
+
+| in-sample risk target | P0 position: coverage, saving | P1 same-label probe: coverage, risk, saving | P1 − P0 per problem: mean (95% CI), SD |
+|---|---|---|---|
+| 0.025 | 0.02, 0.000 | 0.81, 0.025, 0.046 / 0.049 | +0.045 (0.039, 0.053), 0.072 |
+| 0.05 | 0.05, 0.003 | 0.91, 0.050, 0.081 / 0.074 | +0.078 (0.067, 0.089), 0.111 |
+| 0.10 | 0.71, 0.063 | 0.97, 0.096, 0.118 / 0.097 | +0.055 (0.040, 0.072), 0.169 |
+
+**Matched coverage**, label as stored:
+
+| coverage | P0: risk, saving | P1: risk, saving | P1 − P0 saving |
+|---|---|---|---|
+| 0.25 | 0.108, 0.018 | 0.010, 0.005 | −0.013 |
+| 0.50 | 0.075, 0.036 | 0.010, 0.013 | −0.023 |
+| 0.75 | 0.123, 0.079 | 0.017, 0.030 | −0.049 |
+
+**What this means for planning:**
+1. **At matched risk, the same-label probe dominates position.** At
+   unsafe-stop rates of 2.5–5%, position-only hardly stops at all (coverage
+   2–5%). The probe stops on 81–91% of problems.
+2. **At matched coverage, position "saves more" only by stopping unsafely
+   7–10 times as often.** This is why the proposal compares policies at
+   matched risk (C2), not at matched coverage.
+3. **The absolute savings are small.** In-sample, at 2.5–5% risk, the probe
+   saves about **5–8% of trace tokens** net of the forced answer. The
+   thinned walk probably understates what an every-boundary walk could save,
+   but that is not shown. **δ_save must be judged against savings of this
+   size:** a margin of 0.05 would be most of the effect.
+4. **The truncation rule hardly matters:** at most 0.007 in saving, and the
+   same conclusions. The conservative primary rule (§3) costs little.
+5. **σ_d is 0.07–0.11** at risk 0.025–0.05, below the 0.15–0.35 assumed in
+   §6.2. **C2 is cheap:** about 100–250 problems at δ_save = 0.02. **C1 sets
+   N.**
+
+### 6.8 Revised sample-size scenarios (α = 0.05, provisional)
+
+Inputs: C1 as in §6.1; coverage from the replay (0.81 at α_cal = 0.025) and
+lower values, because out-of-sample coverage may fall. The replay's
+in-sample risk at α_cal = 0.025 was 0.0247 (r/α ≈ 0.49). Out of sample, r
+is expected to be higher, so inflated values are shown as well.
+
+| true r | r/α | stopped problems | N_eval at coverage 0.81 | 0.70 | 0.60 | 0.50 |
+|---|---|---|---|---|---|---|
+| 0.0247 (replay, in-sample) | 0.49 | 365 | 451 | 522 | 609 | 730 |
+| 0.030 | 0.60 | 671 | 829 | 959 | 1,119 | 1,342 |
+| 0.035 | 0.70 | 1,148 | 1,418 | 1,640 | 1,914 | 2,296 |
+| 0.0375 | 0.75 | 1,679 | 2,073 | 2,399 | 2,799 | 3,358 |
+
+**C2 with the replay's σ_d:**
+
+| σ_d | δ_save | n for 80% power | n for a 95% half-width ≤ δ_save / 2 |
+|---|---|---|---|
+| 0.074 | 0.01 | 430 | 842 |
+| 0.074 | 0.02 | 108 | 211 |
+| 0.074 | 0.03 | 48 | 94 |
+| 0.111 | 0.01 | 968 | 1,894 |
+| 0.111 | 0.02 | 242 | 474 |
+| 0.111 | 0.03 | 108 | 211 |
+
+**Compute:**
+- At rep1's rates (trace about 89 s, 256-token forcing at about 11
+  boundaries × 6.5 s, activations about 1.5 s), **about 4.5 GPU-hours per
+  100 problems**, excluding P3.
+- N_eval of 451–1,342 is therefore about 20–60 GPU-hours, plus a
+  calibration set of similar size if it is drawn fresh.
+
+**Still not decided, by design:**
+- **N:** it depends on how much out-of-sample inflation of r to plan for,
+  and on α_cal. A pilot that measures out-of-sample r and coverage on a
+  small fresh set (for example 100–150 problems, about 5–7 GPU-hours)
+  would replace the assumed inflation with a measurement. **DECISION:**
+  pilot first or not.
+- **α_cal:** the replay supports 0.025 as a candidate (coverage 0.81, r/α
+  ≈ 0.49 in-sample). It is not chosen until α is justified and the pilot
+  question is settled.
 
 ## 7. Cost estimate (planning only; nothing authorised)
 
