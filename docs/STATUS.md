@@ -1,8 +1,19 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-23.
+Last reviewed 2026-10-24.
 
+> **Update 2026-10-24, about 10:00 IST (D98): manuscript at revised
+> candidate; release candidate 2 verified; pilot prepared.** No GPU work is
+> running or authorised, and nothing is published.
+>
+> | area | state |
+> |---|---|
+> | Manuscript | **revised candidate, awaiting author review**: `paper/v2/MANUSCRIPT.md` (generated). 84/84 key numbers verified against the outputs; three transcription errors corrected (D98). Blockers: author approval, the required statements, human verification of references (`paper/v2/FREEZE_CHECKLIST.md`) |
+> | Release | candidate 2 at `D:\NLAutoencoders-release\rc2-2026-10-24\` verified (3,281 run files, 3,289/3,289 checksums). GitHub first; Zenodo later (`docs/ZENODO_FOLLOWUP.md`). Waits on the freeze and the researcher's approval; `CITATION.cff` v0.2.0 in draft PR #57 |
+> | Stopping-policy pilot | code, configs, protocol revision and runbook merged (#55); **decisions D1–D9 open**; about 8–9 GPU-hours once decided; OMEN must be quit (5,072 MiB free against about 5,552 needed) |
+> | Pipeline checkout | unchanged against its pre-work manifests |
+>
 > **Update 2026-10-23, 22:00 IST (D97): manuscript drafted; D76 run;
 > archive verified, not published.** No GPU work is running or authorised.
 >
