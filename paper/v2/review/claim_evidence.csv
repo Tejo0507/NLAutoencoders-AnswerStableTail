@@ -1,0 +1,13 @@
+claim_id,location,claim_type,claim_summary,evidence_ids,support_level,alignment_issue,limitation,requested_action
+CLAIM-001,Abstract;4.1,primary_outcome,Both registered hypotheses supported on the 48-token outcome,N01;N02;N03;N04;TAB-2a;FIG-2,supported,none,H1 interval spans the 0.05 margin,
+CLAIM-002,Abstract;4.2,secondary_outcome,Advantage cannot be attributed to explanation content,N08;N09;N10;TAB-2c,supported,none,Linear-in-log-position residualisation only,
+CLAIM-003,Abstract;4.3,secondary_outcome,Registered hypotheses not supported under the 256-token sensitivity outcome; effects of 0.05 or more excluded,N11;N18;N19;TAB-2b;FIG-2,supported,none,Smaller effects not excluded; net savings unusable,
+CLAIM-004,Abstract;4.4,prediction,Text adds no practically relevant information beyond position and a same-label probe at outcome-blind positions,N28;N32;N33;N34;TAB-2d;FIG-2,supported,none,TF-IDF and linear probe; these labels only,
+CLAIM-005,4.4,prediction,Text predicts stopping labels beyond position and trace text,N23;N25;N26;TAB-3;FIG-4,supported,none,Menu points for the replication contrast,
+CLAIM-006,4.5;5.4,safety,Selective risk on the menu is not deployment evidence; no rule dominates,N35;N36;N37;N38;N39;N40;FIG-5,supported,none,Outcome-selected menu; 48-token labels,
+CLAIM-007,4.6,methods,Matched-mean-saving estimand rewards an information-free rule over a probe-based rule (exploratory),N55;N56;N57;FIG-7,partly_supported,uncertainty,Registered-savings interval includes zero; the net-savings interval excludes it,Tie the wording to the point estimate and report both intervals (done)
+CLAIM-008,4.6,methods,Short forcing budgets give reproducible but not valid answers before the tail (exploratory),N46;N47;N48;N49;FIG-3,supported,none,Continuation majority as the reference,
+CLAIM-009,4.6;5.4,methods,An online NLA check cannot save compute here (analytic),N71;N72;N73,supported,none,Generated tokens only; reconstruction not charged,
+CLAIM-010,4.8;5.2,other,Reconstruction-dependence rate changes little under a rewording null (exploratory),N74;N75;N76;N77;N78;N79,partly_supported,scope,Meaning preservation unvalidated; 117 of 246 claims reworded,Keep labelled exploratory and not a faithfulness test (done)
+CLAIM-011,1;5.6,generalization,Claims bounded to one model one layer one NLA,TAB-1,supported,none,,
+CLAIM-012,5.2;6,other,No faithfulness claim is made,TAB-2d,supported,none,,

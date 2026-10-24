@@ -1,17 +1,19 @@
-"""Tables 2 and 3 of the revised manuscript, from stored analysis outputs only. CPU.
+"""Tables 1-3 of the revised manuscript, from the configs, the decision record
+and stored analysis outputs only. CPU.
 
 Every number is copied from a JSON written by an analysis script; nothing is
 recomputed or rounded differently from how the record states it (3 decimals,
-U+2212 for minus).
+U+2212 for minus). Tables are numbered in order of first citation.
 
-- Table 2: the frozen phase lexicon (`runs/main_nla240_information/lexicon.json`,
-  D84) and its out-of-sample transfer to rep1
-  (`runs/rep1_information/information_lexicon.json`, D95).
-- Table 3: the D75 confirmatory verdict verbatim
+- Table 1: the setting and the pre-registration timeline (configs, DECISIONS.md).
+- Table 2: the D75 confirmatory verdict verbatim
   (`runs/rep1_o3_registered/o3_registered.json`), its readings under the
   256-token outcomes (`runs/rep1_extforced/analysis.json`, D82), the D79
   position readings (`runs/rep1_position_audit/position_truncation.json`) and
   Stage 1's primary (`runs/rep1_stage1/analysis.json`).
+- Table 3: the frozen phase lexicon (`runs/main_nla240_information/lexicon.json`,
+  D84) and its out-of-sample transfer to rep1
+  (`runs/rep1_information/information_lexicon.json`, D95).
 
     python scripts/make_paper_tables_v2.py --runs D:/elsewhere/runs
 
@@ -116,7 +118,7 @@ def table1(root: Path = ROOT) -> str | None:
         ("batch size", str(m["generation"]["batch_size"]),
          f"{r['generation']['batch_size']} (D78, deviation 1)"),
     ]
-    out = ["## Table 1. Setting and preregistration timeline", "",
+    out = ["## Table 1. Setting and pre-registration timeline", "",
            "**(a) Setting** (from `configs/base.yaml` merged with `configs/main.yaml` and "
            "`configs/replication.yaml`; the NLA arm size of `main` is the D48 run override).", "",
            "| | `main` (registered study) | `rep1` (confirmatory replication) |", "|---|---|---|"]
@@ -131,7 +133,7 @@ def table1(root: Path = ROOT) -> str | None:
     return "\n".join(out)
 
 
-def table2(runs: Path) -> str | None:
+def table3(runs: Path) -> str | None:
     lex = _load(runs, "main_nla240_information/lexicon.json")
     tr = _load(runs, "rep1_information/information_lexicon.json")
     if lex is None or tr is None:
@@ -144,7 +146,7 @@ def table2(runs: Path) -> str | None:
         cell = lambda t: "" if t is None else f"{t[0]} ({num(t[1], 2, signed=False)})"  # noqa: E731
         rows.append(f"| {i + 1} | {cell(p)} | {cell(q)} |")
     out = [
-        "## Table 2. The frozen phase lexicon and its transfer to unseen problems",
+        "## Table 3. The frozen phase lexicon and its transfer to unseen problems",
         "",
         f"Frozen {lex['frozen']} from the 240-problem arm (D84; source SHA-256 "
         f"`{lex['source_sha256'][:8]}…`). Exploratory in sample; the transfer to rep1 is "
@@ -166,7 +168,18 @@ def table2(runs: Path) -> str | None:
     return "\n".join(out)
 
 
-def table3(runs: Path) -> str | None:
+#: Readable names for the D79 comparisons; the stored keys are the code's.
+POSITION_LABELS = {
+    "readout - position_tokens": "readout − rising-position rule",
+    "position_tokens - no_signal": "rising-position rule − no signal",
+    "probe - position_tokens": "registered probe − rising-position rule",
+    "readout_residualised - no_signal": "position-residualised readout − no signal",
+    "readout - position_tokens_falling": "readout − falling-position rule",
+    "position_tokens_falling - no_signal": "falling-position rule − no signal",
+}
+
+
+def table2(runs: Path) -> str | None:
     o3 = _load(runs, "rep1_o3_registered/o3_registered.json")
     ext = _load(runs, "rep1_extforced/analysis.json")
     pos = _load(runs, "rep1_position_audit/position_truncation.json")
@@ -175,7 +188,7 @@ def table3(runs: Path) -> str | None:
         return None
     c = o3["confirmatory"]
     out = [
-        "## Table 3. The registered verdict and what qualifies it (rep1)",
+        "## Table 2. The registered verdict and what qualifies it (rep1)",
         "",
         f"N = {o3['design_A_shared_menu']['n_problems']} problems with a tail; re-forcing "
         f"agreement {num(o3['instrument']['reproducibility_agreement'], signed=False)} "
@@ -196,6 +209,7 @@ def table3(runs: Path) -> str | None:
             f"*{ext['cut_off_meaning']['reading']}*.", "",
             "| outcome | H1 Δ [95% CI] | H1 reading | H2 Δ [95% CI] | H2 reading |",
             "|---|---|---|---|---|"]
+    #: Ocont, the continuations' majority, is a diagnostic outcome (D82).
     for cell in ("O48/registered", "O256/registered", "O256-u/registered", "Ocont/registered"):
         s = ext["cells"][cell]["d75_sensitivity"]
         h1, h2 = s["H1_readout_minus_probe"], s["H2_readout_minus_no_signal"]
@@ -210,7 +224,8 @@ def table3(runs: Path) -> str | None:
                       ("holm_Y", ("readout - position_tokens_falling",
                                   "position_tokens_falling - no_signal"))):
         for k in keys:
-            out.append(f"| {k} | {num(g[k]['gap'])} {ci(g[k]['ci95'])} | {ro[fam][k]['p_holm']} |")
+            out.append(f"| {POSITION_LABELS[k]} | {num(g[k]['gap'])} {ci(g[k]['ci95'])} "
+                       f"| {ro[fam][k]['p_holm']} |")
     out += ["", f"Readings: family X *{ro['position_reading']['overall']}*; family Y "
             f"*{ro['falling_reading']['overall']}*.", "",
             "**(d) Pre-specified, outcome-blind positions (Stage 1; D83, D85, D96).**", ""]
@@ -232,6 +247,7 @@ def main() -> int:
              "*Generated by `scripts/make_paper_tables_v2.py` from the configs, the decision "
              "record and stored outputs. Do not edit by hand; regenerate.*"]
     for name, f in (("table1", lambda _runs: table1()), ("table2", table2), ("table3", table3)):
+        # in order of first citation: setting, verdict, lexicon
         t = f(a.runs)
         print(f"{name}: {'written' if t else 'skipped (input missing)'}")
         if t:

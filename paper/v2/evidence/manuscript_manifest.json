@@ -1,0 +1,37 @@
+{
+  "confidentiality_review": {
+    "completed": false,
+    "external_services_authorized": false,
+    "policy_checked": false,
+    "verified_by": "",
+    "verified_on": ""
+  },
+  "document_id": "nlaast-v2-manuscript",
+  "draft_status": "draft",
+  "human_verification": {
+    "completed": false,
+    "verified_by": "",
+    "verified_on": ""
+  },
+  "registries": {
+    "authorship_manifest": "authorship.json",
+    "claim_evidence": "../../CLAIM_EVIDENCE_MATRIX.md",
+    "consistency_manifest": "key_numbers.json",
+    "reporting_coverage": "reporting_coverage.json",
+    "source_manifest": "../references.md"
+  },
+  "reporting_guidelines": [],
+  "required_statements": {
+    "ai_disclosure": "missing",
+    "author_contributions": "missing",
+    "code_availability": "missing",
+    "conflicts": "missing",
+    "consent": "missing",
+    "data_availability": "missing",
+    "ethics": "missing",
+    "funding": "missing"
+  },
+  "schema_version": "1.0",
+  "study_design": "computational experiment on a language model (pre-registered, with a confirmatory replication); no human or animal participants",
+  "submission_ready": false
+}

@@ -39,7 +39,44 @@
 | D95 | 2026-10-23 | secondaries, D82 on rep1 | outcomes |
 | D96 | 2026-10-23 | Stage 1 and the final D82 pass | outcomes |
 
-## Table 2. The frozen phase lexicon and its transfer to unseen problems
+## Table 2. The registered verdict and what qualifies it (rep1)
+
+N = 380 problems with a tail; re-forcing agreement 0.965 (gate 0.95); paired problem bootstrap, 2,000 replicates; Holm over {H1, H2}; margin 0.05.
+
+**(a) Confirmatory, verbatim (D75, D94).** The registered outcome: 48-token forced answers.
+
+| hypothesis | Δ | 95% CI | p | Holm p | reading |
+|---|---|---|---|---|---|
+| H1: readout − registered probe | +0.047 | [0.019, 0.075] | 0.002 | 0.002 | **supported** |
+| H2: readout − no signal | +0.057 | [0.039, 0.076] | 0.0005 | 0.001 | **supported** |
+
+**(b) Sensitivity, never replacing (a) (D82, D95).** f = 0.867: *the 48-token outcome mostly measured commitment within 48 tokens*.
+
+| outcome | H1 Δ [95% CI] | H1 reading | H2 Δ [95% CI] | H2 reading |
+|---|---|---|---|---|
+| O48 | +0.047 [0.019, 0.075] | supported | +0.057 [0.039, 0.076] | supported |
+| O256 | −0.008 [−0.036, 0.024] | equivalent within ±0.05 | −0.004 [−0.024, 0.016] | equivalent within ±0.05 |
+| O256-u | −0.009 [−0.035, 0.023] | equivalent within ±0.05 | −0.007 [−0.025, 0.014] | equivalent within ±0.05 |
+| Ocont | −0.016 [−0.078, 0.029] | advantage of 0.05 or more excluded | −0.008 [−0.044, 0.026] | equivalent within ±0.05 |
+
+**(c) Pre-specified secondary: candidate position (D79, D94).** Not in the verdict.
+
+| comparison | Δ [95% CI] | Holm p |
+|---|---|---|
+| readout − rising-position rule | +0.156 [0.125, 0.187] | 0.002 |
+| rising-position rule − no signal | −0.099 [−0.119, −0.079] | 0.002 |
+| registered probe − rising-position rule | +0.109 [0.081, 0.136] | 0.002 |
+| position-residualised readout − no signal | +0.007 [−0.016, 0.029] | 0.54 |
+| readout − falling-position rule | −0.025 [−0.044, −0.005] | 0.016 |
+| falling-position rule − no signal | +0.089 [0.066, 0.108] | 0.001 |
+
+Readings: family X *unresolved*; family Y *unresolved*.
+
+**(d) Pre-specified, outcome-blind positions (Stage 1; D83, D85, D96).**
+
+1,600 positions in 400 problems. Δ₁ = text over position + a same-label probe on the same layer-20 activation, 256-token label: +0.00002 [−0.004, 0.004], *equivalent within ±0.01*. A statement about predictive information, not about faithfulness.
+
+## Table 3. The frozen phase lexicon and its transfer to unseen problems
 
 Frozen 2026-10-20T05:27:42+00:00 from the 240-problem arm (D84; source SHA-256 `a72e01e8…`). Exploratory in sample; the transfer to rep1 is pre-specified (D81 deviation 3) and out of sample: 0 problems shared. It describes a reasoning *phase*; it is not a faithfulness claim.
 
@@ -70,40 +107,3 @@ Frozen 2026-10-20T05:27:42+00:00 from the 240-problem arm (D84; source SHA-256 `
 |---|---|---|---|---|
 | tail membership | 1927 | 0.897 | 0.794 | +0.091 [0.076, 0.106] |
 | registered safety (O48) | 1927 | 0.821 | 0.741 | +0.079 [0.059, 0.099] |
-
-## Table 3. The registered verdict and what qualifies it (rep1)
-
-N = 380 problems with a tail; re-forcing agreement 0.965 (gate 0.95); paired problem bootstrap, 2,000 replicates; Holm over {H1, H2}; margin 0.05.
-
-**(a) Confirmatory, verbatim (D75, D94).** The registered outcome: 48-token forced answers.
-
-| hypothesis | Δ | 95% CI | p | Holm p | reading |
-|---|---|---|---|---|---|
-| H1: readout − registered probe | +0.047 | [0.019, 0.075] | 0.002 | 0.002 | **supported** |
-| H2: readout − no signal | +0.057 | [0.039, 0.076] | 0.0005 | 0.001 | **supported** |
-
-**(b) Sensitivity, never replacing (a) (D82, D95).** f = 0.867: *the 48-token outcome mostly measured commitment within 48 tokens*.
-
-| outcome | H1 Δ [95% CI] | H1 reading | H2 Δ [95% CI] | H2 reading |
-|---|---|---|---|---|
-| O48 | +0.047 [0.019, 0.075] | supported | +0.057 [0.039, 0.076] | supported |
-| O256 | −0.008 [−0.036, 0.024] | equivalent within ±0.05 | −0.004 [−0.024, 0.016] | equivalent within ±0.05 |
-| O256-u | −0.009 [−0.035, 0.023] | equivalent within ±0.05 | −0.007 [−0.025, 0.014] | equivalent within ±0.05 |
-| Ocont | −0.016 [−0.078, 0.029] | advantage of 0.05 or more excluded | −0.008 [−0.044, 0.026] | equivalent within ±0.05 |
-
-**(c) Pre-specified secondary: candidate position (D79, D94).** Not in the verdict.
-
-| comparison | Δ [95% CI] | Holm p |
-|---|---|---|
-| readout - position_tokens | +0.156 [0.125, 0.187] | 0.002 |
-| position_tokens - no_signal | −0.099 [−0.119, −0.079] | 0.002 |
-| probe - position_tokens | +0.109 [0.081, 0.136] | 0.002 |
-| readout_residualised - no_signal | +0.007 [−0.016, 0.029] | 0.54 |
-| readout - position_tokens_falling | −0.025 [−0.044, −0.005] | 0.016 |
-| position_tokens_falling - no_signal | +0.089 [0.066, 0.108] | 0.001 |
-
-Readings: family X *unresolved*; family Y *unresolved*.
-
-**(d) Pre-specified, outcome-blind positions (Stage 1; D83, D85, D96).**
-
-1,600 positions in 400 problems. Δ₁ = text over position + a same-label probe on the same layer-20 activation, 256-token label: +0.00002 [−0.004, 0.004], *equivalent within ±0.01*. A statement about predictive information, not about faithfulness.
