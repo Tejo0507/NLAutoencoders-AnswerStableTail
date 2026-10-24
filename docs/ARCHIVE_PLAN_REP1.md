@@ -185,3 +185,46 @@ frozen main-run report at `4713607`). Its abstract, version, commit and
 date, and a data reference for the rep1 archive, must be updated together
 with the release. GitHub reports the MIT `LICENSE` as `NOASSERTION`
 because of its appended third-party note. The text is correct.
+
+## 8. Release decisions and candidate 2 (2026-10-24; not published)
+
+**Decisions, made with the researcher's instruction of 2026-10-24:**
+
+| question | decision | why |
+|---|---|---|
+| Destination | **GitHub release** first; Zenodo later, as a separate task (`docs/ZENODO_FOLLOWUP.md`) | The researcher has no Zenodo account; the GitHub release is the D67 practice |
+| Checkout-state bundle (90 files) | **Excluded** from the public archive. Its SHA-256 list, `git status`, `HEAD` and branch are released as `runs/rep1_checkout_state_manifest/`; the files stay in `D:\NLAutoencoders-release\rc-2026-10-23\checkout_state_rep1\` (and the pipeline checkout itself) | Its value is byte-identity with the code state the outputs record. Sanitising its 15 local paths would destroy that, and publishing them would expose local paths. The manifest keeps it verifiable: any copy can be checked against the published hashes |
+| D76 outputs | **Included** as `runs/main_paraphrase_llm/` (all 7 outputs, labelled exploratory) and `runs/main_paraphrase_llm_logs/` (phase logs and hash lists; `00_header.txt` left out because its `nvidia-smi` listing names local applications under a path the sanitiser cannot rewrite; its code hashes follow from the public commit `deaeb5d`) | The manuscript reports D76 (§4.8, §5.2), so its outputs are needed for transparency |
+| `CITATION.cff` | Updated in a separate draft PR, merged only when the release is published | Its version and date describe a release that does not exist yet |
+
+**Candidate 2:** `--status final` from a clean clone at `0b20d35`, with
+the three entries above staged through `--extra-run` from verified copies
+(`D:\NLAutoencoders-release\rc2-inputs-2026-10-24\`) and the D76 run tree.
+Output: `D:\NLAutoencoders-release\rc2-2026-10-24\`.
+
+| check | result |
+|---|---|
+| package | 3,290 staged files; 3,281 run files (3,264 + 17 new); 97 sanitised; archive `nlaast-runs-2026-10-24.tar.gz`, 240,213,784 bytes, SHA-256 `56fd202e3b096ab41b0dca13c81fea9092a4e02cb721d1c3db60c77637f9e301` |
+| scan, package and archive | only the pinned F6 validator |
+| extraction | 3,289 of 3,289 checksum entries OK; the archive's `.sha256` verifies |
+| provenance | 3,184 run files byte-identical to their sources (pipeline `runs/`, D76 run tree, staged copies); 97 transformed, each traced to its source hash; the 2 new transformed files are D76 phase logs |
+| completeness and exclusions | nothing missing; the 7 excluded entries absent (`main_claim_annotation` withheld) |
+| unchanged results | `rep1_o3_registered`, `rep1_stage1` and `rep1_extforced` outputs byte-identical to candidate 1's |
+| sources unchanged | the pipeline checkout matches its pre-work manifest; D76's outputs match `OUTPUT_SHA256SUMS.txt` |
+
+Candidate 2's README predates the README rows added for the three new
+entries (this commit); the final build includes them.
+
+**Release checklist (each step needs the researcher's approval):**
+1. Record the manuscript freeze (`paper/v2/FREEZE_CHECKLIST.md`).
+2. Merge the `CITATION.cff` PR at the freeze commit or just before the
+   release.
+3. Rebuild with `--status final` from a clean clone at that commit, with
+   the same three `--extra-run` arguments and `--date <release date>`.
+4. Re-run every check in the table above on the new package; all must pass.
+5. Push the tag `data-runs-<date>` on the build commit, and create the
+   GitHub release with the archive and its `.sha256` (`release/PUBLISHING.md`,
+   step 2). Notes: `release/NOTES_rep1_DRAFT.md`.
+6. Download the published archive anonymously, check its SHA-256, and
+   record the tag, URL and hash in `docs/DECISIONS.md` and in §7 of the
+   manuscript.

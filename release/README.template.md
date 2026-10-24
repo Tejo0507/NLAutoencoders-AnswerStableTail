@@ -43,6 +43,8 @@ file count, number of sanitised files and original size. In short:
 | `runs/main_rq3_pilot/`, `runs/main_rq3_pilot_stage0/` | **exploratory pilot** | RQ3 follow-up pilot; Stage 0 was a no-go (D74, D77). |
 | `runs/stage1_power_audit/` | **planning** | Stage 1's power audit on stored data (D85). |
 | `runs/bench_*` | **engineering benchmark** | Batch-size benchmarks behind D77 and D78. |
+| `runs/main_paraphrase_llm/`, `runs/main_paraphrase_llm_logs/` | **exploratory** | The D76 rewording null for RQ2 (60 explanations of `main`, 246 claims), run in an isolated tree (D97), with its phase logs and input and output SHA-256 lists. The rewordings were checked for form, not meaning; `rewording_validation_sheet.csv` is the blank sheet for human judgement. Not a faithfulness test. |
+| `runs/rep1_checkout_state_manifest/` | **provenance** | The SHA-256 list, `git status`, `HEAD` and branch of the uncommitted code state that every rep1 output records (`git.dirty: true` at `b17c131`). The files themselves are kept offline because they hold local paths; any copy can be checked against this list. |
 
 **Only `runs/main/` (the registered study) and the rep1 confirmatory
 directories carry registered or confirmatory results.**
