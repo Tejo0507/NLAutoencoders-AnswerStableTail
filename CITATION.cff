@@ -22,8 +22,8 @@ authors:
   - given-names: Tejo Sridhar
     family-names: M V S
 version: 0.2.0
-# Set when publishing: the release date and the commit the release is built from.
-date-released: 2026-10-24
+# Add when the v0.2.0 release is published: date-released (the release date)
+# and commit (the commit the release is built from). Neither exists yet.
 license: MIT
 repository-code: "https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail"
 keywords:
