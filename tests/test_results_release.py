@@ -109,6 +109,41 @@ def test_a_missing_released_run_stops_the_build(runs, tmp_path):
         _build(runs, tmp_path / "out")
 
 
+def test_an_extra_run_outside_runs_is_staged_under_its_name(runs, tmp_path):
+    """A released entry kept in an isolated tree is packaged like any other run."""
+    outside = tmp_path / "experiment" / "main_paraphrase_llm"
+    (outside / "sub").mkdir(parents=True)
+    (outside / "analyse.json").write_text('{"n_claims": 246}')
+    (outside / "sub" / "rows.jsonl").write_text('{"id": "x"}\n')
+    import shutil
+    shutil.rmtree(runs / "main_paraphrase_llm")
+    res = _build_extra(runs, tmp_path / "out", {"main_paraphrase_llm": outside})
+    stage = tmp_path / "out" / B.TOP
+    assert (stage / "runs" / "main_paraphrase_llm" / "analyse.json").read_bytes() == \
+        (outside / "analyse.json").read_bytes()
+    assert (stage / "runs" / "main_paraphrase_llm" / "sub" / "rows.jsonl").exists()
+    assert res["run_files"] > 0
+    assert (outside / "analyse.json").read_text() == '{"n_claims": 246}'   # source untouched
+
+
+def test_an_unclassified_extra_run_stops_the_build(runs, tmp_path):
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    with pytest.raises(SystemExit, match="unclassified extra run"):
+        _build_extra(runs, tmp_path / "out", {"not_classified": outside})
+
+
+def test_an_extra_run_also_under_runs_stops_the_build(runs, tmp_path):
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    with pytest.raises(SystemExit, match="both under"):
+        _build_extra(runs, tmp_path / "out", {"main_paraphrase_llm": outside})
+
+
+def _build_extra(runs, out, extra):
+    return B.build(runs, out, "draft", "c0ffee", "2026-10-18", "a.tar.gz", set(), extra=extra)
+
+
 def test_an_existing_output_is_not_overwritten(runs, tmp_path):
     (tmp_path / "out").mkdir()
     with pytest.raises(SystemExit, match="refusing"):

@@ -43,6 +43,11 @@ directory must not exist.
 
 ``--status final`` refuses a dirty working tree, because the README pins the
 release to ``HEAD``. Publishing is a separate, manual step (D63-D65).
+
+A classified entry that lives outside ``--runs`` (an experiment run in an
+isolated tree, such as D76's) is added with ``--extra-run NAME=PATH``; it is
+staged under ``runs/NAME``, sanitised and scanned like every other run, and
+its source is only read.
 """
 
 from __future__ import annotations
@@ -138,6 +143,18 @@ RELEASED = {
                     "D83; D85; D96"),
     "rep1_runbook": ("logs", "Runbook and resume logs of the rep1 pipeline", "D80; D86-D96"),
     "post_rep1_queue": ("logs", "Logs of the post-rep1 queue", "D85; D87; D95-D96"),
+    # --- after the replication: run outside the pipeline checkout (--extra-run) ---
+    "main_paraphrase_llm": ("exploratory",
+                            "D76 rewording null for RQ2: 60 explanations, 246 claims; the "
+                            "rewordings' meaning is unvalidated (the human sheet is blank)",
+                            "D76; D97"),
+    "main_paraphrase_llm_logs": ("logs", "D76 phase logs and its input and output SHA-256 lists",
+                                 "D97"),
+    "rep1_checkout_state_manifest": ("provenance",
+                                     "SHA-256 list, git status, HEAD and branch of the code "
+                                     "state every rep1 output records; the files themselves "
+                                     "are kept offline (they hold local paths)",
+                                     "D94; docs/ARCHIVE_PLAN_REP1.md"),
 }
 EXCLUDED = {
     "calib": "calibration scratch run",
@@ -306,28 +323,48 @@ def git(*args: str) -> str:
                           check=True).stdout.strip()
 
 
-def classify(runs: Path) -> None:
+def classify(runs: Path, extra: dict[str, Path] | None = None) -> None:
+    """Every entry under `runs`, and every extra run, must be classified.
+
+    An extra run is a released entry whose files live outside `runs` (for
+    example an experiment run in an isolated tree). It must be in RELEASED,
+    must exist, and must not also be present under `runs`.
+    """
+    extra = extra or {}
     present = {p.name for p in runs.iterdir()}
     unknown = present - set(RELEASED) - set(EXCLUDED)
     if unknown:
         raise SystemExit(f"unclassified entries under {runs}: {sorted(unknown)}")
-    missing = set(RELEASED) - present
+    for name, path in extra.items():
+        if name not in RELEASED:
+            raise SystemExit(f"unclassified extra run: {name}")
+        if name in present:
+            raise SystemExit(f"{name} is both under {runs} and given as an extra run")
+        if not path.exists():
+            raise SystemExit(f"extra run {name} missing: {path}")
+    missing = set(RELEASED) - present - set(extra)
     if missing:
         raise SystemExit(f"released entries missing from {runs}: {sorted(missing)}")
 
 
-def stage_runs(runs: Path, stage: Path) -> tuple[list[dict], dict[str, dict]]:
+def stage_runs(runs: Path, stage: Path, extra: dict[str, Path] | None = None
+               ) -> tuple[list[dict], dict[str, dict]]:
+    extra = extra or {}
     table, transforms = [], {}
     for name, (cls, what, rec) in RELEASED.items():
-        src = runs / name
+        src = extra.get(name, runs / name)
         files = [src] if src.is_file() else sorted(p for p in src.rglob("*") if p.is_file())
         links = [p for p in ([src] if src.is_file() else src.rglob("*")) if p.is_symlink()]
         if links:
             raise SystemExit(f"symbolic link in a released run: {links[0]}")
         kept = [p for p in files if p.name not in SKIP_NAMES]
         n_changed = 0
+
+        def released_path(p: Path, src: Path = src, name: str = name) -> str:
+            return name if src.is_file() else f"{name}/{p.relative_to(src).as_posix()}"
+
         for p in kept:
-            rel = p.relative_to(runs).as_posix()
+            rel = released_path(p)
             dst = stage / "runs" / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(p, dst)
@@ -345,7 +382,7 @@ def stage_runs(runs: Path, stage: Path) -> tuple[list[dict], dict[str, dict]]:
                       "decision_record": rec, "n_files": len(kept),
                       "n_files_sanitised": n_changed,
                       "n_bytes_original": sum(p.stat().st_size for p in kept),
-                      "skipped": sorted(p.relative_to(runs).as_posix()
+                      "skipped": sorted(released_path(p)
                                         for p in files if p.name in SKIP_NAMES)})
     return table, transforms
 
@@ -385,13 +422,13 @@ def write_archive(stage: Path, archive: Path) -> None:
 
 
 def build(runs: Path, out: Path, status: str, commit: str, date: str, archive_name: str,
-          identities: set[str] | None = None) -> dict:
+          identities: set[str] | None = None, extra: dict[str, Path] | None = None) -> dict:
     if out.exists():
         raise SystemExit(f"{out} exists; refusing to overwrite")
-    classify(runs)
+    classify(runs, extra)
     stage = out / TOP
     (stage / "runs").mkdir(parents=True)
-    table, transforms = stage_runs(runs, stage)
+    table, transforms = stage_runs(runs, stage, extra)
 
     readme = (RELEASE / "README.template.md").read_text(encoding="utf-8")
     readme = readme.replace("{STATUS_BANNER}", BANNERS[status].format(date=date))
@@ -452,7 +489,17 @@ def main() -> int:
     ap.add_argument("--runs", type=Path, default=ROOT / "runs")
     ap.add_argument("--date", default=dt.date.today().isoformat(),
                     help="build date written into the README (default: today)")
+    ap.add_argument("--extra-run", action="append", default=[], metavar="NAME=PATH",
+                    help="a classified released entry whose files live outside --runs "
+                         "(repeatable); read only")
     args = ap.parse_args()
+    extra = {}
+    for item in args.extra_run:
+        name, sep, path = item.partition("=")
+        if not sep or not name or not path:
+            print(f"--extra-run expects NAME=PATH, got {item!r}", file=sys.stderr)
+            return 1
+        extra[name] = Path(path)
 
     commit = git("rev-parse", "HEAD")
     if args.status == "final" and git("status", "--porcelain"):
@@ -460,7 +507,8 @@ def main() -> int:
               file=sys.stderr)
         return 1
     name = f"nlaast-runs-{'DRAFT-' if args.status == 'draft' else ''}{args.date}.tar.gz"
-    print(json.dumps(build(args.runs, args.out, args.status, commit, args.date, name), indent=2))
+    print(json.dumps(build(args.runs, args.out, args.status, commit, args.date, name,
+                           extra=extra), indent=2))
     return 0
 
 
