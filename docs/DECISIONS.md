@@ -4197,3 +4197,83 @@ published.**
   `docs/`, its `HEAD`, its `git status` and its tracked diff all match a
   manifest taken before any of this work.
 
+## D98. Manuscript revised candidate, three corrected transcriptions, release candidate 2, pilot prepared (not run)
+
+**Recorded 2026-10-24, about 10:00 IST**, on the researcher's instruction of
+2026-10-24. That instruction authorised editing, review, release preparation
+and CPU-only pilot checks. It did not authorise a GPU run, a frozen plan
+change, a public release or any spending, and none happened.
+
+**1. Manuscript (#54): revised candidate, awaiting author review; not
+approved, not frozen.**
+- **Workflows:** the installed `scientific-writing`, `peer-review`,
+  `citation-management`, `experimental-design` and `statistical-power`
+  skills were used.
+- **Review:** the review is an internal self-review (`paper/v2/review/`).
+  The `peer-review` intake gate returned BLOCKED: the reviewer also revised
+  the text, and there is no venue yet.
+- **Numbers:** 84 key numbers are bound to their output fields
+  (`paper/v2/evidence/key_numbers.json`) and verified
+  (`scripts/verify_manuscript_numbers.py`, 84/84).
+- **Three transcription errors found against the stored outputs.** Each is
+  traced to its source. None changes a stored result or a conclusion:
+
+| claim | as recorded before | from the outputs | source of the error |
+|---|---|---|---|
+| matrix C1, C2, C4; paper §4.4 | "main run" | the **240-problem arm** (D81's primary run, 1,206 chunks) | the matrix did not name the arm; D81 does |
+| matrix D2; paper §4.6 | one NLA check costs 0.83 of a mean trace in generated tokens | **0.89** (2 × 144.9 / 324.8 generated tokens) | D83 counted the explanation text (134.3 tokens) rather than the generated tokens, which include the delimiters and end token |
+| matrix A2; paper §1, §4.6 | 54–57% of pre-tail 48-token completions cut off | **54–56%** (0.543 main, 0.565 240 arm) | a rounding error in `docs/POSITION_TRUNCATION_RESULTS.md`, which is left as written |
+
+- **Other changes:**
+  - the bibliography is consolidated into [1]–[30] in order of first
+    citation;
+  - figures and tables are renumbered in order of first citation, with
+    captions;
+  - Methods gains the tail definition, the readings, D76 and the evidence
+    classes;
+  - Limitations gains multiplicity and contamination.
+- **Bibliography check:** each of the 30 works was checked against OpenAlex
+  or its arXiv page. The relevance of each citation to its claim was
+  checked in the earlier reviews. Human verification is still required.
+
+**2. Release (#56): candidate 2 verified; not published.**
+- **Builder:** `--extra-run` stages runs kept outside `--runs`.
+- **Decisions** (ARCHIVE_PLAN §8):
+  - GitHub first, Zenodo later;
+  - the checkout-state bundle is excluded, and its hash manifest is
+    released instead;
+  - D76's outputs and logs are included.
+- **Candidate 2:**
+  - archive SHA-256 `56fd202e…e301`, with 3,281 run files;
+  - 3,289/3,289 checksums pass after extraction;
+  - every file traces to its source;
+  - the scan is clean apart from the pinned validator.
+- **`CITATION.cff`:** v0.2.0 is in draft PR #57, which is not to be merged
+  before publication.
+
+**3. Stopping-policy pilot (#55): prepared, not frozen, not run.**
+- **Code:** `scripts/stopping_pilot.py` and its analysis module, with 17
+  tests. It refuses to run without a frozen protocol, and it enforces the
+  phase order.
+- **Protocol revisions before any data:**
+  1. SGR (Geifman and El-Yaniv, NeurIPS 2017) replaces fixed-sequence
+     testing, which fails by construction at strict thresholds.
+  2. Under SGR, α_cal = 0.025 is practically unattainable at N_C = 300,
+     so α_cal = α is recommended.
+  3. Compute re-derived from measured rates: about 8–9 GPU-hours for 450
+     problems without VRAM spill.
+- **CPU dry run of `fit`** on stored rep1 Stage 1, written to a scratch
+  directory with a test-only protocol:
+  - it found two defects, both fixed;
+  - in-sample AUC was P0 0.735 and P1 0.955. P1's figure is optimistic
+    by construction.
+- **Measured run condition:** 5,072 MiB of VRAM is free with OMEN
+  running, against about 5,552 MiB that the model needs.
+- **Open:** decisions D1–D9 are the researcher's (protocol §5).
+
+**4. Unchanged:**
+- every registered result, plan, configuration and stored output;
+- the pipeline checkout matches its pre-work manifests (files, code, `HEAD`,
+  status and diff);
+- D76's outputs match their recorded hashes.
+
