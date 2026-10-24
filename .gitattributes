@@ -9,3 +9,8 @@ docs/*_PLAN.md text eol=lf
 docs/*_DESIGN.md text eol=lf
 docs/*_PROTOCOL.md text eol=lf
 configs/replication.yaml text eol=lf
+# The stopping-policy pilot's frozen protocol is hashed into D99 and checked
+# by scripts/stopping_pilot.py; its run configs are hashed with it.
+configs/stopping_pilot_protocol.json text eol=lf
+configs/pilot_cal.yaml text eol=lf
+configs/pilot_eval.yaml text eol=lf

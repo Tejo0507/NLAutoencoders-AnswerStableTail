@@ -1,6 +1,14 @@
 # Stopping-policy pilot: protocol draft (2026-10-23)
 
-> **STATUS: DRAFT. NOT FROZEN. NOT APPROVED. NOT RUN.** Revised 2026-10-24
+> **STATUS: FROZEN AND APPROVED 2026-10-25 (D99).** The researcher made
+> decisions D1–D9 (§5); their values are in
+> `configs/stopping_pilot_protocol.json` (SHA-256 `79c51284…dc01`): α =
+> α_cal = 0.05 for this exploratory pilot only, SGR with δ = 0.05, N_C =
+> 300, N_E = 150, fresh calibration problems, δ_save = 0.02, a 9 GPU-hour
+> budget with a 13.5-hour cap, pilot first, OMEN quit. The text below is the
+> design as frozen; the "draft" wording in it is historical.
+>
+> Earlier status: draft, not frozen, not approved, not run. Revised 2026-10-24
 > before any pilot data: SGR replaces fixed-sequence testing (§3.2), the
 > compute estimate is re-derived from measured rates (§3.6), and the code
 > and runbook exist (`scripts/stopping_pilot.py`,

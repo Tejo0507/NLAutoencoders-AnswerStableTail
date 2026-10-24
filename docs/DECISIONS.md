@@ -4277,3 +4277,39 @@ approved, not frozen.**
   status and diff);
 - D76's outputs match their recorded hashes.
 
+## D99. The stopping-policy pilot: decisions made, protocol frozen, GPU run approved
+
+**Recorded 2026-10-25, before any pilot problem was selected or
+generated.**
+
+**The researcher's decisions (2026-10-25)**, recorded in
+`configs/stopping_pilot_protocol.json`:
+
+| # | decision |
+|---|---|
+| D1 | α = 0.05. Justification: no deployment use case is defined yet; 0.05 (the provisional choice of 2026-10-23) is for this exploratory pilot only and must be justified from a real use case before any confirmatory study |
+| D2 | α_cal = α = 0.05 |
+| D3 | fresh calibration problems |
+| D4 | SGR, δ = 0.05, over 200 quantiles of the calibration scores |
+| D5 | N_C = 300 (180 GSM8K, 120 MATH), N_E = 150 (90, 60) |
+| D6 | δ_save = 0.02 |
+| D7 | budget about 9 GPU-hours; abort at 13.5 |
+| D8 | pilot first; exploratory; not a safety certification |
+| D9 | quit OMEN Command Center before the GPU steps |
+
+The researcher also approved launching the GPU run and quitting OMEN.
+
+**Frozen files** (SHA-256 of their LF bytes, kept stable by
+`.gitattributes`):
+- `configs/stopping_pilot_protocol.json`:
+  `79c5128480ab74a6238f1b90b4a0e04213050b4a66d464e183f696ab8193dc01`;
+- `configs/pilot_cal.yaml`:
+  `4a95903d0b3613549ff5a8954611ab2f2c73a1ca160724b77a210c5354788704`;
+- `configs/pilot_eval.yaml`:
+  `fe05c98e395c93c65970ca270713d8e2c32be8cc447d68a404a8dd92a08d9e7f`.
+
+**The code is fixed by the commit that records this decision.** The run
+uses a clean clone of that commit in an isolated tree
+(`docs/STOPPING_POLICY_PILOT_RUNBOOK.md` §2), and its log records the
+clone's file hashes.
+
