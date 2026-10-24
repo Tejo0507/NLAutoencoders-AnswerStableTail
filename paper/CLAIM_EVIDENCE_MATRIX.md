@@ -23,7 +23,7 @@ independent replications of `main`.
 | # | claim | evidence | status | weakest point | next test |
 |---|---|---|---|---|---|
 | A1 | Tails are common and long on this model | Non-trivial on 0.948 of 250 problems; mean tail fraction 0.378 (`runs/main/analysis/results.json`) | registered | The tail is defined with 48-token forcing, so its start is a floor that moves with the budget | Tail starts recomputed under 256-token forcing (backlog H3; R4 now indicates it) |
-| A2 | The tail marks where the answer becomes *recoverable within 48 tokens*, not redundant post-answer text | Tails begin before the answer is written (D68). Before `i*`, 54–57% of forced completions are cut off at 48 tokens, and 98–99% of those disagree with the 200-token continuations' majority, which equals the final answer 96–98% of the time (D79 B) | exploratory | Whether a cut-off answer is "no answer" or "an answer not yet reached" is unmeasured | Done: R4 (f = 0.867 on rep1; 0.881 on the 240 arm) |
+| A2 | The tail marks where the answer becomes *recoverable within 48 tokens*, not redundant post-answer text | Tails begin before the answer is written (D68). Before `i*`, 54–56% of forced completions are cut off at 48 tokens (0.543 on `main`, 0.565 on the 240 arm; recorded as "54–57%" until D98 corrected a rounding error), and 98–99% of those disagree with the 200-token continuations' majority, which equals the final answer 96–98% of the time (D79 B) | exploratory | Whether a cut-off answer is "no answer" or "an answer not yet reached" is unmeasured | Done: R4 (f = 0.867 on rep1; 0.881 on the 240 arm) |
 | A3 | The 48-token forced outcome is reliable but not valid before the tail | Cut-off answers re-force identically 100% of the time (22 and 52), against 94–96% for finished ones; validity as in A2 (D79) | exploratory | As A2 | Done: R4 |
 
 ## B. The registered stopping comparison (O3)
@@ -42,7 +42,10 @@ independent replications of `main`.
 ## C. What the NLA readout contains (D81)
 
 All C rows are at the menu's outcome-selected points (B5). None says
-anything about a deployable rule.
+anything about a deployable rule. C1–C5 are from D81's primary run, the
+**240-problem arm** (`main_nla240`, 1,206 menu chunks), which includes
+`main`'s 120 problems; `main` alone agrees on every point (D81). They are
+not results of `main` alone (D98).
 
 | # | claim | evidence | status | weakest point | next test |
 |---|---|---|---|---|---|
@@ -59,7 +62,7 @@ anything about a deployable rule.
 | # | claim | evidence | status | weakest point | next test |
 |---|---|---|---|---|---|
 | D1 | At outcome-blind positions, a same-label linear probe on the layer-20 activation carries substantial safety information | Every boundary of 250 problems: +0.091 [0.066, 0.115] over position (AUC 0.861); +0.123 on tail membership (AUC 0.975). Raw trace text adds nothing (−0.002) (D83 Stage 0) | exploratory | One model and layer | `rep1` traces (cheap) |
-| D2 | An online rule that verbalises at each candidate cannot save compute on this setup | One check (2 × 134 verbaliser tokens) costs 0.83 of the mean 325-token trace, before reconstruction (D83) | analytic | Holds for this verbaliser length and these trace lengths only | none |
+| D2 | An online rule that verbalises at each candidate cannot save compute on this setup | One check generates 2 × 144.9 verbaliser tokens, 0.89 of the mean 324.8-token trace, before reconstruction (D98). D83's "2 × 134 tokens, 0.83" counted only the extracted explanation text (134.3 tokens on average), not the delimiters and end token also generated | analytic | Holds for this verbaliser length and these trace lengths only | none |
 | D3 | The registered correctness probe is a weak representation of the state | It adds +0.026 over position at every boundary, against +0.091 for the same-label probe, and +0.018 AUC above a positional floor (registered) | registered + exploratory | It was trained for a different target | — |
 
 ## R. The replication (`rep1`, 400 fresh problems), computed 2026-10-22/23

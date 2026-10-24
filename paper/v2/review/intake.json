@@ -1,0 +1,63 @@
+{
+  "schema_version": "2.0",
+  "review_id": "NLAAST-V2-SELF-REVIEW-2026-10-24",
+  "material": {
+    "status": "public_preprint",
+    "contains_personal_or_sensitive_data": false
+  },
+  "authorization": {
+    "basis": "author_request",
+    "documented": true,
+    "local_processing_authorized": true,
+    "external_processing_authorized": false
+  },
+  "reviewer": {
+    "capacity": "author_requested_reader",
+    "human_accountable": true,
+    "competence_areas": [
+      "subject_matter",
+      "statistics",
+      "reproducibility"
+    ],
+    "competence_limits": [
+      "ai_assistant_reviewer",
+      "accountable_human_is_requesting_author"
+    ],
+    "conflict_status": "unresolved",
+    "conflicts": [
+      "reviewer_also_revised_the_manuscript"
+    ]
+  },
+  "venue_policy": {
+    "checked": false,
+    "peer_review_model": "unknown",
+    "confidential_editor_notes_supported": false
+  },
+  "ai_use": {
+    "policy": "not_stated",
+    "planned": "local_deterministic_tools",
+    "permission_confirmed": false,
+    "disclosure_planned": false
+  },
+  "handling": {
+    "local_only": true,
+    "external_service_use": false,
+    "data_reuse_permitted": false,
+    "retention_rule": "public_material",
+    "deletion_or_retention_record_planned": true
+  },
+  "scope": {
+    "manuscript_type": "computational_experiment",
+    "requested_focus": [
+      "methods",
+      "statistics",
+      "reporting",
+      "reproducibility",
+      "citations"
+    ],
+    "out_of_scope": [
+      "venue_specific_formatting"
+    ],
+    "specialist_review_needed": []
+  }
+}
