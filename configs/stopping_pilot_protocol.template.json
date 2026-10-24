@@ -1,0 +1,31 @@
+{
+ "about": "Template for the stopping-policy pilot's frozen protocol (docs/STOPPING_POLICY_PILOT_PROTOCOL.md). Copy to configs/stopping_pilot_protocol.json, fill every null with the researcher's decision, set status to 'frozen', commit it, and record its SHA-256 in docs/DECISIONS.md before any pilot step runs. scripts/stopping_pilot.py refuses to run while any decision is null or the status is not 'frozen'. The 'recommended' block is advice only; it is never read by the code.",
+ "status": "draft",
+ "protocol_version": "pilot-1",
+ "alpha": null,
+ "alpha_justification": null,
+ "alpha_cal": null,
+ "delta": null,
+ "eval_confidence": 0.95,
+ "truncation_rule": "cut_off_unsafe",
+ "forcing_budget": 256,
+ "tau_grid_n": null,
+ "n_cal": null,
+ "n_eval": null,
+ "calibration_source": "fresh",
+ "delta_save": null,
+ "gpu_hours_cap": null,
+ "gates": {"reforce_agreement": 0.95, "attrition": 0.75, "n_reforce_check": 50},
+ "seeds": {"force_checks": 20261024, "fit": 20261024, "bootstrap": 20261024},
+ "p3_scope": "none",
+ "recommended": {
+  "alpha": "0.05 only with a use-case justification (decision D1); the record supplies none",
+  "alpha_cal": "equal to alpha (0.05) under SGR (decision D2); 0.025 is practically unattainable at N_C = 300 (protocol 4.3)",
+  "delta": "0.05: SGR's total failure probability, split over ceil(log2 tau_grid_n) steps",
+  "tau_grid_n": "200 quantiles of the training scores",
+  "n_cal": "{\"gsm8k\": 180, \"math\": 120} (300; decisions D3, D5)",
+  "n_eval": "{\"gsm8k\": 90, \"math\": 60} (150; decision D5)",
+  "delta_save": "must be argued from the use case (decision D6); the in-sample replay's savings were about 0.05-0.08",
+  "gpu_hours_cap": "1.5 x the approved estimate (decision D7)"
+ }
+}

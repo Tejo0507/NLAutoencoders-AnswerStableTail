@@ -1,0 +1,34 @@
+# Stopping-policy pilot, calibration set C (docs/STOPPING_POLICY_PILOT_PROTOCOL.md).
+#
+# Identical to replication.yaml in what defines the measurement: model,
+# layer, greedy 768-token traces, chunking and the forcing call. It differs in:
+#
+# - run_id: a new, unique run directory;
+# - data: fresh problems, chosen by scripts/prepare_fresh_problems.py to
+#   exclude every id used by any earlier run. The counts are the protocol's
+#   recommended N_C (decision D5) and must equal n_cal in the frozen protocol;
+# - ast.max_boundaries_evaluated: 0, so the traces stage generates the trace
+#   only. The pilot needs no answer-stable tail: scripts/stopping_pilot.py
+#   forces a 256-token answer at every boundary instead;
+# - semantic_entropy.n_samples: 0 (as in replication.yaml).
+#
+# Not usable until the protocol is frozen; the pilot scripts refuse to run
+# without it.
+
+run_id: pilot_cal
+description: "Stopping-policy pilot: calibration set (fresh problems)."
+
+data:
+  n_gsm8k: 180
+  n_math: 120
+
+generation:
+  max_new_tokens: 768
+  batch_size: 2
+  force_answer_max_new_tokens: 256
+
+ast:
+  max_boundaries_evaluated: 0
+
+semantic_entropy:
+  n_samples: 0

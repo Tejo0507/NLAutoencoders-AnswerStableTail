@@ -1,0 +1,26 @@
+# Stopping-policy pilot, evaluation set E (docs/STOPPING_POLICY_PILOT_PROTOCOL.md).
+#
+# As pilot_cal.yaml, with its own run directory and the protocol's
+# recommended N_E (decision D5), which must equal n_eval in the frozen
+# protocol. Prepared *after* pilot_cal, so scripts/prepare_fresh_problems.py
+# excludes the calibration problems as well as every earlier run's.
+# scripts/stopping_pilot.py refuses to force this set before the calibration
+# thresholds are frozen.
+
+run_id: pilot_eval
+description: "Stopping-policy pilot: evaluation set (fresh problems, disjoint from pilot_cal)."
+
+data:
+  n_gsm8k: 90
+  n_math: 60
+
+generation:
+  max_new_tokens: 768
+  batch_size: 2
+  force_answer_max_new_tokens: 256
+
+ast:
+  max_boundaries_evaluated: 0
+
+semantic_entropy:
+  n_samples: 0
