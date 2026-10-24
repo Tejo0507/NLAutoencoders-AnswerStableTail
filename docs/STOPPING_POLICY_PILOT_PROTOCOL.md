@@ -1,6 +1,10 @@
 # Stopping-policy pilot: protocol draft (2026-10-23)
 
-> **STATUS: DRAFT. NOT FROZEN. NOT APPROVED. NOT RUN.**
+> **STATUS: DRAFT. NOT FROZEN. NOT APPROVED. NOT RUN.** Revised 2026-10-24
+> before any pilot data: SGR replaces fixed-sequence testing (§3.2), the
+> compute estimate is re-derived from measured rates (§3.6), and the code
+> and runbook exist (`scripts/stopping_pilot.py`,
+> `docs/STOPPING_POLICY_PILOT_RUNBOOK.md`).
 > - It prepares the pilot that `docs/STOPPING_POLICY_PROPOSAL.md` §6.8
 >   suggests. It changes no registered plan and no stored output.
 > - Everything in §2 is taken from the proposal's adopted choices. Every
@@ -88,17 +92,28 @@ order by `prepare_fresh_problems.py`. *C* is drawn first and *E* next, so
 
 ### 3.2 Threshold selection
 
-**Recommendation: fixed-sequence testing over a pre-registered grid**
-(Learn-then-Test style, cf. [29]).
-- **Grid:** 200 thresholds at the quantiles of P1's out-of-fold training
-  scores (and likewise for P0), fixed and hashed before *C* is labelled.
-- **Rule:** scan from the strictest threshold to the most permissive. Keep
-  going while the one-sided 95% Clopper–Pearson upper bound on *C*'s
-  selective risk is ≤ α_cal. τ\* is the last threshold that passed.
-- **If no threshold passes**, the policy never stops. That is reported as
-  coverage 0, not as a safety success.
-- **τ\* is frozen and hashed before any evaluation label exists.** It is
-  never revisited after *E* is labelled.
+**Revised 2026-10-24 (before any pilot data): Selection with Guaranteed
+Risk (SGR; Geifman and El-Yaniv, NeurIPS 2017).** The earlier draft
+recommended fixed-sequence testing from the strictest threshold. That
+fails by construction here: at strict thresholds few problems stop, and
+the Clopper–Pearson bound on a handful of stops is wide (5 stops with no
+unsafe one give an upper bound of 0.45), so the sequence would stop at its
+first step and return no threshold almost regardless of the data.
+- **Grid:** 200 quantiles of the policy's scores on *C*, as SGR searches
+  over the calibration sample's own confidence values.
+- **Rule:** a binary search over the grid with k = ⌈log₂ 200⌉ = 8 steps.
+  At each step, compute the one-sided Clopper–Pearson upper bound on *C*'s
+  selective risk at confidence 1 − δ/k. Accept the threshold if the bound
+  is ≤ α_cal (then try a more permissive one), otherwise try a stricter
+  one. τ\* is the most permissive accepted threshold. By the union bound,
+  all k bounds hold together with probability ≥ 1 − δ, so the guarantee
+  does not depend on risk being monotone in the threshold.
+- **If no threshold is accepted**, the policy never stops. That is reported
+  as coverage 0, not as a safety success.
+- **τ\* is frozen and hashed before any evaluation label exists.**
+  `stopping_pilot.py` refuses to force *E* before the calibration exists,
+  and refuses to calibrate once *E* has been forced.
+- **Decision (D4):** confirm SGR and δ (recommended δ = 0.05).
 
 ### 3.3 α and α_cal
 
@@ -106,12 +121,17 @@ order by `prepare_fresh_problems.py`. *C* is drawn first and *E* next, so
   from the cost of a wrong early answer in an intended use, and the
   proposal (§0.1) forbids choosing it for affordability. This is the
   researcher's decision (§5, D1).
-- **α_cal:** 0.025 is the replay's candidate (in-sample coverage 0.81,
-  r/α ≈ 0.49). Under the rule in §3.2, it is only *attainable* when the
-  calibration set has enough stopped problems. Even with zero unsafe stops,
-  the Clopper–Pearson bound reaches 0.025 only at **n ≥ 119** stopped
-  problems. With 2–3 unsafe stops it needs about 200–300 (§4.2). So
-  choosing α_cal also fixes the minimum size of *C*.
+- **α_cal (revised 2026-10-24 for SGR).** The draft's α_cal = 0.025 came
+  from point-estimate calibration, where α_cal < α buys a safety margin.
+  SGR's bound already gives P(selective risk on the calibration distribution
+  > α_cal) ≤ δ, so that margin is built in. Its bounds are also stricter:
+  each step uses confidence 1 − δ/8 = 0.99375, not 0.95 (§4.3). At that
+  confidence, α_cal = 0.025 needs at least 201 stopped calibration problems
+  even with no unsafe stop, and SGR would accept a threshold whose true risk
+  is 0.005 only about 30% of the time with 240 stops: practically
+  unattainable at N_C = 300. **Recommendation: α_cal = α = 0.05 with SGR at
+  δ = 0.05.** With 240 stops it accepts a threshold whose true risk is 0.01
+  about 78% of the time. A smaller α_cal would need N_C of about 600–1,000.
 
 ### 3.4 Evaluation sample and the uncertainty it targets
 
@@ -127,24 +147,34 @@ registered 0.6/0.4 ratio). At the replay's coverage of 0.81 that is about
 
 ### 3.5 Calibration sample
 
-**Recommendation: N_C = 300 fresh problems** if α_cal = 0.025. At coverage
-about 0.8, that is about 240 stopped problems, so the bound can reach
-0.025 with at most 1 unsafe stop (2 gives about 0.026). With α_cal =
-0.0167, N_C would have to be about 400 or more. A larger N_C (about 400)
-would allow 2–3 unsafe stops at α_cal = 0.025.
+**Recommendation: N_C = 300 fresh problems, with α_cal = 0.05 under SGR**
+(§3.3). At coverage about 0.8, that is about 240 stopped problems; under
+SGR's per-step confidence the bound reaches 0.05 with up to 3 unsafe stops
+at 210 or more stops (§4.3). If coverage at the accepted threshold is
+lower, fewer problems stop, and the chance of accepting any threshold
+falls; that is reported, not repaired.
 
 ### 3.6 Compute budget (local GPU only; no cloud spending)
 
-The per-problem cost is from rep1's measured rates (proposal §6.8): a
-trace takes about 89 s; 256-token forcing at about 11 boundaries takes
-about 6.5 s each; activations take about 1.5 s. That is about **2.7
-GPU-minutes per problem**, or about 4.5 GPU-hours per 100 problems.
+**Revised 2026-10-24 from measured rates.** The earlier figure (about 2.7
+GPU-minutes per problem) used rep1's trace time of about 89 s, which
+included the answer-stable-tail scan and its continuations. The pilot needs
+neither: with `ast.max_boundaries_evaluated: 0` the traces stage generates
+the trace only. Measured or derived per problem:
+- the trace: about 329 tokens at 15–25 tokens/s, 13–22 s;
+- 256-token forcing at every boundary: 11.1 boundaries per rep1 trace;
+  Stage 1's forcing log shows about 8 s per block of 2 at this budget, so
+  about 45 s;
+- activations: about 1.5 s.
 
-| design | problems generated | GPU-hours at rep1 rates |
+That is **about 60–70 GPU-seconds per problem without VRAM spill**, so
+about 1.7–2 GPU-hours per 100 problems.
+
+| design | problems generated | GPU-hours, no spill |
 |---|---|---|
-| fresh *C* (300) + fresh *E* (150) | 450 | **about 20** |
-| rep1 calibration half (forcing only, about 2,200 boundaries, some reused) + fresh *E* (150) | 150 traces | **about 9–11** |
-| proposal §6.8's "pilot" (evaluation only, 100–150) | 100–150 | 4.5–7 (calibration not counted) |
+| fresh *C* (300) + fresh *E* (150) | 450 | **about 8–9** |
+| fresh *C* (200) + fresh *E* (150) | 350 | about 6–7 |
+| rep1 calibration half + fresh *E* (150) | 150 traces | about 5 (not implemented; needs code) |
 
 - **Hardware:** one RTX 4050 Laptop GPU (6 GB), local. There is no cloud
   spending and no purchase.
@@ -158,8 +188,8 @@ GPU-minutes per problem**, or about 4.5 GPU-hours per 100 problems.
 
 ### 3.7 P3 (NLA) scope
 
-**Recommendation: none in the pilot.** One check costs 0.83 of a mean
-trace (claim matrix D2), and Stage 1 already answered the information
+**Recommendation: none in the pilot.** One check generates 0.89 of a mean
+trace's tokens (claim matrix D2, corrected in D98), and Stage 1 already answered the information
 question (R6). Including P3 would roughly double the compute without
 informing the sizing question.
 
@@ -228,14 +258,35 @@ gate):
 (Power is a sawtooth in n with an exact bound, as the proposal's §6.4
 notes.)
 
+### 4.3 Under SGR (confidence 1 − 0.05/8 = 0.99375 per step; computed 2026-10-24)
+
+Smallest number of stopped calibration problems at which the bound reaches
+α_cal, with x unsafe stops:
+
+| α_cal | x = 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| 0.025 | 201 | 284 | 357 | 424 |
+| 0.05 | 99 | 141 | 177 | 210 |
+
+Probability that SGR's bound at a given threshold is ≤ α_cal (so that the
+threshold can be accepted), by stops n and true selective risk r:
+
+| α_cal | n stopped | r = 0.005 | 0.01 | 0.02 |
+|---|---|---|---|---|
+| 0.025 | 240 | 0.30 | 0.09 | 0.01 |
+| 0.025 | 320 | 0.52 | 0.17 | 0.01 |
+| 0.05 | 160 | 0.81 | 0.52 | 0.17 |
+| 0.05 | 240 | 0.97 | 0.78 | 0.29 |
+| 0.05 | 320 | 1.00 | 0.96 | 0.54 |
+
 ## 5. Decisions required before freezing (the researcher's)
 
 | # | decision | recommendation here | why it cannot be settled from the record |
 |---|---|---|---|
 | D1 | **α** and its justification | none; 0.05 remains provisional | It must rest on the cost of a wrong early answer in an intended use (proposal §0.1). The record names no use |
-| D2 | **α_cal** | 0.025, if D3 funds N_C ≈ 300 | It fixes the minimum calibration size (§3.3) and trades coverage for safety margin |
-| D3 | **Calibration source**: fresh *C*, or a rep1 calibration half | fresh *C* (cleaner); rep1 half if compute is tight | A scientific and budget trade-off (§3.1, §3.6) |
-| D4 | **Threshold rule and grid** | fixed-sequence Clopper–Pearson over 200 training-score quantiles (§3.2) | The proposal leaves it open (§9.4) |
+| D2 | **α_cal** | α_cal = α = 0.05 under SGR (revised; 0.025 is practically unattainable at N_C = 300, §3.3, §4.3) | It fixes the minimum calibration size and trades coverage for safety margin |
+| D3 | **Calibration source**: fresh *C*, or a rep1 calibration half | fresh *C* (cleaner; the only source implemented) | A scientific and budget trade-off (§3.1, §3.6) |
+| D4 | **Threshold rule and grid** | SGR binary search over 200 quantiles of the calibration scores, δ = 0.05 (§3.2, revised) | The proposal leaves it open (§9.4) |
 | D5 | **N_E and N_C** | 150 and 300 | They follow from D2 and D3 |
 | D6 | **δ_save**, the practical margin for net saving | none; the replay's in-sample savings are about 0.05–0.08, so any margin must be judged against that size | It must be argued from the use case (proposal §9.6) |
 | D7 | **GPU-hour budget and cap** | the table in §3.6, cap × 1.5 | It is an approval |
