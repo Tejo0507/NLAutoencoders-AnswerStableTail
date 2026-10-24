@@ -1,238 +1,216 @@
-# 4. Results (draft v3, 2026-10-23)
+# 4. Results
 
-*Order:*
-1. the registered replication;
-2. the two analyses that qualify it;
-3. what the explanation text carries;
-4. selective risk;
-5. how evaluation choices can manufacture an advantage, shown on the main
-   run.
+*Revised candidate, 2026-10-24. Every number is copied from the stored
+output named in `paper/v2/evidence/key_numbers.json` and checked against
+it by `scripts/verify_manuscript_numbers.py`. Evidence classes as in
+§3.8.*
 
-The main run's own registered comparison appears in §4.6, as context, not
-as the headline.
-
-*Status markers:*
-- **[R]** registered (main run);
-- **[C]** confirmatory (rep1, D75);
-- **[S]** pre-specified secondary or sensitivity analysis, fixed before any
-  rep1 outcome and outside the verdict;
-- **[X]** exploratory;
-- **[P]** post hoc;
-- **[A]** analytic.
-
-*Two probes:*
-- the **registered probe** is the layer-20 correctness probe of the
-  registered plan;
-- the **same-label probe** is a linear probe on the same layer-20
-  activation, trained for the label being predicted.
-
-*Three things are kept apart throughout:*
-- **prediction:** the text carries information associated with an
-  outcome;
-- **incremental value:** whether that information adds anything beyond
-  cheaper signals;
-- **faithfulness:** whether the text describes the computation. It is
-  **not tested here.**
-
-*Every number was copied from the output named beside it and checked by
-review. Tables 1–3 are generated from the outputs
-(`scripts/make_paper_tables_v2.py`). `scripts/check_run_consistency.py
---replication` checks a listed subset of the numbers as they appear in the
-decision record (D96 §4).*
-
-**Figures and tables:** the design is in Fig 1 and Table 1. Fig 7 and
-Table 3 carry §4.1–§4.3, with Fig 6's right panel for §4.3. Table 2 and
-Fig 3 carry §4.4. Fig 5 carries §4.5, and Figs 2, 4 and 6 carry §4.6.
+Three distinctions are kept throughout this section: *prediction*, whether
+a signal carries information associated with an outcome; *incremental
+value*, whether it adds anything beyond cheaper signals; and
+*faithfulness*, whether an explanation describes the computation, which is
+not tested. We first report the confirmatory replication (§4.1) and the two
+pre-specified analyses that qualify it (§4.2, §4.3), then what the
+explanation text carries (§4.4) and selective risk (§4.5). We then show,
+on the earlier main run, how evaluation choices can manufacture a stopping
+advantage (§4.6), report the 256-token pass on the 240-problem arm (§4.7)
+and the rewording null (§4.8), and summarise (§4.9).
 
 ## 4.1 The registered replication [C]
 
-The registered design ran on 400 problems that no earlier run had used
-(§3, Table 1).
-- **Instrument and sample:** 380 have an answer-stable tail, against the
-  plan's minimum of 200. The forcing instrument reproduced on 0.965 of 200
-  re-forced stored boundaries, against the registered 0.95. The analysis
-  checked the frozen plan's hash before it ran (D94).
-- **Test:** a paired problem bootstrap with 2,000 replicates and Holm
-  correction over the two hypotheses. Both are **supported** on the
-  registered 48-token forced-answer outcome (Table 3a; Fig 7, left):
+The replication ran the registered design on 400 problems that no earlier
+analysis had used (§3.1, Table 1). Of these, 380 had an answer-stable tail,
+against the plan's minimum of 200. The forcing instrument reproduced 0.965
+of 200 re-forced stored boundaries, above the registered threshold of
+0.95, and the analysis verified the frozen plan's hash before running.
 
-| hypothesis | Δ (mean safe-rate gap) | 95% CI | Holm p | reading |
-|---|---|---|---|---|
-| H1 readout − registered probe | +0.047 | [0.019, 0.075] | 0.002 | supported |
-| H2 readout − no signal | +0.057 | [0.039, 0.076] | 0.001 | supported |
-
-H1's interval spans the plan's 0.05 margin. The advantage over the
-registered probe is significant, but an advantage of 0.05 or more is
-neither shown nor excluded.
+Both registered hypotheses were supported on the registered 48-token
+outcome (Table 2a; Fig 2, left). The readout's mean safe-rate gap over the
+registered probe (H1) was +0.047 [0.019, 0.075], Holm-adjusted p = 0.002,
+and its gap over the no-signal rule (H2) was +0.057 [0.039, 0.076],
+Holm-adjusted p = 0.001. The interval for H1 spans the plan's margin of
+0.05: an advantage over the registered probe is shown, but an advantage of
+0.05 or more is neither shown nor excluded.
 
 ## 4.2 First qualification: candidate position [S]
 
-**The audit (D79; Table 3c):**
-- **A rule with no access to the activation** scores each menu candidate by
-  −prefix tokens, so it favours early stops. It beats no signal by +0.089
-  [0.066, 0.108], and it beats the readout by 0.025 [0.005, 0.044].
-- **With its linear-in-log-position trend removed,** the readout no longer
-  beats no signal: +0.007 [−0.016, 0.029].
-- **Both families of position readings are unresolved** by the plan's
-  rules.
+The position audit (Table 2c), specified before any replication outcome,
+asks whether the readout's advantage could arise from where the candidate
+points lie rather than from what the explanations say. A rule that never
+sees an activation, and scores each menu candidate by the negative of its
+prefix length so that it prefers early stops, beat the no-signal rule by
++0.089 [0.066, 0.108] and beat the readout by 0.025 [0.005, 0.044]. With
+its linear trend in log-position removed, the readout no longer beat the
+no-signal rule: +0.007 [−0.016, 0.029] (p = 0.54). By the plan's fixed
+rules, both families of position readings are *unresolved*.
 
-**So the registered advantage cannot be attributed to the content of the
-explanations:** on this menu, a preference for early positions does as well.
-
-**Why the menu allows this.** It is built from the tail start: it always
-holds i* − 1 and i* (Fig 1) [A]. The same falling rule had already matched
-the readout on the main run [X]:
-- falling rule − no signal: +0.082 and +0.100;
-- readout − falling: −0.024 [−0.070, 0.015].
-
-That is why the audit was pre-specified for rep1.
+The registered advantage therefore cannot be attributed to the content of
+the explanations: on this menu, a preference for early positions performs
+as well. The menu allows this because it is built from the tail start and
+always contains the chunks immediately before and at *i\** (§3.4, Fig 1)
+[A]. The same falling rule had already matched the readout on the earlier
+data [X]: it beat the no-signal rule by +0.082 on the main run and by
++0.100 on the 240-problem arm, and the readout minus the falling rule was
+−0.024 [−0.070, 0.015] on the main run. This is why the audit was
+pre-specified for the replication.
 
 ## 4.3 Second qualification: the forcing budget [S]
 
-The pass (D82; Table 3b; Fig 7, left; Fig 6, right):
-- **Re-forcing:** the 661 boundaries cut off at 48 tokens were re-forced
-  with 256. The instrument was stable: 1.00 on 50 finished boundaries.
-- **f = 0.867.** f is computed over the 600 cut-off boundaries *before the
-  tail*. 520 of them (86.7%) reach the final answer when given 256 tokens.
-  The other 61 cut-off boundaries are at or after the tail and are not
-  part of f.
-- By the plan's fixed language, the 48-token outcome mostly measures
-  whether the model can *commit within 48 tokens*.
-- **Under the 256-token outcome,** both hypotheses read *equivalent within
-  ±0.05*:
-  - H1: −0.008 [−0.036, 0.024];
-  - H2: −0.004 [−0.024, 0.016].
-- **What those intervals show:**
-  - they exclude effects of 0.05 or more, and the 48-token estimates (0.047
-    and 0.057) lie outside them;
-  - they do not rule out smaller effects.
-- **So the registered hypotheses are not supported under the 256-token
-  outcome.** The 48-token verdict stands as registered, but it depends on
-  the forcing budget, and it is worded as a result about 48-token
-  commitment.
-- **One limitation:** the token-count check failed (maximum difference 4,
-  against ±2). So net savings, which charge the forced tokens, are not
-  used; every comparison uses registered savings.
+The 256-token pass (Table 2b; Fig 2, left; Fig 3, right) re-forced the 661
+menu boundaries whose 48-token answers had been cut off. The instrument
+was stable at 256 tokens (agreement 1.00 on 50 finished boundaries). Of
+the 600 cut-off boundaries before the tail, 520 (*f* = 0.867) reached the
+final answer when allowed 256 tokens; the other 61 cut-off boundaries lay
+at or after the tail and do not enter *f*. By the plan's fixed language,
+the 48-token outcome mostly measured whether the model could commit to its
+answer within 48 tokens.
+
+Under the 256-token outcome, both hypotheses read *equivalent within
+±0.05*: H1 −0.008 [−0.036, 0.024] and H2 −0.004 [−0.024, 0.016]. These
+intervals exclude effects of 0.05 or more, and the 48-token estimates
+(0.047 and 0.057) lie outside them. They do not exclude smaller effects. The registered
+hypotheses are therefore not supported under the 256-token outcome, while
+the 48-token verdict stands as registered and is to be read as a result
+about commitment within 48 tokens. Net savings were not used, because the
+token-count check failed (maximum difference 4 tokens against a tolerance
+of 2); every comparison uses registered savings.
 
 ## 4.4 What the explanation text carries [S]
 
-**On the menu, rep1** (D81, D95):
-- **Prediction without increment from the score:** the readout's *score*
-  adds nothing beyond position and the registered probe: +0.0005 AUC
-  [−0.0015, 0.0025].
-- **Prediction from the text:** the explanation *text* adds +0.077 [0.063,
-  0.090] beyond position and the trace text.
-- **No latent answer:** the text names the final answer no more often than
-  another problem's answer: −0.002 [−0.016, 0.012].
-- **The phase lexicon frozen on the earlier arm transfers** to unseen
-  problems: +0.091 [0.076, 0.106] for tail membership (Table 2). It
-  describes a reasoning *phase*, concluding against setting up.
+**At the menu's points on the replication** (D81 and D95), the readout's
+scalar score added nothing beyond position and the registered probe:
++0.0005 [−0.0015, 0.0025] AUC. The explanation *text*, however, added
++0.077 [0.063, 0.090] AUC beyond position and the raw trace text. Before
+the trace wrote its final answer, the text mentioned that answer no more
+often than another problem's answer (−0.002 [−0.016, 0.012]). A phase
+lexicon frozen on the 240-problem arm (Table 3) transferred to the unseen
+problems, adding +0.091 [0.076, 0.106] AUC beyond position for tail
+membership. Its heaviest terms distinguish concluding ("final answer",
+"therefore") from setting up ("first", "let's").
 
-These replicate the main run's exploratory and post-hoc findings out of
-sample (Fig 3):
-- text over position and trace text: +0.073 [0.058, 0.087] [X];
-- text over the same-label probe: −0.001 [−0.004, 0.002] [P].
+These results reproduce, out of sample, what was found on the
+240-problem arm (Fig 4): there, the text added +0.073 [0.058, 0.087] AUC
+beyond position and trace text [X], and nothing beyond a same-label probe
+on the same activation, −0.001 [−0.004, 0.002] [P].
 
-**At positions chosen without the outcome** (Stage 1; D83, approved D85;
-Table 3d; Fig 7, right):
-- **Setup:** 1,600 positions in 400 problems, with 1,598 passing
-  verbalisations (attrition gate 0.75). The forcing check gave 0.98
-  (gate 0.95).
-- **Primary result (incremental value):** the text's increment over
-  position plus the same-label probe, on the 256-token safety label, is
-  +0.00002 [−0.004, 0.004]. That is **equivalent within ±0.01**.
-- **Prediction:** both signals carry information on their own. The text
-  adds +0.071 [0.052, 0.089] over position, and the same-label probe +0.102
-  [0.075, 0.129].
-- **Head to head:** the same-label probe is better, by 0.031 [0.015, 0.047].
-- **The same holds** on the 48-token and tail labels.
+**At positions chosen without the outcome** (Stage 1; Table 2d; Fig 2,
+right), 1,598 of the 1,600 units had a passing verbalisation (gate 75%),
+and the first 48 tokens of the 256-token forced answers agreed with a
+separate 48-token forcing on 0.98 of checked units (gate 0.95). The
+primary contrast, the text's increment over position plus the same-label
+probe on the 256-token safety label, was Δ₁ = +0.00002 [−0.004, 0.004]:
+*equivalent within ±0.01*. Both signals carry information on their own:
+the text added +0.071 [0.052, 0.089] beyond position and the same-label
+probe +0.102 [0.075, 0.129]. Head to head, the probe was better than the
+text by 0.031 [0.015, 0.047]. The same pattern held for the 48-token label
+and for tail membership.
 
-**The supported conclusion is narrow.** For predicting these stopping
-labels, under the tested design (TF-IDF text features, a linear
-same-label probe, one model and one NLA), the explanation text adds no
-practically relevant information beyond position and the same-label probe.
-- It does not show that everything the text says is available in the
-  activation.
-- **It is a statement about prediction and incremental value. It says
-  nothing about faithfulness.**
+The supported conclusion is narrow. For predicting these stopping labels
+under the tested design (TF-IDF text features, a linear same-label probe,
+one model and one NLA), the explanation text adds no practically relevant
+information beyond position and the same-label probe. This does not show
+that everything the text says is linearly available in the activation,
+and it is a statement about prediction and incremental value, not about
+faithfulness.
 
 ## 4.5 Selective risk on the candidate menu [S, P]
 
-Selective risk at matched coverage (D83 deviation 1) separates risk from
-saving.
-- **These results use the outcome-selected candidate menu and O48 labels.
-  They are not deployment evidence.**
-- The probe here is the **registered** probe. No selective-risk result
-  exists for the same-label probe on rep1.
+Selective risk at matched coverage separates the safety of a rule's stops
+from the saving they bring (§3.5). These results use the outcome-selected
+candidate menu and 48-token labels and are **not evidence about deployed
+stopping**. The probe here is the registered correctness probe; no
+selective-risk result exists for the same-label probe on the replication.
 
-| rep1, at 50% coverage (menu, O48) [S] | selective risk | saving among stops |
-|---|---|---|
-| registered probe | 0.011 | 0.028 |
-| no signal | 0.472 | 0.413 |
-| NLA readout | 0.632 | 0.711 |
-
-- The registered probe's stops are almost always safe but save little.
-- The readout's stops save more, but most are unsafe.
-- No rule dominates, and the two numbers are not combined into one ranking.
-
-**On the main run** [P], the readout's stops were already *less* safe than
-chance (Fig 5, left):
-- +0.16 [0.04, 0.26] at 0.5 coverage on `main`;
-- +0.14 [0.05, 0.21] on the 240-problem arm.
+At 50% coverage on the replication [S], the registered probe's stops were
+almost always safe but saved little (selective risk 0.011, mean saving
+among stops 0.028). The readout's stops saved more but were mostly unsafe
+(0.632 and 0.711), and the no-signal rule lay between them (0.472 and
+0.413). No rule dominates on both quantities, and we do not combine them
+into a ranking. On the earlier data [P], the readout's stops were already
+less safe than those of the no-signal rule: by +0.16 [0.04, 0.26] at 50%
+coverage on the main run and by +0.14 [0.05, 0.21] on the 240-problem arm
+(Fig 5, left, shows the 240-problem arm).
 
 ## 4.6 How evaluation choices can manufacture an advantage (main run)
 
-These findings come from the main run and explain why the replication was
-designed as it was. Their classes vary and are marked.
+The following results come from the main run and its 240-problem arm, and
+they motivated the replication's design. Their evidence classes differ and
+are marked.
 
 1. **The registered comparison was uninformative** [R, read post hoc].
-   - Its budgets (0.61, 0.72) lie above the oracle bound's 0.17, where a
-     no-signal rule beats every compared rule (D68).
-   - Rescored on the registered outcome [P], the readout beat no signal by
-     +0.052 [0.022, 0.082] at N = 120. Its comparison with the registered
-     probe was unresolved: +0.027 [−0.026, 0.076] (D69; Fig 2).
-   - **Provenance:** D91 records that the amended reanalysis plan's hash was
-     not recorded before the data.
-2. **Candidate points derived from the outcome leak it** [A]. See §4.2 and
+   The registered test compared rules at budgets (0.61 and 0.72) above the
+   oracle bound of 0.17, where a no-signal rule beats every compared rule
+   (D68). Rescored on the registered outcome [P], the readout beat the
+   no-signal rule by +0.052 [0.022, 0.082] with 120 problems, while its
+   comparison with the registered probe was unresolved, +0.027 [−0.026,
+   0.076] (D69; Fig 6). The amended reanalysis plan's hash was not
+   recorded before these data were seen (D91).
+2. **Candidate points derived from the outcome leak it** [A]; see §4.2 and
    Fig 1.
 3. **A matched-mean-saving estimand rewards concentrating savings** [X].
-   - At every boundary of the main run, with no menu (Stage 0, D83), an
-     information-free falling rule beats a same-label activation probe
-     whose boundary AUC is 0.861.
-   - Probe − falling: −0.032 [−0.083, 0.009] on registered savings, and
-     −0.093 [−0.147, −0.043] on net savings (Fig 4).
-   - Selective risk at matched coverage reverses the ranking (Fig 5,
-     right).
+   At every boundary of the main run, with no menu (Stage 0; 250
+   problems), an information-free falling rule beat a model of position
+   plus a same-label activation probe whose boundary AUC was 0.861. The
+   probe-based rule minus the falling rule was −0.032 [−0.083, 0.009] on
+   registered savings and −0.093 [−0.147, −0.043] on net savings (Fig 7).
+   Selective risk at matched coverage reverses this ranking (Fig 5,
+   right).
 4. **Short forcing budgets give answers that are reproducible but not
-   valid** before the tail [X].
-   - Before the tail, 54–57% of 48-token completions are cut off, and 98–99%
-     of those disagree with the continuations' majority (Fig 6).
-   - On rep1 the 256-token pass then measured the consequence (§4.3).
-5. **Cost** [A]: one NLA check costs 0.83 of a mean trace in generated
-   tokens, so verbalising at each candidate cannot save compute here.
+   valid before the tail** [X]. Before the tail, 54% (main run) and 56%
+   (240-problem arm) of 48-token forced completions were cut off, and
+   99% and 98% of those disagreed with the majority of the 200-token
+   continuations (Fig 3, left and centre). The 256-token pass measured the
+   consequence on the replication (§4.3).
+5. **Cost** [A]. One NLA check generates two verbaliser samples of 144.9
+   tokens on average, 0.89 of a mean 324.8-token trace, before
+   reconstruction. Verbalising at each candidate point therefore cannot
+   save compute in this setting.
 
-## 4.7 The earlier 240-problem arm [X]
+## 4.7 The 256-token pass on the 240-problem arm [X]
 
-The same 256-token pass on `main_nla240` (D96) reproduces the pattern.
-These results are exploratory because that arm's 48-token results were
-known, and it is not independent: it contains `main`'s 120 problems.
-- f = 0.881.
-- Readout − registered probe goes from +0.056 [0.023, 0.091] at 48 tokens
-  to +0.001 [−0.031, 0.040] at 256.
-- Readout − no signal goes from +0.069 [0.049, 0.093] to −0.011
-  [−0.034, 0.017].
-- In both, the 48-token estimate lies outside the 256-token interval.
-- Text over the same-label probe under O256: −0.001 [−0.005, 0.002].
+The same pass on the 240-problem arm reproduces the replication's pattern.
+It is exploratory, because that arm's 48-token results were already known,
+and it is not independent, because it contains the main run's 120
+problems. Here *f* = 0.881. The readout minus the registered probe went
+from +0.056 [0.023, 0.091] at 48 tokens to +0.001 [−0.031, 0.040] at 256
+tokens, and the readout minus no signal from +0.069 [0.049, 0.093] to
+−0.011 [−0.034, 0.017]. In both cases the 48-token estimate lies outside
+the 256-token interval. Under the 256-token outcome, the text again added
+nothing beyond the same-label probe: −0.001 [−0.005, 0.002].
 
-## 4.8 Summary
+## 4.8 Reconstruction dependence under a rewording null [X]
+
+The registered RQ2 result is that 0.749 of 6,007 explanation claims are
+reconstruction-dependent under the registered paraphrase null. The
+D76 rewording null (§3.7) was run as specified on 60 explanations from 49
+problems, with 246 claims. Of 738 generated rewordings, 313 (42.4%) passed
+the fixed form checks, most rejections being changed quoted strings; 117
+of the 246 claims received at least one accepted rewording, and every
+explanation had at least two. Re-scored original explanations matched the
+stored cosines exactly.
+
+Accepted rewordings moved the reconstruction about three times as much as
+the registered paraphrases (mean absolute effect 0.0045 against 0.0015),
+while deleting a claim moved it by 0.0267 on average. On the same 246
+claims, the dependent rate was 0.797 [0.729, 0.856] under the registered
+null and 0.764 [0.685, 0.834] under the rewording null (problem-cluster
+bootstrap). For 0.872 of the 117 claims with a rewording, deletion moved
+the reconstruction more than the claim's mean rewording did. If the
+accepted rewordings preserve meaning, the reconstruction-dependence rate
+is therefore not mainly an artefact of a null that barely edits. Whether
+they do is unvalidated, fewer than half of the claims received a
+rewording, and reconstruction dependence is not faithfulness.
+
+## 4.9 Summary
 
 | question | answer | class |
 |---|---|---|
 | Does the readout beat the registered probe and no signal on the registered outcome? | Yes: H1 +0.047, H2 +0.057 | [C] |
-| Is that the explanations' content? | Not shown: a position-only rule does better | [S] |
-| Does it hold under a 256-token forcing budget? | Not supported. Both read *equivalent within ±0.05*: effects of 0.05 or more are excluded, smaller ones are not | [S] |
+| Is that advantage due to the explanations' content? | Not shown: a position-only rule does better | [S] |
+| Does it hold under a 256-token forcing budget? | Not supported. Both gaps are equivalent to zero within ±0.05; smaller effects are not excluded | [S] |
 | Does the text predict stopping labels? | Yes, beyond position and the trace text | [S] |
 | Does it add predictive information beyond a same-label probe on the same activation? | No practically relevant amount: equivalent within ±0.01 at outcome-blind positions | [S] |
-| Which signal stops more safely on the candidate menu (O48, not deployment)? | The registered probe, at a much smaller saving. No rule dominates | [S] |
-| Are the explanations faithful? | Not tested | — |
-| Is there a safe and useful stopping policy? | Open. A planning replay motivates testing the same-label probe on fresh problems (`docs/STOPPING_POLICY_PROPOSAL.md`, not approved). Its in-sample numbers are not evidence | — |
+| Which signal stops more safely on the candidate menu (48-token labels; not deployment evidence)? | The registered probe, at a much smaller saving; no rule dominates | [S] |
+| Are the explanations faithful to the computation? | Not tested | — |
+| Is reconstruction dependence robust to a rewording null? | Little change (0.797 to 0.764 on 246 claims), but the rewordings' meaning is unvalidated | [X] |
+| Is there a safe and useful stopping policy? | Open (§5.4) | — |

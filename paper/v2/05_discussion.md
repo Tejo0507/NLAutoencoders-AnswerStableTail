@@ -1,161 +1,146 @@
-# 5. Discussion (draft v1, 2026-10-23)
+# 5. Discussion
 
-*Written from `paper/CLAIM_EVIDENCE_MATRIX.md` §R, C, D and E. Every claim
-keeps the class its row gives it, and every number is the row's. Markers
-as in §4.*
+*Revised candidate, 2026-10-24. Written from `paper/CLAIM_EVIDENCE_MATRIX.md`
+§R, C, D and E; every claim keeps its row's evidence class.*
 
-## 5.1 What the replication supports, and what it does not
+## 5.1 What the replication supports
 
-The registered replication gives one confirmatory result, and it stands
-as registered. On the registered 48-token forced-answer outcome, the NLA
-readout beats the registered layer-20 correctness probe (H1, +0.047 [0.019,
-0.075]) and no signal (H2, +0.057 [0.039, 0.076]) [C; R1]. No later
-analysis overwrites or rewords that verdict. Two pre-specified analyses
-qualify how it can be read:
+The replication yields one confirmatory result, and it stands as
+registered: on the registered 48-token outcome, the NLA readout's safe
+rate at matched mean saving exceeded that of the registered correctness
+probe and that of a no-signal rule [C]. No later analysis overwrites or
+rewords that verdict. Two pre-specified analyses, however, determine how
+it can be read.
 
-- **It cannot be attributed to explanation content** [S; R2]. A rule that
-  sees only the prefix length beats the readout by 0.025 [0.005, 0.044].
-  With its log-position trend removed, the readout no longer beats no
-  signal: +0.007 [−0.016, 0.029]. The menu always holds the chunks on both
-  sides of the answer change (§3.4), so a preference for early positions is
-  enough to look informative on it.
-- **It depends on the forcing budget** [S; R4]. 86.7% of the pre-tail
-  answers cut off at 48 tokens reach the final answer when given 256. So
-  the registered outcome mostly measures whether the model can *commit
-  within 48 tokens*. Under the 256-token outcome, the registered
-  hypotheses are not supported: H1 −0.008 [−0.036, 0.024] and H2 −0.004
-  [−0.024, 0.016], both equivalent within ±0.05. These intervals exclude
-  effects of 0.05 or more, not smaller ones, and the 48-token estimates lie
-  outside them.
+First, the advantage cannot be attributed to explanation content [S]. A
+rule that sees only the prefix length beat the readout, and the readout
+with its position trend removed did not beat the no-signal rule. Because
+the menu always contains the chunks on both sides of the answer change, a
+preference for early positions is enough to look informative on it.
+Second, the result depends on the forcing budget [S]. Most pre-tail
+answers cut off at 48 tokens reach the final answer when given 256, so the
+registered outcome mostly measures whether the model can commit to its
+answer within 48 tokens; under the 256-token outcome, the registered
+hypotheses are not supported, and effects of 0.05 or more are excluded.
+The non-independent 240-problem arm shows the same pattern [X].
 
-The non-independent 240-problem arm shows the same pattern [X]. The
-correct summary is therefore narrow: *as registered, the readout's safe
-rate at matched mean saving on the candidate menu exceeds the registered
-probe's and no signal's, when safety means committing within 48 tokens;
-this advantage is not shown to come from what the explanations say, and it
-is not supported once answers may finish.* It is not evidence that the
-readout's stops are mostly safe. At matched coverage they are mostly unsafe
-(§5.4; B6).
+The accurate summary is therefore narrow. As registered, on the candidate
+menu and when safety means committing within 48 tokens, the readout's safe
+rate at matched mean saving exceeds that of the registered probe and of a
+no-signal rule. This advantage is not shown to come from what the
+explanations say, and it is not supported once forced answers may finish.
+It is also not evidence that the readout's stops are mostly safe: at
+matched coverage, most of them are unsafe (§4.5).
 
-## 5.2 Prediction, incremental value and faithfulness are different questions
+## 5.2 Prediction, incremental value and faithfulness
 
-The results separate three questions that are easy to run together.
+The results separate three questions that are easily run together.
 
-1. **Prediction.** Does the explanation text carry information associated
-   with the stopping labels? **Yes.** On the menu, the text adds +0.077
-   [0.063, 0.090] AUC beyond position and the raw trace text on the
-   replication [S; R3]. At outcome-blind positions it adds +0.071 [0.052,
-   0.089] beyond position [S; R6]. Its most predictive terms describe a
-   reasoning *phase*, concluding against setting up, and a lexicon frozen
-   on earlier data transfers to unseen problems (+0.091 [0.076, 0.106]) [S;
-   R5].
-2. **Incremental value.** Does it add anything beyond cheaper signals?
-   **Not a practically relevant amount, for these labels.** At outcome-blind
-   positions, the text's increment over position plus a linear probe on the
-   same layer-20 activation, trained for the same label, is +0.00002
-   [−0.004, 0.004]: equivalent within ±0.01 [S; R6]. Head to head, that
-   probe is better than the text by 0.031 [0.015, 0.047]. The readout's
-   scalar score adds nothing beyond position and the registered probe
-   (+0.0005 [−0.0015, 0.0025]) [S; R3].
-3. **Faithfulness.** Do the explanations describe the computation that
-   produced the activation? **Not tested** [E1]. Neither predictive
-   accuracy nor the absence of an increment bears on it. Text can predict a
-   label because it describes the computation correctly, or because it
-   reflects correlates of position and register. And a probe can match the
-   text without the text being wrong.
+**Prediction.** The explanation text carries information associated with
+the stopping labels. It adds to position and the raw trace text on the
+menu, adds to position at outcome-blind positions, and its most predictive
+terms, which describe a concluding as against a setting-up phase, transfer
+to unseen problems [S].
 
-Two consequences follow. First, the absence of an increment does **not**
-show that everything the text says is linearly available in the
-activation; it shows that, for predicting these labels with TF-IDF text
-features, nothing practically relevant is left over once a same-label
-linear probe is used [R6]. Second, the NLA's value here is *interpretive
-access*, a legible description of a reasoning phase, rather than
-information a probe lacks. That agrees with Li et al.'s call for
-same-activation controls [12], and it qualifies reported advantages of
-activation decoders over *generic* linear probes [32]: against a probe
-trained for the same label, the advantage did not appear in this setting.
+**Incremental value.** For these labels, the text adds no practically
+relevant information once a linear probe trained for the same label on the
+same layer-20 activation is included: the Stage 1 increment is equivalent
+to zero within ±0.01 AUC, and the probe is better head to head [S]. The
+readout's scalar score adds nothing beyond position and the registered
+probe [S].
 
-The reconstruction-dependence rate of RQ2 (0.749 of 6,007 claims; C6)
-belongs to the same family of caveats. It says that deleting most claims
-moves the reconstruction more than the registered null does. It does not
-say the claims are true, and the registered null is mostly no edit or an
-added discourse marker (D70). A rewording null, specified before
-generation (D76) and run on 60 explanations, partly addresses the second
-point [X]. Rewordings written by the target model under fixed form checks
-move the reconstruction about three times as much as the registered
-paraphrases (mean |effect| 0.0045 against 0.0015). Yet the dependent rate
-on the same 246 claims changes only from 0.797 [0.729, 0.856] to 0.764
-[0.685, 0.834]. So, if those rewordings preserve meaning, the rate is not
-mainly an artefact of a null that barely edits. Whether they do is
-unvalidated by people, fewer than half the claims received a rewording,
-and none of this bears on faithfulness.
+**Faithfulness.** Whether the explanations describe the computation that
+produced the activation is not tested here (matrix E1), and neither of the
+first two answers bears on it. Text can predict a label because it
+describes the computation correctly or because it reflects correlates of
+position and register, and a probe can match the text without the text
+being wrong.
+
+Two consequences follow. The absence of an increment does not show that
+everything the text says is linearly available in the activation; it shows
+that, for predicting these labels with TF-IDF features, nothing practically
+relevant is left once a same-label linear probe is used. And the NLA's
+value in this setting is interpretive access, a legible description of the
+reasoning phase, rather than information that a probe lacks. This is
+consistent with Li et al.'s argument for same-activation controls [13],
+and it qualifies reported advantages of activation decoders over generic
+linear probes [20]: against a probe trained for the same label, no
+advantage appeared here.
+
+The reconstruction-dependence rate (0.749 of 6,007 claims) belongs to the
+same family of caveats. It shows that deleting most claims moves the
+reconstruction more than the registered null does, not that the claims
+are true. The exploratory rewording null addresses one weakness of that
+null: under model-written rewordings that move the reconstruction about
+three times as much, the dependent rate on a sample of claims changes
+little (§4.8) [X]. Because the rewordings' meaning was not validated, this
+qualifies the rate's robustness; it is not a test of faithfulness.
 
 ## 5.3 How evaluation choices manufacture a stopping advantage
 
-The main run's story is a sequence of evaluation choices, each of which
-moved the conclusion (§4.6). They generalise as four recommendations for
-evaluating any stopping signal, none of which is new in spirit [28, 29]:
+The main run's results form a sequence of evaluation choices, each of
+which moved the conclusion (§4.6). They suggest four practices for
+evaluating stopping signals, none of them new in spirit [10, 11]:
 
-1. **Choose candidate points blind to the outcome.** A menu built around
-   the answer change contains the answer change, and a position rule
-   exploits it [A; B5, R2]. Stage 1's outcome-blind draw is the remedy we
-   used.
-2. **Report risk and saving together, not one matched-mean-saving
-   estimand.** Counting abstention as safe rewards concentrating savings
-   in a few problems. An information-free falling rule then beats a
-   same-label probe with boundary AUC 0.861 on the registered estimand [X;
-   B7]. Selective risk at matched coverage reverses that ranking.
-3. **Report the forcing budget and the truncation rate.** A 48-token
-   forced answer is reproducible but often unfinished before the tail
-   [X; A2, A3], and the registered verdict changes with the budget [S; R4].
+1. **Choose candidate points without reference to the outcome.** A menu
+   built around the answer change contains it, and a position rule
+   exploits it [A, S]. Stage 1's outcome-blind draw is the remedy used
+   here.
+2. **Report risk and saving together rather than a single
+   matched-mean-saving estimand.** Counting abstention as safe rewards
+   rules that concentrate their savings in a few problems: an
+   information-free falling rule outranked a probe-based rule with
+   boundary AUC 0.861 on the registered estimand, and selective risk
+   reverses the ranking [X].
+3. **Report the forcing budget and the share of forced answers cut off.**
+   Short forced answers are reproducible but often unfinished before the
+   tail [X], and the registered verdict changes with the budget [S].
 4. **Compare against a same-label probe on the same activation.** The
-   registered correctness probe adds +0.026 over position at every
-   boundary, against +0.091 for a same-label probe [X; D3, D1]. A weak
-   baseline makes any signal look useful.
+   registered correctness probe adds +0.026 AUC over position at every
+   boundary of the main run, against +0.091 for a same-label probe [X]; a
+   weak baseline makes any signal look useful.
 
 ## 5.4 What this does and does not say about stopping
 
-**Selective risk on the menu is not deployment evidence** [S; R7]. On the
-outcome-selected menu with 48-token labels, at 50% coverage, the
-registered probe's stops are almost always safe but save little (risk
-0.011, saving 0.028). The readout's stops save more, but most are unsafe
-(0.632, 0.711), and no signal sits between them (0.472, 0.413). No rule
-dominates, and these numbers do not rank policies for use.
+The selective-risk results are **not deployment evidence**. They are
+measured on the outcome-selected menu with 48-token labels; on it, the
+registered probe stops rarely unsafely but saves little, the readout saves
+more but mostly unsafely, and no rule dominates [S]. Cost rules out an
+online NLA check in this setting: one check generates 0.89 of a mean
+trace's tokens before reconstruction [A], so the NLA is at most an offline
+research comparator.
 
-**Cost rules out an online NLA check here** [A; D2]. One check costs 0.83
-of a mean trace in generated tokens before reconstruction. The NLA is at
-most an offline research comparator for stopping.
-
-**The practical question is open.** A planning replay on stored rep1
-Stage 1 data suggests that a same-label probe could stop far more often
-than a position-only rule at the same in-sample unsafe-stop rate. But that
-replay chose its thresholds in sample and walked only four positions per
-problem. It is planning evidence, not evidence of out-of-sample safety. A
-safety-constrained stopping-policy study with calibration and evaluation
-on fresh, disjoint problems is proposed (`docs/STOPPING_POLICY_PROPOSAL.md`)
-and has not been run.
+**The practical question remains open.** A planning replay on stored
+replication data suggests that a same-label probe could stop on far more
+problems than a position-only rule at the same unsafe-stop rate. That
+replay chose its thresholds on the same data it scored and walked only
+four positions per problem; it is planning evidence, not evidence of
+out-of-sample safety. A safety-constrained stopping-policy study, with
+calibration and evaluation on fresh, disjoint problems, has been designed
+but not run (`docs/STOPPING_POLICY_PROPOSAL.md`,
+`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`).
 
 ## 5.5 What the answer-stable tail is
 
 The tail marks where the answer becomes *recoverable within a forcing
-budget*, not where redundant post-answer text begins. Tails begin before
-the answer is written (A2), and the measured budget dependence (R4) says
-how much of an apparent pre-tail failure is an unfinished derivation. This
+budget*, not where redundant text after the answer begins: tails begin
+before the answer is written, and the measured budget dependence shows how
+much of an apparent pre-tail failure is an unfinished derivation. This
 agrees with Mo et al.'s reading of answer agreement as persistence under a
-fixed probing procedure [22]. A tail defined under a longer budget could
-start earlier. That recomputation was not done (A1).
+fixed probing procedure [16]. A tail defined under a longer budget could
+start earlier; that recomputation was not done.
 
 ## 5.6 Conclusion
 
-A natural-language readout of a reasoning model's activations passes its
-registered stopping test, on the registered 48-token outcome. But the
+A natural-language readout of a language model's activations passes its
+pre-registered stopping test on the registered 48-token outcome. The
 advantage cannot be attributed to what the explanations say, and it is not
-supported when forced answers may finish. The explanations carry legible,
-transferable information about the reasoning phase. For predicting
-stopping labels, they add no practically relevant information beyond a
-linear probe on the same activation. Whether they are faithful is untested,
-and whether any of these signals supports a safe stopping policy at
-deployment is a separate study. The broader lesson concerns evaluation: the
-choice of candidate points, estimand, forcing budget and baseline decided
-the answer here more than the signal did. These choices should be fixed
-blind to the outcome and reported.
+supported when forced answers are allowed to finish. The explanations
+carry legible, transferable information about the reasoning phase, but for
+predicting stopping labels they add no practically relevant information
+beyond a linear probe on the same activation. Whether they are faithful
+is untested, and whether any signal studied here supports a safe stopping
+policy is a question for a separate, prospectively calibrated study. In
+this study, the choice of candidate points, estimand, forcing budget and
+baseline determined the answer more than the signal did; such choices
+should be fixed without reference to the outcome and reported.

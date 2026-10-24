@@ -1,106 +1,91 @@
-# 2. Related work (draft v3, 2026-10-23)
+# 2. Related work
 
-*Built from `docs/NOVELTY_REVIEW_2026-10-20.md` (abstracts and five full
-texts) and the 2026-10-23 sweep of training-free early-exit methods
-(DEER, Dynasor, ThinkBrake, EAT, NEAT, LYNX; references [33]–[38]). This
-is a focused review, not a systematic one. Each sentence saying where our
-work differs is phrased as a difference from the papers named, not as a
-claim that nobody has done it. Findings attributed to other papers are
-theirs; ours are marked with their evidence class.*
+*Revised candidate, 2026-10-24. A focused review, not a systematic one:
+`docs/NOVELTY_REVIEW_2026-10-20.md` (abstracts and five full texts) and
+the 2026-10-23 sweep of training-free early-exit methods. Every reference
+was checked against its primary record (`paper/v2/references.md`). Where
+we say that prior work does not report something, we mean the papers
+named. Statements about other papers are theirs; ours carry an evidence
+class.*
 
-**Overthinking and answer stability.** Reasoning models often continue
-after their answer is settled [7, 8, 9].
-- Answer convergence, in which successive intermediate answers agree, has
-  been proposed as a stopping signal [5].
-- Mo et al. [22] show in a preregistered sweep that agreement establishes
-  only that an answer *persists under a fixed probing procedure*, not that
-  reasoning has finished.
+**Overthinking and answer stability.** Models that reason step by step
+often continue after their answer is settled [1, 2, 17]. Agreement between
+successive intermediate answers has been proposed as a stopping signal
+[3]. In a pre-registered sweep of consensus rules, Mo et al. [16] show
+that such agreement establishes only that an answer persists under a
+fixed probing procedure, not that reasoning has finished. Our
+answer-stable tail is defined by the same kind of agreement, and we reach
+the same reading: the tail marks where the answer becomes recoverable
+within a forcing budget. We add a measurement of how the budget itself
+changes the outcome (§4.3).
 
-Our answer-stable tail is defined by the same kind of agreement, and we
-reach the same reading: the tail marks where the answer becomes recoverable
-within a budget. We add a measurement of how that budget itself changes the
-outcome (§4.3).
+**Hidden-state probes and calibrated stopping.** Probes on hidden states
+predict whether an intermediate answer is correct and can trigger an early
+exit [7], and probes can also locate a commitment boundary after which
+further reasoning steps are epiphenomenal [15]. Thought Calibration
+controls the risk of terminating early with Learn-then-Test [11]. Dong et
+al. [10] compare confidence, entropy, answer stability and learned
+stoppers at a fixed rate of lost correct answers, and show that the
+savings depend on how the cost of the stopping signal is counted. We
+adopt both lessons, charging the signal's cost and comparing at matched
+risk, and do not claim them. We differ from these papers in three
+respects: our probe baseline is trained for the same label as the signal
+under test; we report a failure mode of matched-mean-saving comparisons;
+and we measure the validity of short forced answers of the kind that [10]
+(48 tokens) and [15] (64 tokens) use to label stops. Neither paper reports
+an analysis of forced answers that are cut off at the budget.
 
-**Early exit from hidden states and calibrated stopping.**
-- Probes on hidden states predict whether an intermediate answer is correct
-  and can trigger an exit [6].
-- Probes can also detect a commitment boundary after which the steps are
-  epiphenomenal [31].
-- Thought Calibration [29] controls the risk of early termination with
-  Learn-then-Test.
-- Dong et al. [28] compare confidence, entropy, stability and learned
-  stoppers at a fixed lost-correct risk. They show that savings depend on
-  how the cost of the stopping signal is counted.
+**Training-free early exit.** Several methods decide online when a
+reasoning model may stop. DEER [5] treats transition words such as
+"Wait" as candidate exit points, induces a trial answer there, and exits
+when the answer's confidence exceeds a threshold (0.95 by default).
+Dynasor [4] probes the chain of thought at a fixed token interval by
+appending an answer prompt, and stops once recent probed answers agree.
+ThinkBrake [18] compares, at sentence boundaries, the log-probability of
+the end-of-thinking token with that of the most likely token. EAT [6]
+thresholds the entropy of the next token after an appended
+end-of-thinking token. NEAT [8] monitors the activations of neurons
+associated with exiting. LYNX [9] trains a probe on hidden states at cue
+words, with labels obtained from forced exits, and wraps its scores in
+split conformal prediction to control premature exits.
 
-We adopt their two lessons: charge the signal's cost, and compare at matched
-risk. We do not claim them. Where we differ from these papers:
-- our probe baseline is trained for the *same* label as the signal under
-  test;
-- we report a failure mode of matched-*mean*-saving comparisons;
-- we measure the validity of the forced answers that both [28] (48 tokens)
-  and [31] (64 tokens) use to label stops. Neither paper reports a
-  truncation analysis.
+These methods take their candidate points from the generated text or at
+fixed intervals, not from a known change in the answer. The leak we
+report (§4.2) concerns evaluation designs that place candidates around
+that change, as our registered design did; we do not claim that these
+methods are affected by it. DEER, Dynasor and LYNX use answers forced at a
+candidate point, for the exit decision or for training labels. We did not
+check the budget each uses, and make no claim about them, but our
+measurement (§4.3) implies that such results should report the forcing
+budget and the rate at which forced answers are cut off. ThinkBrake and
+EAT require an end-of-thinking delimiter, which the instruction-tuned
+model studied here does not have, so they are not baselines in this
+study. LYNX's conformal control of premature exits is close to the risk
+control that the stopping-policy study we propose would use (§5.4).
 
-**Training-free early-exit methods.** Several methods decide online when a
-reasoning model may stop, each from a different signal:
-- **DEER** [33] treats transition words such as "Wait" as candidate exit
-  points. There it induces a trial answer and exits when the answer's
-  confidence (token probabilities, threshold 0.95 by default) is high.
-- **Dynasor** [34] probes the chain of thought at a fixed token interval by
-  appending an answer prompt, and stops once recent probed answers agree.
-- **ThinkBrake** [35] compares the log-probability of the end-of-thinking
-  token with that of the top token at sentence boundaries.
-- **EAT** [36] thresholds the entropy of the next token after an appended
-  end-of-thinking token.
-- **NEAT** [37] tracks the activations of neurons associated with exiting.
-- **LYNX** [38] trains a probe on hidden states at cue words, with labels
-  from forced exits, and wraps its scores in split conformal prediction to
-  control premature exits.
+**Early answering.** Truncating a chain of thought and forcing an answer
+was introduced to test whether the stated reasoning is load-bearing [14].
+Recent work on belief tracking uses the same instrument with 11-token
+multiple-choice answers [19]. With free-form mathematical answers, a short
+budget often cuts off the derivation that the forced completion begins.
+We show that such answers are reproducible but not valid before the tail
+[X], and we measure the consequence for a stopping comparison [S].
 
-Three points of contact with this paper:
-- **Candidate points.** The methods above take candidate points from the
-  generated text (transition words, sentence boundaries, cue words) or at
-  fixed intervals, not from a known answer change. The menu leak we report
-  (§4.2) concerns evaluation designs that place candidates around the
-  answer change, as our registered design did. We do not claim that these
-  methods are affected by it.
-- **Forced answers.** DEER, Dynasor and LYNX use answers forced at a
-  candidate point, for the exit decision or for training labels. We did not
-  check the budget each uses for those answers, so we make no claim about
-  them. Our measurement (§4.3) bears on any such design. With a short
-  budget, many forced answers are cut off before they finish. So the budget
-  and the truncation rate should be reported with the result.
-- **Applicability here.** ThinkBrake and EAT need an end-of-thinking
-  delimiter. The instruction-tuned model we study has none, so they are not
-  baselines in this study. LYNX's conformal control of premature exits is
-  close to the risk control that our proposed stopping-policy study would
-  use (§5.4).
+**Verbalising activations.** NLAs [12] train a verbaliser and a
+reconstructor jointly, so that the text must carry enough information to
+rebuild the activation. Other decoders answer questions about activations
+and report gains over generic linear probes [20]. Li et al. [13] show
+that verbaliser benchmarks can often be solved from the input text alone
+and that verbalisations can reflect the verbaliser's own knowledge; in one
+experiment they train a linear probe on the same activations for the same
+labels and find it roughly on par with the verbaliser. Work on
+confabulation and on faithful verbalisation questions what
+reconstruction-trained explanations contain [21, 22]. We apply Li et al.'s
+same-activation, same-label control to an NLA and to a reasoning-state
+label: the NLA text outperforms the raw input text, but not that probe
+(§4.4).
 
-**Early answering as a faithfulness probe.** Truncate-and-answer was
-introduced to test whether chain-of-thought reasoning is load-bearing [16].
-It is used again in recent work on belief tracking [30], whose forced
-answers are 11-token multiple-choice letters. With free-form maths answers,
-a short forcing budget often cuts off the derivation the forced completion
-starts. We show that such answers are reproducible but invalid before the
-tail.
-
-**Verbalising activations.**
-- NLAs [10] train a verbaliser and a reconstructor jointly, so that the text
-  must carry enough information to rebuild the activation.
-- Other decoders answer questions about activations [32], and report gains
-  over generic linear probes.
-- Li et al. [12] show that verbalizer benchmarks can often be solved from
-  the input text alone, and that verbalizations can reflect the verbalizer's
-  own knowledge. They include a linear probe on the same activations for the
-  same labels in one experiment, and find it roughly on par with the
-  verbalizer.
-- Work on confabulation and on faithful verbalization [13, 14] questions
-  what reconstruction-trained explanations contain.
-
-We apply Li et al.'s control, a same-activation, same-label probe, to NLAs
-and to a reasoning-state label. The NLA text beats the raw input text, but
-not that probe.
-
-**Faithfulness of stated reasoning.** Models' stated reasoning can diverge
-from what drives their answers [15, 17]. We make no faithfulness claim
-about NLA explanations. Our evidence is predictive and string-level (§6).
+**Faithfulness of stated reasoning.** A model's stated reasoning can
+diverge from what drives its answers [23, 24]. We make no faithfulness
+claim about NLA explanations; our evidence is predictive and string-level
+(§6).

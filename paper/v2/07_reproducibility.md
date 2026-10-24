@@ -1,27 +1,42 @@
-# 7. Reproducibility statement (draft v1, 2026-10-23)
+# 7. Reproducibility statement
 
-- **Plans before data.** Every confirmatory, secondary and sensitivity
-  analysis has a plan hashed before it was computed. The hashes, dates and
-  deviations are in `docs/DECISIONS.md` (D66–D96), and Table 1(b) gives the
-  timeline. `reanalyse_o3_registered.py --confirmatory` refuses to run on a
-  plan whose hash differs from D75's.
-- **Numbers from outputs.** Every number in §4 comes from a JSON output
-  named in D94–D96. `scripts/check_run_consistency.py --replication
-  --complete` re-checks the recorded input hashes, recomputes every reading
-  from the stored estimates, and checks shared numbers, internal arithmetic,
-  gates and 11 listed numbers in the decision record (169 checks). It does
-  not recompute bootstrap estimates, and it does not read this manuscript.
-  The manuscript's numbers were copied from the outputs by hand and checked
-  by review against the claim matrix.
-- **Figures and tables** are generated from the stored outputs:
-  `scripts/make_paper_figures_v2.py` and `scripts/make_paper_tables_v2.py`
-  (`--runs <path>` reads another checkout's outputs).
-- **Code and environment.** The pipeline ran on one RTX 4050 Laptop GPU
-  (6 GB) with NF4 weights. Package versions are pinned in
-  `requirements.lock.txt`, and the CPU test suite runs on every pull request.
-- **Run artifacts.** The main run's artifacts are published as the GitHub
-  release `data-runs-2026-10-19` (D67). The replication's artifacts
-  (`rep1` and its follow-ups) are described in `docs/ARCHIVE_PLAN_REP1.md`;
-  their release identifier is recorded here once it is published and
-  verified. Blinded annotation sheets are withheld until annotation is
-  complete.
+*Revised candidate, 2026-10-24.*
+
+**Plans before data.** Every confirmatory, secondary and sensitivity
+analysis had a plan whose SHA-256 hash was recorded before the analysis
+was computed; hashes, dates and deviations are in the decision record
+(`docs/DECISIONS.md`, D66–D97), and Table 1(b) gives the timeline. The
+confirmatory script refuses to run on a plan whose hash differs from
+D75's.
+
+**From outputs to text.** Every number in §4 is taken from a stored JSON
+output. `paper/v2/evidence/key_numbers.json` binds each key number in the
+manuscript to its output file and field, and
+`scripts/verify_manuscript_numbers.py` recomputes and compares them.
+Separately, `scripts/check_run_consistency.py --replication --complete`
+re-checks the recorded input hashes, recomputes every reading from the
+stored estimates, and checks shared numbers, internal arithmetic and
+gates (169 checks). Neither tool re-runs the bootstraps.
+
+**Figures and tables** are generated from the stored outputs by
+`scripts/make_paper_figures_v2.py` and `scripts/make_paper_tables_v2.py`
+(`--runs <path>` reads another checkout's outputs).
+
+**Software and hardware.** The pipeline ran on one NVIDIA RTX 4050 Laptop
+GPU (6 GB) with NF4 weights, under Python 3.14 with PyTorch 2.9.1 (CUDA
+12.8 build), Transformers 5.18.0, bitsandbytes 0.50.2, scikit-learn 1.9.1,
+NumPy 2.5.3 and SciPy 1.18.1 (`requirements.lock.txt`). The CPU test
+suite runs on every pull request with the CPU build of the same PyTorch
+release.
+
+**Seeds.** Traces are greedy. The confirmatory bootstrap uses seed
+20261019 with 2,000 replicates; Stage 1's positions, folds and bootstrap
+use seed 20261020, with five further cross-validation seeds as a
+robustness check; the rewording null uses seed 20261019.
+
+**Run artifacts.** The main run's artifacts are published as the GitHub
+release `data-runs-2026-10-19`. The replication's artifacts, its
+follow-ups and the rewording null are prepared as a release candidate
+(sections 7 and 8 of `docs/ARCHIVE_PLAN_REP1.md`); its identifier will be added here
+when it is published. Blinded annotation sheets and their keys are
+withheld until the human annotation is complete.
