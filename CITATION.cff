@@ -1,22 +1,29 @@
 cff-version: 1.2.0
 message: >-
-  If you use this code or its frozen report, please cite it as below. The run
-  artifacts are a separate dataset release, listed under references.
+  If you use this code, its manuscript or its decision record, please cite it
+  as below. The run artifacts are separate dataset releases, listed under
+  references.
 type: software
 title: "Natural Language Autoencoders for Redundancy Diagnostics: the Answer-Stable Tail"
 abstract: >-
-  Code, frozen research report and decision record for a study of whether a
-  natural-language autoencoder's verbalised readout of layer-20 activations of
-  Qwen2.5-7B-Instruct says anything about the answer-stable tail of reasoning
-  traces that cheaper signals do not. On 250 GSM8K and MATH problems the
-  readout did not beat semantic entropy or a hidden-state probe at matched
-  token budget; the causal question (RQ3) was not tested on this model.
+  Code, pre-registration, decision record and manuscript for a study of
+  whether a natural-language autoencoder's verbalised readout of layer-20
+  activations of Qwen2.5-7B-Instruct signals when a model's answer has
+  settled during step-by-step reasoning, beyond cheaper signals. In a
+  pre-registered confirmatory replication on 400 unseen GSM8K and MATH
+  problems, both registered hypotheses were supported on the registered
+  48-token forced-answer outcome; pre-specified analyses showed that the
+  advantage cannot be attributed to the explanations' content and is not
+  supported under a 256-token outcome. At outcome-blind positions the
+  explanation text added no practically relevant predictive information
+  beyond a same-label probe on the same activation. Faithfulness of the
+  explanations was not tested.
 authors:
   - given-names: Tejo Sridhar
     family-names: M V S
-version: 0.1.0
-commit: 471360740810dfb41d6e5370e8307d8a7ab18b06
-date-released: 2026-10-19
+version: 0.2.0
+# Add when the v0.2.0 release is published: date-released (the release date)
+# and commit (the commit the release is built from). Neither exists yet.
 license: MIT
 repository-code: "https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail"
 keywords:
@@ -24,6 +31,8 @@ keywords:
   - interpretability
   - reasoning traces
   - early stopping
+  - pre-registration
+  - replication
 references:
   - type: data
     title: "Run artifacts: NLA Answer-Stable Tail (main, pilot, exploratory)"
@@ -34,3 +43,13 @@ references:
     date-released: 2026-10-19
     license: CC-BY-4.0
     url: "https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/releases/tag/data-runs-2026-10-19"
+  # Add when the replication archive is published (docs/ARCHIVE_PLAN_REP1.md §8):
+  # - type: data
+  #   title: "Run artifacts: NLA Answer-Stable Tail, with the confirmatory replication"
+  #   authors:
+  #     - given-names: Tejo Sridhar
+  #       family-names: M V S
+  #   version: data-runs-<date>
+  #   date-released: <date>
+  #   license: CC-BY-4.0
+  #   url: "https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/releases/tag/data-runs-<date>"
