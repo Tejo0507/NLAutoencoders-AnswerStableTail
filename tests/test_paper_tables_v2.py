@@ -1,4 +1,4 @@
-"""`scripts/make_paper_tables_v2.py`: copies stored numbers into Tables 2-3.
+"""`scripts/make_paper_tables_v2.py`: copies stored numbers into Tables 1-3.
 
 These tests use a temporary runs directory and output file; nothing here
 reads or writes `runs/` or `paper/`.
@@ -47,7 +47,7 @@ def test_missing_inputs_skip_the_table(tmp_path):
     assert mpt.table3(tmp_path) is None
 
 
-def test_table3_copies_the_verdict_verbatim(tmp_path):
+def test_table2_copies_the_verdict_verbatim(tmp_path):
     h = {"gap": 0.047076, "ci95": [0.018998, 0.075438], "p": 0.002, "p_holm": 0.002,
          "reading": "supported"}
     _w(tmp_path / "rep1_o3_registered" / "o3_registered.json", {
@@ -75,7 +75,11 @@ def test_table3_copies_the_verdict_verbatim(tmp_path):
         "n_units": 1600, "n_problems": 400,
         "primary": {"delta": 2.3e-05, "ci95": [-0.0041, 0.0041],
                     "reading": "equivalent within ±0.01"}})
-    t = mpt.table3(tmp_path)
+    t = mpt.table2(tmp_path)
+    assert t.startswith("## Table 2. The registered verdict")
     assert "| H1: readout − registered probe | +0.047 | [0.019, 0.075] | 0.002 | 0.002 | **supported** |" in t
     assert "equivalent within ±0.05" in t and "equivalent within ±0.01" in t
     assert "not about faithfulness" in t
+    # the D79 comparisons are named in words, not by the code's keys
+    assert "| falling-position rule − no signal | +0.100 [0.000, 0.200] | 0.5 |" in t
+    assert "position_tokens" not in t
