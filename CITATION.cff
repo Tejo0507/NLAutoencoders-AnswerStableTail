@@ -16,8 +16,10 @@ abstract: >-
   advantage cannot be attributed to the explanations' content and is not
   supported under a 256-token outcome. At outcome-blind positions the
   explanation text added no practically relevant predictive information
-  beyond a same-label probe on the same activation. Faithfulness of the
-  explanations was not tested.
+  beyond a same-label probe on the same activation. An exploratory
+  stopping-policy pilot on fresh problems saved tokens but did not meet its
+  pre-specified safety criterion. Faithfulness of the explanations was not
+  tested.
 authors:
   - given-names: Tejo Sridhar
     family-names: M V S
