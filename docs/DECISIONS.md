@@ -4661,3 +4661,26 @@ in D101–D102, or in `paper/v2/FREEZE_CHECKLIST.md`):
 | Publishing the GitHub release | **not before the freeze** | its README pins the build commit, and §7 must carry the published identifier |
 | Zenodo | **deferred** | no account (D67) |
 
+**8. Release candidate 3 (verified; not published).**
+- Built with `--status final` from a clean clone at `2ff663d`, with the
+  same inputs as D102's verification build. `pilot_posthoc` now holds
+  both post hoc files. Output: `D:\NLAutoencoders-release\rc3-2026-10-25\`.
+- 3,787 staged files and 3,778 run files; 115 sanitised.
+- Archive `nlaast-runs-2026-10-25.tar.gz`, 276,871,975 bytes, SHA-256
+  `99b7323a3444f5aa9d4fd72cfc96f98113b5096214f1469414beb404cdf07a71`.
+- After extraction, 3,786 of 3,786 checksum entries pass, and the
+  archive's `.sha256` verifies.
+- Provenance: 3,663 files are byte-identical to their sources, and 115 are
+  sanitised, each traced to its original hash. Nothing is missing; no
+  excluded entry is present, so `main_claim_annotation` stays withheld.
+- The rescan flags only the pinned F6 validator, and the README names
+  `2ff663d`.
+- `rep1_o3_registered`, `rep1_stage1` and `rep1_extforced` are
+  byte-identical to candidate 2's, and `pilot_evaluation/evaluation.json`
+  matches D101's hash.
+- The sources are unchanged afterwards: the pipeline checkout's 3,415 data
+  files, 197 code files and status; the pilot's 6 outputs; both post hoc
+  files.
+- It supersedes D102's verification build. The release still waits for
+  the freeze, because the final build must be made at the freeze commit.
+
