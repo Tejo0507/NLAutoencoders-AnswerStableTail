@@ -8,7 +8,8 @@ Phases, in the order the protocol fixes (each refuses to run out of order):
 
     check                     validate the frozen protocol and print its SHA-256
     force     --run pilot_cal   256-token forced answer at every boundary, exact counts,
-                                plus the re-forcing and stability checks   [GPU]
+                                plus the re-forcing check (no stability check: the
+                                pilot forces at one budget; D102)            [GPU]
     fit                       fit P0 (position) and P1 (same-label probe) on rep1
                               Stage 1 (read only) and freeze them
     score     --run pilot_cal   both policies' scores at every boundary
