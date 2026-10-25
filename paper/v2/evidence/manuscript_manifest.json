@@ -23,13 +23,13 @@
   "reporting_guidelines": [],
   "required_statements": {
     "ai_disclosure": "draft",
-    "author_contributions": "missing",
+    "author_contributions": "draft",
     "code_availability": "draft",
-    "conflicts": "missing",
+    "conflicts": "draft",
     "consent": "draft",
     "data_availability": "draft",
     "ethics": "draft",
-    "funding": "missing"
+    "funding": "draft"
   },
   "schema_version": "1.0",
   "study_design": "computational experiment on a language model (pre-registered, with a confirmatory replication); no human or animal participants",

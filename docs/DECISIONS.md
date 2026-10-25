@@ -4684,3 +4684,55 @@ in D101–D102, or in `paper/v2/FREEZE_CHECKLIST.md`):
 - It supersedes D102's verification build. The release still waits for
   the freeze, because the final build must be made at the freeze commit.
 
+## D104. The author's confirmations: author, funding, conflicts, ethics, IEEE
+
+**Recorded 2026-10-25, evening,** from the researcher's message of that
+date. Nothing was frozen or published.
+
+**The researcher confirmed:**
+- sole authorship;
+- the affiliation: Department of Computational Intelligence, SRM
+  Institute of Science and Technology, Kattankulathur, Tamil Nadu, India;
+- the institutional email and the ORCID;
+- **no funding**;
+- **no competing financial or professional interests**;
+- **no human participants and no private personal data**: no surveys,
+  interviews or experiments with people; public benchmarks and
+  computational experiments only;
+- the target publisher, **IEEE**, with no venue chosen yet.
+
+**Checked.**
+- **ORCID:** the public record of 0009-0007-5023-1092 lists the name
+  "Tejo Sridhar M V S".
+- **Affiliation:** SRMIST's own documents (the IconDeepCom 2024 brochure)
+  place the department in the School of Computing, Faculty of Engineering
+  and Technology, at Kattankulathur, Chennai 603203. The paper and
+  `CITATION.cff` use "Department of Computational Intelligence, School of
+  Computing, SRM Institute of Science and Technology, Kattankulathur
+  603203, Tamil Nadu, India". The researcher confirms that form.
+- **IEEE policy** (IEEE Author Center, dated 16 April 2024 and checked
+  2026-10-25):
+  - AI-generated content is disclosed in the Acknowledgments, naming the
+    system, the sections and the level of use;
+  - an oversight statement is required for research with human subjects
+    or animals;
+  - funding and conflict-statement placement depend on the venue.
+- **AI use, corrected:** the session records begin on **2026-10-03**, not
+  2026-10-16 as D103 said (that date came from file modification times).
+  They name Claude Opus 4.7, Opus 5 and Opus 5.5, Sonnet 5.5 and Haiku 4.5.
+
+**Written.**
+- `paper/v2/09_declarations.md` gains a funding statement, a
+  conflict-of-interest statement, an ethics statement and a CRediT
+  contribution statement. The ethics statement claims no IRB review,
+  approval or exemption.
+- The AI-use statement follows IEEE's structure.
+- An author block is added under the title.
+- `CITATION.cff` gains the affiliation and the ORCID.
+- The personal email is not written into any public file.
+- All eight required statements are `draft` until the researcher approves
+  the final wording.
+
+**Open:** the researcher's approval of the affiliation form, the CRediT
+roles and the AI statement; the venue; and approval of the text.
+
