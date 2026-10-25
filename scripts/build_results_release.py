@@ -150,6 +150,26 @@ RELEASED = {
                             "D76; D97"),
     "main_paraphrase_llm_logs": ("logs", "D76 phase logs and its input and output SHA-256 lists",
                                  "D97"),
+    "pilot_cal": ("exploratory-pilot",
+                  "Stopping-policy pilot calibration set: 300 fresh problems, traces, layer-20 "
+                  "activations, 256-token forced answers at every boundary, policy scores",
+                  "D99; D100; D101"),
+    "pilot_eval": ("exploratory-pilot",
+                   "Stopping-policy pilot evaluation set: 150 fresh problems, as pilot_cal",
+                   "D99; D100; D101"),
+    "pilot_models": ("exploratory-pilot",
+                     "P0 and P1 as fitted on rep1 Stage 1 and frozen (a pickle; its SHA-256 is "
+                     "in models.json)", "D99; D101"),
+    "pilot_calibration": ("exploratory-pilot", "SGR thresholds, frozen and hashed before evaluation",
+                          "D99; D101"),
+    "pilot_evaluation": ("exploratory-pilot",
+                         "The pilot's one evaluation pass; not a safety certification", "D101"),
+    "pilot_evaluation_supplement": ("exploratory-pilot",
+                                    "The paired P1 - P0 saving that evaluate skipped",
+                                    "D101"),
+    "pilot_posthoc": ("post-hoc", "Where P1 stops on the evaluation set (descriptive)", "D102"),
+    "pilot_logs": ("logs", "The pilot's orchestrator and step logs, and its input and output "
+                   "SHA-256 lists", "D99-D102"),
     "rep1_checkout_state_manifest": ("provenance",
                                      "SHA-256 list, git status, HEAD and branch of the code "
                                      "state every rep1 output records; the files themselves "
