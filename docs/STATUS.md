@@ -36,7 +36,7 @@ Last reviewed 2026-10-25, 18:30 IST.
 > | **Release, verified but not published** | candidate 3, `D:\NLAutoencoders-release\rc3-2026-10-25\` (from `2ff663d`; 3,778 run files including the pilot; 3,786/3,786 checksums; every file traced; annotation sheets withheld; archive SHA-256 `99b7323a…7a71`; D103 §8). The final build is made at the freeze commit |
 > | **Outstanding (no decision needed)** | the final release build at the freeze commit; an independent (not self-) review of the manuscript |
 > | **Explicitly deferred** | Zenodo (`docs/ZENODO_FOLLOWUP.md`; no account); Stage 0 on rep1; human annotation (blinded sheets withheld); any confirmatory stopping study |
-> | **Blocked on the researcher** | approving and freezing the manuscript (`paper/v2/FREEZE_CHECKLIST.md` §B: affiliation, contributions, funding, competing interests, venue, and confirmation of the drafted ethics, AI-use and availability statements); publishing the GitHub release after the freeze; any follow-up study (needs its own frozen plan, a use-case α, and fresh evaluation data) |
+> | **Blocked on the researcher** | approving and freezing the manuscript (`paper/v2/FREEZE_CHECKLIST.md` §B: funding, conflicts, ethics and authorship confirmed in D104; still open are approving the affiliation form, the CRediT roles and the AI statement, choosing the IEEE venue, and approving the text); publishing the GitHub release after the freeze; any follow-up study (needs its own frozen plan, a use-case α, and fresh evaluation data) |
 > | **Decided in D103** | the pilot stays in the main text; its outputs ship in the release; the confirmatory study as designed is not approved |
 >
 > **Where things are.**

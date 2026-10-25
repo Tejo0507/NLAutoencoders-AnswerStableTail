@@ -17,7 +17,7 @@
 | CPU test suite | `python -m pytest -m "not slow"` | 1,237 collected: 1,206 passed, 31 skipped, 0 failed, 0 errors |
 | Bibliography metadata | arXiv API (27 entries), Crossref, proceedings pages, OpenAlex (D103 §4) | 32 of 32 match their external records; no correction needed |
 | scientific-writing manifest | `validate_manifest.py evidence/manuscript_manifest.json` | pass, 0 errors; 5 statements `draft`, 3 `missing` |
-| scientific-writing linter (text) | `lint_manuscript.py MANUSCRIPT.md --manifest evidence/manuscript_manifest.json` | no text issues; 2 manifest items need a person (confidentiality and policy review) |
+| scientific-writing linter (text) | `lint_manuscript.py MANUSCRIPT.md --manifest evidence/manuscript_manifest.json` | 2 manifest items need a person (confidentiality and policy review). 2 warnings flag the corresponding email, which is intended. 2 errors ask for the skill's inline `[claim:…][evidence:…]` markers on the conflict and consent lines; this project traces evidence through `key_numbers.json` and the decision record instead, and these statements rest on the author's confirmation (D104). No other text issue |
 
 ## B. Items for the author, with what is already settled
 
@@ -30,30 +30,46 @@ Settled by D103, with the evidence there:
       verification build with them passes every check (D102).
 - [x] **Reference metadata:** 32 of 32 match their external records.
 
-Drafted from the record (`09_declarations.md`, marked [record]). The
-author confirms each one or corrects it:
-- [ ] **Ethics and consent:** no human participants; public benchmarks;
-      the human annotation protocol was not run; the one annotation pass
-      was an AI's. The author says whether an ethics review applies.
-- [ ] **Data and code availability:** confirm the wording. The replication
-      archive's identifier goes into §7 once it is published.
-- [ ] **AI use:** the session records from 2026-10-16 show the assistant's
-      role. The author supplies the extent before that date and the
-      venue's wording. The skills used ask to be cited (Kassis et al.,
-      *Scientific Agent Skills*, arXiv:2609.00065); whether to cite them is
-      the author's decision and is not done here.
-- [ ] **Author name** (from `CITATION.cff`): confirm, and add the
-      affiliation, ORCID and corresponding address.
+Confirmed by the author on 2026-10-25 and written into
+`09_declarations.md` and the author block (D104):
+- [x] **Author:** Tejo Sridhar M V S, sole author. The ORCID
+      0009-0007-5023-1092 was checked against the public ORCID record,
+      whose name matches. The corresponding address is the institutional
+      one. The personal email is kept out of the public files.
+- [x] **Funding:** "This research received no funding."
+- [x] **Competing interests:** "The author declares no competing financial
+      or professional interests."
+- [x] **Ethics and consent:** no human participants, surveys, interviews or
+      private personal data; public benchmarks; computational experiments
+      only. No IRB review was sought, and no approval or exemption is
+      claimed. IEEE requires an oversight statement only for research with
+      human subjects or animals; the statement explains why none applies.
+- [x] **Target publisher:** IEEE. Its AI policy (IEEE Author Center,
+      checked 2026-10-25) requires disclosure in the Acknowledgments,
+      naming the AI system, the sections affected and the level of use. The
+      AI statement in `09_declarations.md` follows that structure.
 
-Only the author can supply these. Nothing in the repository establishes
-them:
-- [ ] **Author contributions** (for example CRediT roles), and whether the
-      author list is complete.
-- [ ] **Funding** statement and sponsor role. No funder is recorded, which
-      is not the same as "unfunded".
-- [ ] **Competing interests** statement.
-- [ ] **Target venue**, which sets the template, length, reference style
-      and AI-use policy.
+Drafted from the record. The author approves each wording:
+- [ ] **Affiliation wording.** SRMIST's own documents place the department
+      in the School of Computing, Faculty of Engineering and Technology, at
+      Kattankulathur, Chennai 603203. The draft reads "Department of
+      Computational Intelligence, School of Computing, SRM Institute of
+      Science and Technology, Kattankulathur 603203, Tamil Nadu, India".
+      Confirm that form, or the form your institution asks for.
+- [ ] **Author contributions** (CRediT): all roles, as sole author.
+- [ ] **AI-use statement.** The session records (2026-10-03 onwards) name
+      the Claude models and the four levels of use. Confirm that the
+      statement is complete, including any AI use before 2026-10-03 (the
+      repository starts on 2026-08-27), and that its wording is acceptable.
+      The skills used ask to be cited (Kassis et al., *Scientific Agent
+      Skills*, arXiv:2609.00065); whether to cite them is your decision.
+- [ ] **Data and code availability:** the replication archive's identifier
+      goes into §7 once it is published.
+
+Still open:
+- [ ] **The specific IEEE venue.** It fixes the template (IEEEtran), the
+      length, where funding and conflict statements go, and any
+      venue-specific rules.
 - [ ] **Approve the text** of `paper/v2/` (all sections, captions, tables,
       references, declarations), or return changes. Recommended before
       approving: read §3.9, §4.9 and §5.4 against claim-matrix §S, and read

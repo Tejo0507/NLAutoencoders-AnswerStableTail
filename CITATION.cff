@@ -23,6 +23,8 @@ abstract: >-
 authors:
   - given-names: Tejo Sridhar
     family-names: M V S
+    affiliation: "Department of Computational Intelligence, School of Computing, SRM Institute of Science and Technology, Kattankulathur 603203, Tamil Nadu, India"
+    orcid: "https://orcid.org/0009-0007-5023-1092"
 version: 0.2.0
 # Add when the v0.2.0 release is published: date-released (the release date)
 # and commit (the commit the release is built from). Neither exists yet.

@@ -5,6 +5,12 @@
 bound to a stored output in `paper/v2/evidence/key_numbers.json` and
 checked by `scripts/verify_manuscript_numbers.py`.*
 
+**Tejo Sridhar M V S**\
+Department of Computational Intelligence, School of Computing, SRM
+Institute of Science and Technology, Kattankulathur 603203, Tamil Nadu,
+India\
+ORCID: https://orcid.org/0009-0007-5023-1092 · tm1872@srmist.edu.in
+
 ## Abstract
 
 Natural-language autoencoders (NLAs) translate a language model's internal
