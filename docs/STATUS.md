@@ -30,12 +30,14 @@ Last reviewed 2026-10-25, 18:30 IST.
 > | state | items |
 > |---|---|
 > | **Completed and verified** | rep1 and its follow-ups (D94–D96; replication checker 169/169, re-run 2026-10-25); D76 (D97); the pilot (D101; output hashes 6/6 re-verified 2026-10-25; Clopper–Pearson bounds recomputed independently); the manuscript's 112 key numbers against outputs (`verify_manuscript_numbers.py --pilot`); structure, citations and § references (`assemble_manuscript_v2.py --check`); figures regenerate byte-identically; Tables 1–3 regenerated; CPU suite 1,204 passed, 31 skipped, 0 failed (2026-10-25); branch protection (D97) |
-> | **Implemented, not fully verified** | the two new references [31], [32] (checked against their primary records by the assistant; no human check); every review so far is a self-review |
-> | **In progress** | PR #62 (D102: manuscript integration, the pilot records, release classification): CI green, **awaiting the researcher's merge** |
+> | **Verified on 2026-10-25 (D103)** | the pilot's results, recomputed independently from the raw per-boundary files (identical); the problem sets' disjointness; all 32 references against external records; the declarations drafted from the record; `LICENSE` now plain MIT |
+> | **Not independently verified** | every review so far is a self-review; no person has read the references' cited propositions for this manuscript |
+> | **Merged** | PR #62 (D102–D103: the pilot in the manuscript, the verification pass, the release classification) |
 > | **Release, verified but not published** | candidate 2 (`rc2-2026-10-24`); a verification build with the pilot (`D:\NLAutoencoders-release\rc3-check-2026-10-25\`: 3,777 run files, 3,785/3,785 checksums, every file traced, annotation sheets withheld; D102). Both are superseded by the build at the freeze commit |
 > | **Outstanding (no decision needed)** | the final release build at the freeze commit; an independent (not self-) review of the manuscript |
 > | **Explicitly deferred** | Zenodo (`docs/ZENODO_FOLLOWUP.md`; no account); Stage 0 on rep1; human annotation (blinded sheets withheld); any confirmatory stopping study |
-> | **Blocked on the researcher** | approving and freezing the manuscript (`paper/v2/FREEZE_CHECKLIST.md` §B: authors, funding, competing interests, AI-use disclosure, ethics, data availability, venue, human reference check, the pilot's place in the paper); publishing the GitHub release, and whether the pilot's outputs ship in it; any follow-up study (needs its own frozen plan, a use-case α, and fresh evaluation data) |
+> | **Blocked on the researcher** | approving and freezing the manuscript (`paper/v2/FREEZE_CHECKLIST.md` §B: affiliation, contributions, funding, competing interests, venue, and confirmation of the drafted ethics, AI-use and availability statements); publishing the GitHub release after the freeze; any follow-up study (needs its own frozen plan, a use-case α, and fresh evaluation data) |
+> | **Decided in D103** | the pilot stays in the main text; its outputs ship in the release; the confirmatory study as designed is not approved |
 >
 > **Where things are.**
 > - The paper and docs worktree is `D:\NLAutoencoders-wt`. Edit

@@ -568,6 +568,9 @@ The full, checked reference list is [`paper/references.md`](paper/references.md)
 
 ## License
 
-The code is MIT, except `third_party/nla_inference/`, which is Apache-2.0 (see
-its [`NOTICE.md`](third_party/nla_inference/NOTICE.md)). The released run
+The code is MIT ([`LICENSE`](LICENSE)), except `third_party/nla_inference/`,
+which is not covered by that licence: it is vendored from
+https://github.com/kitft/natural_language_autoencoders under the Apache
+License 2.0 (its [`LICENSE`](third_party/nla_inference/LICENSE) and
+[`NOTICE.md`](third_party/nla_inference/NOTICE.md)). The released run
 artifacts are CC-BY-4.0.

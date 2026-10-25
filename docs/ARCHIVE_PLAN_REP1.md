@@ -183,8 +183,10 @@ sheets stay withheld.
 **Also to update at release:** `CITATION.cff` still describes v0.1.0 (the
 frozen main-run report at `4713607`). Its abstract, version, commit and
 date, and a data reference for the rep1 archive, must be updated together
-with the release. GitHub reports the MIT `LICENSE` as `NOASSERTION`
-because of its appended third-party note. The text is correct.
+with the release. GitHub reported the MIT `LICENSE` as `NOASSERTION`
+because of its appended third-party note. The note now lives in the
+README's licence section, and `LICENSE` holds the unmodified MIT text
+(D103); the licence terms are unchanged.
 
 ## 8. Release decisions and candidate 2 (2026-10-24; not published)
 

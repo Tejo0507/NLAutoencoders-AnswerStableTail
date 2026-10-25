@@ -1,6 +1,13 @@
 # Stopping-policy pilot: runbook (prepared 2026-10-24)
 
-> **Not authorised to run.** This runbook prepares the pilot of
+> **Executed 2026-10-25** in
+> `D:\NLAutoencoders-experiments\stopping-pilot-2026-10-25\` after the
+> researcher's approval (D99), with one deviation (D100); results in D101,
+> post-run notes in D102–D103. Do not re-run it into the same tree, and never
+> reuse its evaluation set as confirmatory data. The text below is the
+> runbook as prepared.
+>
+> **Not authorised to run (as prepared, 2026-10-24).** This runbook prepares the pilot of
 > `docs/STOPPING_POLICY_PILOT_PROTOCOL.md`. Nothing below may start until the
 > researcher has made decisions D1–D9 (protocol §5), the protocol file is
 > frozen and committed, its SHA-256 is recorded in `docs/DECISIONS.md`, and

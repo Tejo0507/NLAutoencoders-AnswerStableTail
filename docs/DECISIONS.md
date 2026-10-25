@@ -4558,3 +4558,106 @@ frozen).**
 - every registered result, plan and stored output;
 - the pipeline checkout.
 
+## D103. Verification pass before author review; decisions on the open approvals
+
+**Recorded 2026-10-25, about 19:10 IST,** on the researcher's instruction
+of 2026-10-25. That instruction asked for every open item to be verified
+and for routine decisions to be taken without asking. No GPU work ran, no
+process was running or stopped, and nothing was published.
+
+**1. The pilot, recomputed independently from the raw per-boundary files.**
+The recomputation does not import `nlaast.analysis.stopping_pilot`. It
+uses `nlaast.data.answers.equivalent`, scipy and its own implementations
+of the labels, the walk, SGR, the savings and the bootstrap. Scratch
+script only; nothing was written to the pilot tree.
+- Labels: 0 mismatches against `pilot_scores.jsonl`, in calibration and in
+  evaluation. Each trace's stored `final_correct` agrees with a re-check
+  against gold.
+- SGR: the same τ for both policies (P0 none on a 198-point grid; P1
+  0.9453365088 on 200).
+- Evaluation: 148 stops, 6 unsafe, risk 0.04054, 95% CI [0.01502,
+  0.08615], one-sided bound 0.07844, mean saving 0.05475, bootstrap CI
+  [0.04556, 0.06542]. All identical to the stored outputs.
+- Re-forcing: 46/50 alone and 50/50 paired (calibration); 50/50 paired
+  (evaluation).
+- Disjointness: no overlap between the calibration and evaluation sets,
+  and none between either set and the 678 problem ids of every earlier
+  run under the pipeline's `runs/`.
+- The `split` field in the pilot's problem files is the project's internal
+  probe hash split, not the benchmark split; every id comes from a
+  benchmark test split.
+
+**2. A finding the paper did not report, now reported [P].** 11 of P1's
+148 evaluation stops save nothing once the forced answer is charged: 1 at
+the trace's end, and 10 where the prefix plus the forced answer reach the
+trace's length. Only 137 of the 150 problems (0.913) have a stop that
+saves tokens, so coverage (0.987) overstates useful stops.
+- `scripts/describe_pilot_stops.py` now also reports this. It gained
+  `--out` and never overwrites; it wrote a new file,
+  `runs/pilot_posthoc/stop_savings.json` (SHA-256
+  `d4e51afa5941915a158f8d3baec9f4152353e056b34a8c8c663c0885462dd81d`).
+  `stop_positions.json` is unchanged (`8761428f…f234`).
+- The finding is added to §4.9, §5.4, claim-matrix row S3 and key numbers
+  N112–N114. The safety numbers are unaffected.
+
+**3. The stability check (D102), reasoned through.** For an answer that
+finished within its budget, a larger budget cannot change the greedy
+tokens generated before the end token in the same batch. The failure
+that D82's stability check could detect, an answer that changes between
+calls, is the one the paired re-forcing check measures. The paper's §3.9
+now says so, marked [A]. The check is still disclosed as listed in the
+protocol and not run. The protocol, runbook and proposal now open with
+dated post-run notes; their designs are left as written.
+
+**4. References.** All 32 were checked against external records on
+2026-10-25:
+- the 27 with arXiv identifiers through one arXiv API query, matching
+  title and first author (Qwen2.5's arXiv record lists the team first, as
+  the entry does);
+- Schuirmann and Clopper–Pearson through Crossref;
+- MATH through the NeurIPS Datasets and Benchmarks page;
+- Holm through OpenAlex;
+- the NLA report through its page (title and date).
+
+No entry needed a correction. Whether each source supports the sentence
+citing it was checked in the 2026-10-20/23 reviews; an author's reading is
+still recommended before submission.
+
+**5. Smaller fixes.**
+- `LICENSE` held MIT text with a third-party note appended, so GitHub
+  reported `NOASSERTION`. The note moved to the README's licence section,
+  which already said the same, and `LICENSE` is now the unmodified MIT
+  text. The licence terms are unchanged.
+- §3.1 states the plan's sample-size rationale (review item). The
+  expected H1 half-width, 0.028, equals the observed one.
+- Monte Carlo error of H1's 2,000-replicate bootstrap (review item): a
+  normal approximation to H1's interval reproduces its Holm p = 0.002, with
+  about 1 replicate expected at or below 0. Even 4 such replicates give
+  Holm p of about 0.008, so the reading cannot flip. Not added to the paper.
+- `CITATION.cff`'s abstract mentions the pilot (valid against CFF 1.2.0).
+
+**6. Declarations.** `paper/v2/09_declarations.md` is new and is
+assembled after §7.
+- Drafted from the record: the author named in `CITATION.cff` and
+  `LICENSE`; ethics and consent (no human participants; the only
+  annotation pass was an AI's); AI use as the session records from
+  2026-10-16 show it; data, code and compute availability.
+- Left for the author: affiliation and ORCID, contributions, funding,
+  competing interests, AI use before 2026-10-16 and the venue's wording,
+  and whether an ethics review applies.
+- `evidence/manuscript_manifest.json` marks five statements `draft` and
+  three `missing`; it validates with 0 errors.
+
+**7. Decisions on the open approvals** (the evidence for each is above,
+in D101–D102, or in `paper/v2/FREEZE_CHECKLIST.md`):
+
+| item | decision | why |
+|---|---|---|
+| Merge PR #62 | **approved; merged after these checks** | the researcher's instruction allows a merge once verified; CI and branch protection are the gate |
+| The pilot's place in the paper | **keep in the main text as written** | it is the paper's only out-of-sample evidence on its open practical question; moving a failed safety criterion to a supplement would hide a negative result |
+| The pilot's outputs in the release | **include** | D98's rule (the paper reports it); a verification build including them passes every check (D102) |
+| A follow-up confirmatory study as designed | **not approved** | protocol §3.9, criterion 1 not met |
+| Approving and freezing the manuscript | **not taken here** | only the author can approve the text and supply the missing statements |
+| Publishing the GitHub release | **not before the freeze** | its README pins the build commit, and §7 must carry the published identifier |
+| Zenodo | **deferred** | no account (D67) |
+
