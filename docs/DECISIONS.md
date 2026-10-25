@@ -4313,3 +4313,48 @@ uses a clean clone of that commit in an isolated tree
 (`docs/STOPPING_POLICY_PILOT_RUNBOOK.md` §2), and its log records the
 clone's file hashes.
 
+## D100. Pilot deviation 1: the re-forcing check is redone in the original batch pairs
+
+**Recorded 2026-10-25, about 07:15 IST, before any calibration threshold,
+policy score summary, safety label or evaluation problem was read or
+produced.**
+
+**What happened.**
+- The pilot ran under D99 from 01:04 to 06:59 IST: 300/300 calibration
+  traces, activations with 0 clamped positions, and 3,554/3,554
+  boundaries forced at 256 tokens. The policies were fitted and scored.
+- `calibrate` then stopped at the instrument gate, as designed. The
+  re-forcing agreement was **0.92** (46 of 50) against the frozen 0.95.
+  No calibration file was written, and the run stopped.
+
+**Diagnosis, from instrument data only** (block membership, finished
+flags, token counts; no gold answer, label or score was read):
+- **The cause is a defect in the check's design, not instrument
+  unreliability.** The check re-forced each sampled boundary on its own,
+  while the stored answers had been forced in blocks of 2. With NF4
+  weights, a batch's composition can change a greedy answer (D80).
+- **All 4 disagreements** were boundaries forced in a pair and re-forced
+  alone: 32 of 36 such boundaries agreed.
+- **Every boundary re-forced in a batch of its original size agreed**:
+  14 of 14.
+- rep1's check (D80) re-forced in matching blocks and passed at 0.965.
+
+**Decision (researcher, 2026-10-25).**
+- Redo the check in the original pairs. Each of the same 50 sampled
+  boundaries is re-forced inside its original block (same members, same
+  order, same batch size), and only the sampled boundaries are recorded
+  (`repro_paired`).
+- **The gate is unchanged (0.95).** The pilot continues only if the paired
+  check passes.
+- The single-boundary rows (`repro`) are kept and reported beside the
+  gate.
+- The same paired check applies to the evaluation set.
+- Nothing else in the protocol changes.
+
+**What it implies.**
+- About 11% of single 256-token forced answers (4 of 36) changed with
+  batch composition. The forced-answer outcome therefore carries a small
+  batch-dependent component.
+- That is a property of the instrument under NF4 batching. It will be
+  reported with the pilot's results.
+
