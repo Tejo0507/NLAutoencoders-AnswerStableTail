@@ -112,6 +112,30 @@ def test_calibrate_then_evaluate_on_synthetic_runs(tmp_path):
             assert set(ev["sensitivity"][pol]) == {"cut_off_unsafe", "as_parsed", "as_no_answer"}
 
 
+def test_the_gate_uses_the_paired_recheck_when_it_exists(tmp_path):
+    """D100: a single-boundary re-check is reported, the paired one gates."""
+    rng = np.random.default_rng(3)
+    d = _run(tmp_path / "runs", "pilot_cal", 20, rng)
+    forced = [json.loads(l) for l in (d / "pilot_forced.jsonl").read_text().splitlines()]
+    singles = [r for r in forced if r["purpose"] == "repro"]
+    for r in singles[:5]:                      # the single re-check disagrees 5 times in 20
+        r["answer"] = "999"
+    paired = [{**r, "id": r["id"].replace("|repro", "|repro_paired"), "purpose": "repro_paired",
+               "answer": next(e["answer"] for e in forced if e["purpose"] == "ext"
+                              and e["problem_id"] == r["problem_id"] and e["chunk"] == r["chunk"])}
+              for r in singles]
+    (d / "pilot_forced.jsonl").write_text("".join(json.dumps(r) + "\n" for r in forced + paired))
+    rows = sp.boundary_rows(d)
+    inst = sp.instrument(d, rows, {"reforce_agreement": 0.95, "attrition": 0.75})
+    assert inst["reforce_check"] == "repro_paired" and inst["reforce_agreement"] == 1.0
+    assert inst["single_boundary_reforce_agreement"] == pytest.approx(0.75)
+    assert inst["passed"] is True
+    # without the paired rows, the single check is used and fails
+    (d / "pilot_forced.jsonl").write_text("".join(json.dumps(r) + "\n" for r in forced))
+    inst = sp.instrument(d, rows, {"reforce_agreement": 0.95, "attrition": 0.75})
+    assert inst["reforce_check"] == "repro" and inst["passed"] is False
+
+
 def test_calibration_refuses_once_evaluation_forcing_exists(tmp_path):
     rng = np.random.default_rng(1)
     path = _protocol(tmp_path)

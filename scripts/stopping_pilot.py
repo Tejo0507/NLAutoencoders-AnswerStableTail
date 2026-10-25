@@ -135,22 +135,34 @@ def cmd_force(a, proto) -> int:
         return model.build_prompt(t["question"], prefix_text(chunks[p], i, t["trace"])
                                   + gcfg.force_answer_suffix)
 
-    work = [(purpose, p, b) for purpose, sel in
-            (("ext", {p: list(range(len(c))) for p, c in chunks.items()}),
-             ("repro", {p: [i for (q, i) in check if q == p] for p in chunks}))
-            for p in sorted(sel) for b in blocks(sel[p], blk) if b]
+    # The re-forcing check (D100) re-forces each sampled boundary inside its
+    # original block (same members, same order, same batch size), because with
+    # NF4 weights a batch's composition can change a greedy answer (D80). Only
+    # the sampled boundaries are recorded; their block partners are re-forced
+    # for the batch, not written.
+    ext_blocks = {p: blocks(list(range(len(c))), blk) for p, c in chunks.items()}
+    work = [("ext", p, b, b) for p in sorted(chunks) for b in ext_blocks[p]]
+    work += [("repro_paired", p, b, [i for i in b if (p, i) in check])
+             for p in sorted(chunks) for b in ext_blocks[p] if any((p, i) in check for i in b)]
     t0 = time.monotonic()
     try:
         with writer:
-            for n, (purpose, p, b) in enumerate(work):
-                todo = [i for i in b if not writer.has(f"{p}|{i}|{purpose}")]
+            for n, (purpose, p, b, keep) in enumerate(work):
+                if purpose == "ext":
+                    todo = [i for i in b if not writer.has(f"{p}|{i}|{purpose}")]
+                    batch = todo
+                else:
+                    todo = [i for i in keep if not writer.has(f"{p}|{i}|{purpose}")]
+                    batch = b                    # the whole original block, in order
                 if not todo:
                     continue
-                gens = model.generate([prompt(p, i) for i in todo], max_new_tokens=budget,
+                gens = model.generate([prompt(p, i) for i in batch], max_new_tokens=budget,
                                       temperature=0.0, top_p=1.0, do_sample=False,
-                                      seed=derive(cfg.seed, "pilot_force", p, todo[0]),
-                                      batch_size=len(todo))
-                for i, g in zip(todo, gens):
+                                      seed=derive(cfg.seed, "pilot_force", p, batch[0]),
+                                      batch_size=len(batch))
+                for i, g in zip(batch, gens):
+                    if i not in todo:
+                        continue
                     text = gcfg.force_answer_suffix + g.text
                     writer.write({"id": f"{p}|{i}|{purpose}", "problem_id": p, "chunk": i,
                                   "purpose": purpose, "budget": budget,
@@ -193,18 +205,30 @@ def boundary_rows(run_dir: Path) -> list[dict]:
 
 
 def instrument(run_dir: Path, rows: list[dict], gates: dict) -> dict:
-    """The protocol's instrument checks: re-forcing agreement and attrition."""
+    """The protocol's instrument checks: re-forcing agreement and attrition.
+
+    The gate uses the paired re-forcing check (`repro_paired`, D100). The
+    single-boundary check that preceded it (`repro`) is reported beside it,
+    never used for the gate when a paired check exists.
+    """
     from nlaast.logging_utils import read_jsonl
 
     forced = list(read_jsonl(run_dir / "pilot_forced.jsonl"))
     ext = {(r["problem_id"], r["chunk"]): r for r in forced if r["purpose"] == "ext"}
-    rep = [r for r in forced if r["purpose"] == "repro"]
-    agree = [ext[(r["problem_id"], r["chunk"])]["answer"] == r["answer"] for r in rep
-             if (r["problem_id"], r["chunk"]) in ext]
+
+    def agreement(purpose):
+        rep = [r for r in forced if r["purpose"] == purpose]
+        return [ext[(r["problem_id"], r["chunk"])]["answer"] == r["answer"] for r in rep
+                if (r["problem_id"], r["chunk"]) in ext]
+
+    paired, single = agreement("repro_paired"), agreement("repro")
+    agree, used = (paired, "repro_paired") if paired else (single, "repro")
     traces = [t for t in read_jsonl(run_dir / "traces" / "traces.jsonl") if t.get("ok")]
     planned = sum(len(t["chunks"]) for t in traces)
     out = {"reforce_agreement": float(np.mean(agree)) if agree else None,
-           "n_reforce": len(agree), "attrition_share": len(rows) / planned if planned else 0.0,
+           "reforce_check": used, "n_reforce": len(agree),
+           "single_boundary_reforce_agreement": float(np.mean(single)) if single else None,
+           "attrition_share": len(rows) / planned if planned else 0.0,
            "planned_boundaries": planned, "forced_boundaries": len(rows)}
     out["passed"] = (out["reforce_agreement"] is not None
                      and out["reforce_agreement"] >= gates["reforce_agreement"]
