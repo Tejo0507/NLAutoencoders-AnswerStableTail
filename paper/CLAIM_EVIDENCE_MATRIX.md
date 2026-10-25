@@ -1,4 +1,4 @@
-# Claim–evidence matrix (2026-10-20; rep1 results and D76 added 2026-10-23)
+# Claim–evidence matrix (2026-10-20; rep1 results and D76 added 2026-10-23; the stopping-policy pilot added 2026-10-25)
 
 Every claim the revised paper could make is mapped here to its evidence, its
 status, its weakest point and the test that would settle it. **No claim
@@ -13,6 +13,7 @@ should appear in the manuscript in a stronger form than its row allows.**
 | **sensitivity** | pre-specified to qualify a confirmatory result; never replaces it (D82) |
 | **corrected / post hoc** | the analysis was fixed after related results were seen |
 | **exploratory** | specified before computation, but on data whose other results were known |
+| **exploratory (frozen protocol)** | the stopping-policy pilot: fresh data and a protocol frozen before any data (D99), designated exploratory by that protocol |
 | **analytic** | follows from measured costs or from the construction of the code |
 
 All `main_nla240` results include `main`'s 120 problems. They are not
@@ -91,6 +92,21 @@ Two probes appear below:
 | R6 | At outcome-blind positions, for predicting these stopping labels, the text adds no practically relevant information beyond position and the same-label probe | Δ₁ +0.00002 [−0.004, 0.004], *equivalent within ±0.01*. Text over position +0.071; same-label probe over position +0.102; text − same-label probe −0.031 [−0.047, −0.015] (Stage 1, D96) | pre-specified (D83, approved D85) | One model, layer and NLA; a linear probe and TF-IDF text | "no practically relevant predictive information for these labels beyond the same-label probe". Not that everything the text says is in the activation. Says nothing on faithfulness |
 | R7 | On the candidate menu with O48 labels, no rule dominates on stopping risk and saving together | At 50% coverage: registered probe risk 0.011, saving 0.028; readout 0.632, 0.711; no signal 0.472, 0.413 (D95, D96). No selective-risk result exists for the same-label probe | secondary, pre-specified | Outcome-selected menu and O48 labels: **not deployment evidence** | Report risk and saving together; do not rank. Do not cite as evidence about deployed stopping, or about the same-label probe |
 
+## S. The stopping-policy pilot (fresh problems; D99–D102), computed 2026-10-25
+
+Exploratory by its frozen protocol (D99): it estimates the inputs a
+confirmatory study would need and **is not a safety certification**. The
+NLA is not part of it. Every number below is bound to the pilot's outputs
+in `paper/v2/evidence/key_numbers.json` (N85–N111) and checked by
+`scripts/verify_manuscript_numbers.py --pilot`.
+
+| # | claim | evidence | status | weakest point | what it allows |
+|---|---|---|---|---|---|
+| S1 | Position alone cannot be calibrated to a 0.05 selective-risk target with 300 calibration problems | No SGR step accepted; lowest bound 0.158 (201 stops, 19 unsafe), so P0 never stops (D101) | exploratory (frozen protocol) | One calibration set; SGR at δ = 0.05 | "P0 could not be calibrated at α = 0.05", not "position carries no stopping information" |
+| S2 | A same-label-probe policy calibrated on fresh problems keeps its observed out-of-sample risk below 0.05, but the pilot cannot bound it there | τ = 0.945. Evaluation: 148 of 150 stop; 6 unsafe; risk 0.041 [0.015, 0.086]; one-sided upper bound 0.078 > α = 0.05; criterion (1) of protocol §3.9 **not met** (D101) | exploratory (frozen protocol) | 148 stops; one model under NF4; two benchmarks; α set for the pilot without a use case | "the safety criterion was not met"; "a confirmatory study as designed is not warranted". **Not** "safe", and not "unsafe" |
+| S3 | At that threshold the policy saves a modest share of tokens | Net saving 0.055 [0.046, 0.065] against P0 (which never stops), above δ_save = 0.02 (`c2_completed.json`). Stops come late: 0.861 of the trace on average (post hoc, D102) | exploratory; the paired estimand completed outside `evaluate` (D101) | The probe's own compute is not charged | Report with S2, never alone |
+| S4 | The 256-token forced-answer label has a small batch-composition component | Single-boundary re-forcing 0.92 (46 of 50); all 4 disagreements were pair-forced boundaries; paired re-forcing 50/50 on both sets (D100) | instrument measurement | 36 pair-forced boundaries | A caveat on every forced-answer label under NF4 batching |
+
 ## E. Not tested, and must not be claimed
 
 | # | not tested | why |
@@ -99,6 +115,7 @@ Two probes appear below:
 | E2 | Any **causal** role of a tail direction (RQ3) | Not tested on this model (D62, D77) |
 | E3 | Generalisation to other models, layers or autoencoders | One target model, one released NLA pair |
 | E4 | That the readout improves stopping **at deployment** | The NLA stopping results are on the outcome-selected menu, and D2 rules out compute savings. Off the menu (R6), the text adds no practically relevant predictive information over the same-label probe. Selective risk (R7) is on the menu |
+| E6 | That **any** stopping policy studied here is safe, or that the pilot certifies one | The only out-of-sample estimate (S2) did not meet its safety criterion, and the pilot was designed as exploratory |
 | E5 | That R1 shows the explanations' content helps stopping | R2 and R4: a position rule beats the readout, and under a 256-token budget the hypotheses are not supported (effects of 0.05 or more excluded) |
 
 ## F. Statements in the record that exceed the evidence

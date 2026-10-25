@@ -60,8 +60,9 @@ measurement (§4.3) implies that such results should report the forcing
 budget and the rate at which forced answers are cut off. ThinkBrake and
 EAT require an end-of-thinking delimiter, which the instruction-tuned
 model studied here does not have, so they are not baselines in this
-study. LYNX's conformal control of premature exits is close to the risk
-control that the stopping-policy study we propose would use (§5.4).
+study. LYNX's conformal control of premature exits is close in purpose to
+the guaranteed-risk threshold calibration of our exploratory
+stopping-policy pilot (§3.9).
 
 **Early answering.** Truncating a chain of thought and forcing an answer
 was introduced to test whether the stated reasoning is load-bearing [14].

@@ -11,3 +11,5 @@ CLAIM-009,4.6;5.4,methods,An online NLA check cannot save compute here (analytic
 CLAIM-010,4.8;5.2,other,Reconstruction-dependence rate changes little under a rewording null (exploratory),N74;N75;N76;N77;N78;N79,partly_supported,scope,Meaning preservation unvalidated; 117 of 246 claims reworded,Keep labelled exploratory and not a faithfulness test (done)
 CLAIM-011,1;5.6,generalization,Claims bounded to one model one layer one NLA,TAB-1,supported,none,,
 CLAIM-012,5.2;6,other,No faithfulness claim is made,TAB-2d,supported,none,,
+CLAIM-013,Abstract;4.9;5.4,safety,Exploratory pilot: the probe-based policy's unsafe-stop rate could not be bounded below 0.05 (criterion not met); a position-only policy could not be calibrated,N90;N91;N92;N93;N97;N98;N103;N104;N105;N106,supported,none,150 evaluation problems; one model under NF4; alpha set for the pilot only,
+CLAIM-014,Abstract;4.9;5.4,secondary_outcome,The pilot policy saves a modest share of tokens at its calibrated threshold,N99;N100;N100b;N107;N108;N109;N110;N111,supported,none,Probe compute not charged; paired estimand completed outside the evaluation script; stop positions post hoc,

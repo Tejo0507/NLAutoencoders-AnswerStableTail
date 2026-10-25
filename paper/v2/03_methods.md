@@ -190,8 +190,83 @@ marked with one evidence class:
 - **[S] pre-specified secondary or sensitivity:** fixed before any
   replication outcome, outside the confirmatory verdict, never replacing
   it;
-- **[X] exploratory:** specified before computation, on data whose other
-  results were already known;
+- **[X] exploratory:** specified before computation, either on data whose
+  other results were already known or, for the stopping-policy pilot
+  (§3.9), on fresh data under a frozen protocol that designates the study
+  exploratory;
 - **[P] post hoc:** an analysis added after related results were seen;
 - **[A] analytic:** follows from the construction of the code or from
   measured costs.
+
+## 3.9 A stopping-policy pilot on fresh problems [X; D99–D102]
+
+The analyses above score signals at stored candidate points, and none
+estimates how a stopping policy behaves on problems it was not tuned on. A
+separate pilot asked that question for cheap signals. Its protocol, with
+every threshold rule, sample size, gate and decision criterion, was frozen
+and hashed before any pilot problem was selected (D99). The protocol
+designates the pilot exploratory: it estimates the quantities needed to
+size a confirmatory study and was not designed to certify safety. The NLA
+is not part of it, because one NLA check costs almost a whole trace
+(§4.6).
+
+**Policies.** Each policy walks every chunk boundary of a trace in order
+and stops at the first boundary whose score reaches its threshold τ. P0
+(position only) is a logistic regression on the log prefix length, the
+chunk index and a dataset indicator; both fitted position coefficients are
+positive, so its score rises along every trace. P1 adds the out-of-fold
+logit of a same-label linear probe on the standardised layer-20 activation
+(§3.3). Both were fitted on the replication's 1,600 Stage 1 units with
+their 256-token safety labels, with the probe's regularisation chosen by
+problem-grouped cross-validation, and frozen before calibration.
+
+**Outcome and saving.** A stop at *s* is safe if the answer forced from
+*P_s* with 256 tokens has the same correctness as the trace's final
+answer. A forced answer still cut off at 256 tokens counts as unsafe (the
+primary rule); the as-parsed and no-answer conventions of §3.6 are
+pre-specified sensitivity analyses. The net saving of a stop is
+max(0, 1 − (prefix tokens + forced-answer tokens)/(trace tokens)), with
+token counts recorded at generation. The probe's own computation is not
+charged, and a problem on which a policy never stops saves 0.
+
+**Data and calibration.** The calibration set (300 problems: 180 GSM8K,
+120 MATH) and the evaluation set (150: 90 and 60) were drawn in the
+registered hash order from problems that no earlier run had used, so they
+are disjoint from each other and from the training problems. Traces were
+generated as in §3.1, and every boundary was forced at 256 tokens. Each
+policy's threshold was chosen on the calibration set by Selection with
+Guaranteed Risk [31]. This is a binary search in k = 8 steps over 200
+quantiles of the policy's calibration scores. A threshold is accepted if
+the one-sided Clopper–Pearson [32] upper bound on its selective risk, at
+confidence 1 − 0.05/8, is at most 0.05, and τ is the most permissive
+accepted threshold. A policy with no accepted threshold never stops. The
+thresholds were frozen and hashed before any evaluation problem was
+forced, and the code refuses to run the steps in any other order.
+
+**Evaluation and decision criteria.** On the evaluation set we report each
+policy's coverage, its selective risk with a two-sided 95%
+Clopper–Pearson interval and a one-sided 95% upper bound, and its mean net
+saving. The paired P1 − P0 difference in net saving has a problem
+bootstrap interval (2,000 replicates, seed 20261024). The researcher set
+the maximum acceptable unsafe-stop rate to α = 0.05 for this pilot only,
+since no deployment use case had been defined, and the minimum worthwhile
+saving to 0.02. The protocol fixed in advance that a confirmatory study is
+warranted only if (1) the evaluation upper bound on P1's selective risk is
+below α and (2) P1's coverage is materially above 0 and above P0's.
+Before any outcome was used, re-forcing a seeded sample of 50 boundaries
+had to reproduce their stored answers with agreement of at least 0.95, and
+at least 75% of the planned boundaries had to be forced.
+
+**Deviations.** One deviation was recorded before any threshold, safety
+label or evaluation problem had been read (D100). The re-forcing check had
+re-forced each sampled boundary alone, although the stored answers had
+been forced in pairs, and it failed. It was redone with each boundary
+re-forced in its original pair, the gate unchanged, and the failed result
+is reported (§4.9). Two further departures were found after the run and
+are recorded in D102. First, the protocol's list of instrument checks
+included a 256-token stability check carried over from §3.6, where it
+compares answers across two budgets; the pilot forces at a single budget,
+so the check had no counterpart and was not run. Second, the evaluation
+code skipped the pre-specified paired saving because P0 had no threshold.
+That estimand was computed separately with the same functions, the frozen
+threshold and the protocol's seed.

@@ -111,14 +111,35 @@ trace's tokens before reconstruction [A], so the NLA is at most an offline
 research comparator.
 
 **The practical question remains open.** A planning replay on stored
-replication data suggests that a same-label probe could stop on far more
-problems than a position-only rule at the same unsafe-stop rate. That
-replay chose its thresholds on the same data it scored and walked only
-four positions per problem; it is planning evidence, not evidence of
-out-of-sample safety. A safety-constrained stopping-policy study, with
-calibration and evaluation on fresh, disjoint problems, has been designed
-but not run (`docs/STOPPING_POLICY_PROPOSAL.md`,
-`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`).
+replication data suggested that a same-label probe could stop on far more
+problems than a position-only rule at the same unsafe-stop rate, but it
+chose its thresholds on the data it scored and walked only four positions
+per problem. The exploratory pilot (§3.9, §4.9) removed both weaknesses,
+calibrating at every boundary of 300 fresh problems and evaluating on 150
+others. Its results separate four findings [X]:
+
+1. **Calibration.** The probe-based policy can be calibrated where the
+   position-only policy cannot: no position threshold met the calibration
+   bound, so P0 never stops.
+2. **Utility.** At its calibrated threshold, P1 stopped on almost every
+   evaluation problem and saved 5.5% of tokens, above the pre-set minimum
+   of 2%. The saving is modest because the stops come late.
+3. **Safety.** P1's observed unsafe-stop rate, 4.1%, is below the 5%
+   target, but 148 stops cannot bound it there: the one-sided upper bound
+   is 7.8%. The pilot's safety criterion was not met, and by the
+   protocol's own rule a confirmatory study of this policy as designed is
+   not warranted. The result is inconclusive about safety in both
+   directions; it neither shows that P1 is unsafe nor that it is safe.
+4. **The instrument.** The safety label itself depends slightly on batch
+   composition, since a few 256-token forced answers changed when they
+   were re-forced without their original batch partner.
+
+The pilot is not a safety certification. It did not use the NLA and says
+nothing about faithfulness. A follow-up would need its own frozen plan; an
+α justified by a use case rather than chosen for a pilot; an evaluation set
+disjoint from the pilot's, which is not reused; and either a stricter
+calibration target, so that the true risk sits further below α, or an
+evaluation large enough to bound a risk near 0.04 below 0.05.
 
 ## 5.5 What the answer-stable tail is
 
@@ -139,8 +160,10 @@ supported when forced answers are allowed to finish. The explanations
 carry legible, transferable information about the reasoning phase, but for
 predicting stopping labels they add no practically relevant information
 beyond a linear probe on the same activation. Whether they are faithful
-is untested, and whether any signal studied here supports a safe stopping
-policy is a question for a separate, prospectively calibrated study. In
+is untested. In an exploratory pilot on fresh problems, a stopping policy
+built on that probe saved 5.5% of tokens with an observed unsafe-stop rate
+of 4.1%, but could not bound that rate below its 5% target, so whether any
+signal studied here supports a safe stopping policy remains open. In
 this study, the choice of candidate points, estimand, forcing budget and
 baseline determined the answer more than the signal did; such choices
 should be fixed without reference to the outcome and reported.

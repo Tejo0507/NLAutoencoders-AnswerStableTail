@@ -27,10 +27,15 @@ does predict stopping-related labels. At 1,600 positions in 400 problems
 chosen without reference to the outcome, however, its increment over
 position and a linear probe trained for the same label on the same
 activation was 0.00002 AUC (−0.004 to 0.004), equivalent within the
-pre-specified ±0.01 margin. These are findings about prediction and
-incremental value; we did not test whether the explanations are faithful
-to the computation, and no stopping rule studied here is shown to be safe
-to deploy. We also show how outcome-derived candidate points, an estimand
+pre-specified ±0.01 margin. In an exploratory pilot, a stopping policy
+built on that probe was calibrated on 300 fresh problems and evaluated on
+150 others. It saved 5.5% of tokens with an observed unsafe-stop rate of
+4.1%, but the one-sided 95% upper bound on that rate, 7.8%, exceeded the
+5% target, so its pre-specified safety criterion was not met; a
+position-only policy could not be calibrated at all. The findings about
+the explanations concern prediction and incremental value; we did not test
+whether the explanations are faithful to the computation, and no stopping
+rule studied here is shown to be safe to deploy. We also show how outcome-derived candidate points, an estimand
 that rewards abstention, and a short forcing budget can each manufacture a
 stopping advantage.
 
@@ -69,8 +74,11 @@ commitment within 48 tokens. The explanation text does carry predictive
 information about the reasoning phase, concluding as against setting up
 [X, S]. At positions chosen without reference to the outcome, however, it
 adds no practically relevant predictive information beyond position and a
-linear probe trained for the same label on the same activation [S]. We do
-not test whether the explanations are faithful to the computation.
+linear probe trained for the same label on the same activation [S]. In an
+exploratory pilot on fresh problems, a stopping policy built on that probe
+saved tokens, but its unsafe-stop rate could not be bounded below the
+pre-specified target [X]. We do not test whether the explanations are
+faithful to the computation.
 
 **Contributions.** Prior work establishes that stopping signals should be
 charged for their compute and compared at matched risk [10, 11], that
@@ -94,12 +102,18 @@ none of these. Within the focused review of §2, this paper contributes:
 4. **An incremental-value test of NLA text against a same-label probe on
    the same activation at outcome-blind positions**, using the control of
    Li et al. [13] for a reasoning-state label (§4.4).
+5. **An exploratory, prospectively calibrated pilot of a probe-based
+   stopping policy on fresh problems.** It did not meet its safety
+   criterion, and it supplies the out-of-sample risk, coverage and saving
+   estimates that a confirmatory study would need (§4.9).
 
 **Scope.** All claims concern one target model, one layer and one released
 NLA. They concern prediction and incremental value, not faithfulness.
 Selective-risk results are measured at outcome-selected candidate points
 and are not evidence that any stopping policy is safe to deploy (§4.5,
-§5.4). Cost-aware and risk-controlled evaluation are not new [9, 10, 11].
+§5.4). The one out-of-sample estimate, from the pilot, is not a safety
+certification (§4.9). Cost-aware and risk-controlled evaluation are not
+new [9, 10, 11].
 The contribution is a carefully qualified negative result about NLAs as
 stopping signals, together with measurements of the evaluation choices
 that would otherwise have suggested a positive one.
@@ -158,8 +172,9 @@ measurement (§4.3) implies that such results should report the forcing
 budget and the rate at which forced answers are cut off. ThinkBrake and
 EAT require an end-of-thinking delimiter, which the instruction-tuned
 model studied here does not have, so they are not baselines in this
-study. LYNX's conformal control of premature exits is close to the risk
-control that the stopping-policy study we propose would use (§5.4).
+study. LYNX's conformal control of premature exits is close in purpose to
+the guaranteed-risk threshold calibration of our exploratory
+stopping-policy pilot (§3.9).
 
 **Early answering.** Truncating a chain of thought and forcing an answer
 was introduced to test whether the stated reasoning is load-bearing [14].
@@ -377,11 +392,86 @@ marked with one evidence class:
 - **[S] pre-specified secondary or sensitivity:** fixed before any
   replication outcome, outside the confirmatory verdict, never replacing
   it;
-- **[X] exploratory:** specified before computation, on data whose other
-  results were already known;
+- **[X] exploratory:** specified before computation, either on data whose
+  other results were already known or, for the stopping-policy pilot
+  (§3.9), on fresh data under a frozen protocol that designates the study
+  exploratory;
 - **[P] post hoc:** an analysis added after related results were seen;
 - **[A] analytic:** follows from the construction of the code or from
   measured costs.
+
+## 3.9 A stopping-policy pilot on fresh problems [X; D99–D102]
+
+The analyses above score signals at stored candidate points, and none
+estimates how a stopping policy behaves on problems it was not tuned on. A
+separate pilot asked that question for cheap signals. Its protocol, with
+every threshold rule, sample size, gate and decision criterion, was frozen
+and hashed before any pilot problem was selected (D99). The protocol
+designates the pilot exploratory: it estimates the quantities needed to
+size a confirmatory study and was not designed to certify safety. The NLA
+is not part of it, because one NLA check costs almost a whole trace
+(§4.6).
+
+**Policies.** Each policy walks every chunk boundary of a trace in order
+and stops at the first boundary whose score reaches its threshold τ. P0
+(position only) is a logistic regression on the log prefix length, the
+chunk index and a dataset indicator; both fitted position coefficients are
+positive, so its score rises along every trace. P1 adds the out-of-fold
+logit of a same-label linear probe on the standardised layer-20 activation
+(§3.3). Both were fitted on the replication's 1,600 Stage 1 units with
+their 256-token safety labels, with the probe's regularisation chosen by
+problem-grouped cross-validation, and frozen before calibration.
+
+**Outcome and saving.** A stop at *s* is safe if the answer forced from
+*P_s* with 256 tokens has the same correctness as the trace's final
+answer. A forced answer still cut off at 256 tokens counts as unsafe (the
+primary rule); the as-parsed and no-answer conventions of §3.6 are
+pre-specified sensitivity analyses. The net saving of a stop is
+max(0, 1 − (prefix tokens + forced-answer tokens)/(trace tokens)), with
+token counts recorded at generation. The probe's own computation is not
+charged, and a problem on which a policy never stops saves 0.
+
+**Data and calibration.** The calibration set (300 problems: 180 GSM8K,
+120 MATH) and the evaluation set (150: 90 and 60) were drawn in the
+registered hash order from problems that no earlier run had used, so they
+are disjoint from each other and from the training problems. Traces were
+generated as in §3.1, and every boundary was forced at 256 tokens. Each
+policy's threshold was chosen on the calibration set by Selection with
+Guaranteed Risk [31]. This is a binary search in k = 8 steps over 200
+quantiles of the policy's calibration scores. A threshold is accepted if
+the one-sided Clopper–Pearson [32] upper bound on its selective risk, at
+confidence 1 − 0.05/8, is at most 0.05, and τ is the most permissive
+accepted threshold. A policy with no accepted threshold never stops. The
+thresholds were frozen and hashed before any evaluation problem was
+forced, and the code refuses to run the steps in any other order.
+
+**Evaluation and decision criteria.** On the evaluation set we report each
+policy's coverage, its selective risk with a two-sided 95%
+Clopper–Pearson interval and a one-sided 95% upper bound, and its mean net
+saving. The paired P1 − P0 difference in net saving has a problem
+bootstrap interval (2,000 replicates, seed 20261024). The researcher set
+the maximum acceptable unsafe-stop rate to α = 0.05 for this pilot only,
+since no deployment use case had been defined, and the minimum worthwhile
+saving to 0.02. The protocol fixed in advance that a confirmatory study is
+warranted only if (1) the evaluation upper bound on P1's selective risk is
+below α and (2) P1's coverage is materially above 0 and above P0's.
+Before any outcome was used, re-forcing a seeded sample of 50 boundaries
+had to reproduce their stored answers with agreement of at least 0.95, and
+at least 75% of the planned boundaries had to be forced.
+
+**Deviations.** One deviation was recorded before any threshold, safety
+label or evaluation problem had been read (D100). The re-forcing check had
+re-forced each sampled boundary alone, although the stored answers had
+been forced in pairs, and it failed. It was redone with each boundary
+re-forced in its original pair, the gate unchanged, and the failed result
+is reported (§4.9). Two further departures were found after the run and
+are recorded in D102. First, the protocol's list of instrument checks
+included a 256-token stability check carried over from §3.6, where it
+compares answers across two budgets; the pilot forces at a single budget,
+so the check had no counterpart and was not run. Second, the evaluation
+code skipped the pre-specified paired saving because P0 had no threshold.
+That estimand was computed separately with the same functions, the frozen
+threshold and the protocol's seed.
 
 # 4. Results
 
@@ -394,7 +484,8 @@ pre-specified analyses that qualify it (§4.2, §4.3), then what the
 explanation text carries (§4.4) and selective risk (§4.5). We then show,
 on the earlier main run, how evaluation choices can manufacture a stopping
 advantage (§4.6), report the 256-token pass on the 240-problem arm (§4.7)
-and the rewording null (§4.8), and summarise (§4.9).
+and the rewording null (§4.8), report the exploratory stopping-policy
+pilot on fresh problems (§4.9), and summarise (§4.10).
 
 ## 4.1 The registered replication [C]
 
@@ -581,7 +672,48 @@ is therefore not mainly an artefact of a null that barely edits. Whether
 they do is unvalidated, fewer than half of the claims received a
 rewording, and reconstruction dependence is not faithfulness.
 
-## 4.9 Summary
+## 4.9 A stopping-policy pilot on fresh problems [X]
+
+The pilot (§3.9) generated a trace for every calibration and evaluation
+problem and forced every planned boundary at 256 tokens: 3,554 boundaries
+in calibration and 1,727 in evaluation. The re-forcing check in the
+original pairs agreed on 50 of 50 sampled boundaries in each set. Re-forced
+alone, the same calibration boundaries agreed on only 0.92 (46 of 50), and
+all four disagreements were boundaries originally forced in a pair.
+The 256-token forced answer, and with it the safety label, therefore
+depends slightly on what it is batched with.
+
+**Calibration.** No threshold was accepted for the position-only policy
+P0. The lowest bound in its search, 0.158 against the target of 0.05, came
+at a threshold that stopped on 201 problems, 19 of them unsafely, so P0
+never stops. For P1 the accepted threshold was τ = 0.945, at which it
+stopped on 292 of the 300 calibration problems with 5 unsafe stops (upper
+bound 0.047).
+
+**Evaluation.** On the 150 evaluation problems, P1 stopped on 148
+(coverage 0.987 [0.953, 0.998]). Six of those stops were unsafe:
+3 of 90 on GSM8K and 3 of 58 on MATH. P1's selective risk was
+0.041 [0.015, 0.086], and its one-sided 95% upper bound was 0.078, above
+α = 0.05. **The pilot's safety criterion was not met.** No stop fell at a
+boundary whose 256-token forced answer was still cut off, so the three
+truncation conventions give identical results. P1's mean net saving was 0.055 [0.046, 0.065],
+above the pre-set minimum of 0.02; because P0 never stops, this is also the
+paired P1 − P0 difference. The saving is small because the threshold is
+high and P1 stops late [P]: at a mean of 0.861 of the trace's tokens
+(median 0.924), with the forced answer adding a further 0.089 on average.
+
+**Against the fixed criteria.** P1's coverage is above 0 and above P0's,
+so criterion (2) is met. The upper bound is above α, so criterion (1) is
+not, and by the protocol's rule a confirmatory study of this policy as
+designed is not warranted. The failed criterion is not evidence that P1 is
+unsafe: with 148 stops the bound falls below 0.05 only if at most 2 stops
+are unsafe, and at the observed rate an evaluation would need roughly
+1,500 to 2,000 stops before the bound fell below 0.05 [A]. Nor is it
+evidence that P1 is safe: the interval includes risks up to 0.086, and the
+evaluation risk (6 of 148) was higher than the calibration risk (5 of
+292).
+
+## 4.10 Summary
 
 | question | answer | class |
 |---|---|---|
@@ -593,6 +725,7 @@ rewording, and reconstruction dependence is not faithfulness.
 | Which signal stops more safely on the candidate menu (48-token labels; not deployment evidence)? | The registered probe, at a much smaller saving; no rule dominates | [S] |
 | Are the explanations faithful to the computation? | Not tested | — |
 | Is reconstruction dependence robust to a rewording null? | Little change (0.797 to 0.764 on 246 claims), but the rewordings' meaning is unvalidated | [X] |
+| Does a calibrated probe-based stopping policy bound its unsafe-stop rate below 0.05 on fresh problems? | Not shown. In a 150-problem pilot: risk 0.041, upper bound 0.078; saving 0.055; a position-only policy could not be calibrated | [X] |
 | Is there a safe and useful stopping policy? | Open (§5.4) | — |
 
 # 5. Discussion
@@ -705,14 +838,35 @@ trace's tokens before reconstruction [A], so the NLA is at most an offline
 research comparator.
 
 **The practical question remains open.** A planning replay on stored
-replication data suggests that a same-label probe could stop on far more
-problems than a position-only rule at the same unsafe-stop rate. That
-replay chose its thresholds on the same data it scored and walked only
-four positions per problem; it is planning evidence, not evidence of
-out-of-sample safety. A safety-constrained stopping-policy study, with
-calibration and evaluation on fresh, disjoint problems, has been designed
-but not run (`docs/STOPPING_POLICY_PROPOSAL.md`,
-`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`).
+replication data suggested that a same-label probe could stop on far more
+problems than a position-only rule at the same unsafe-stop rate, but it
+chose its thresholds on the data it scored and walked only four positions
+per problem. The exploratory pilot (§3.9, §4.9) removed both weaknesses,
+calibrating at every boundary of 300 fresh problems and evaluating on 150
+others. Its results separate four findings [X]:
+
+1. **Calibration.** The probe-based policy can be calibrated where the
+   position-only policy cannot: no position threshold met the calibration
+   bound, so P0 never stops.
+2. **Utility.** At its calibrated threshold, P1 stopped on almost every
+   evaluation problem and saved 5.5% of tokens, above the pre-set minimum
+   of 2%. The saving is modest because the stops come late.
+3. **Safety.** P1's observed unsafe-stop rate, 4.1%, is below the 5%
+   target, but 148 stops cannot bound it there: the one-sided upper bound
+   is 7.8%. The pilot's safety criterion was not met, and by the
+   protocol's own rule a confirmatory study of this policy as designed is
+   not warranted. The result is inconclusive about safety in both
+   directions; it neither shows that P1 is unsafe nor that it is safe.
+4. **The instrument.** The safety label itself depends slightly on batch
+   composition, since a few 256-token forced answers changed when they
+   were re-forced without their original batch partner.
+
+The pilot is not a safety certification. It did not use the NLA and says
+nothing about faithfulness. A follow-up would need its own frozen plan; an
+α justified by a use case rather than chosen for a pilot; an evaluation set
+disjoint from the pilot's, which is not reused; and either a stricter
+calibration target, so that the true risk sits further below α, or an
+evaluation large enough to bound a risk near 0.04 below 0.05.
 
 ## 5.5 What the answer-stable tail is
 
@@ -733,8 +887,10 @@ supported when forced answers are allowed to finish. The explanations
 carry legible, transferable information about the reasoning phase, but for
 predicting stopping labels they add no practically relevant information
 beyond a linear probe on the same activation. Whether they are faithful
-is untested, and whether any signal studied here supports a safe stopping
-policy is a question for a separate, prospectively calibrated study. In
+is untested. In an exploratory pilot on fresh problems, a stopping policy
+built on that probe saved 5.5% of tokens with an observed unsafe-stop rate
+of 4.1%, but could not bound that rate below its 5% target, so whether any
+signal studied here supports a safe stopping policy remains open. In
 this study, the choice of candidate points, estimand, forcing budget and
 baseline determined the answer more than the signal did; such choices
 should be fixed without reference to the outcome and reported.
@@ -798,10 +954,22 @@ dependence is not faithfulness.
 
 **No established safe stopping policy.** The selective-risk results use
 the outcome-selected menu and 48-token labels, and none exists for the
-same-label probe on the replication. The planning replay that motivates a
-stopping-policy study chose its thresholds in sample on four positions
-per problem. No out-of-sample estimate of unsafe-stop risk exists for any
-policy studied here.
+same-label probe on the replication's menu. The planning replay chose its
+thresholds in sample on four positions per problem. The only out-of-sample
+estimate of unsafe-stop risk comes from the exploratory pilot (§4.9), and
+it is narrow:
+- it covers one probe-based policy, not the NLA;
+- it has 150 evaluation problems, from one model under NF4 and two
+  benchmarks;
+- its α was set for the pilot without a deployment use case;
+- its safety criterion was not met;
+- its safety label inherits the forcing instrument's limits, a 256-token
+  budget and a small batch-composition effect (4 of 36 single re-forcings
+  changed);
+- its net saving does not charge the probe's computation.
+
+Two of its departures from the protocol were found only after the run
+(§3.9, D102). Neither changes a reported estimate.
 
 **Post-hoc analyses and provenance.** The falling-position rule, the
 same-label probe, the multiplicity and whole-prefix checks, the unfitted
@@ -820,9 +988,12 @@ power was audited on proxies from stored data before any Stage 1 data
 existed, and its sample was raised to all 400 problems in response.
 
 **Engineering.** Batch sizes for continuations and forcing differ between
-the main run (4) and the replication (2); only the random draws differ.
-The forcing instrument was checked for reproducibility before any outcome
-was used.
+the main run (4) and the replication (2). With NF4 weights, what shares a
+batch can change a greedy forced answer: in the pilot, 4 of 36 boundaries
+forced in a pair and re-forced alone gave a different answer. The forcing
+instrument was checked for reproducibility before any outcome was used;
+on the replication and in the pilot, the check re-forced boundaries in
+batches of their original size (D80, D100).
 
 **A focused review.** The related-work review read abstracts and selected
 full texts (§2). Where we say that prior work does not report something,
@@ -833,7 +1004,7 @@ we mean the papers named.
 **Plans before data.** Every confirmatory, secondary and sensitivity
 analysis had a plan whose SHA-256 hash was recorded before the analysis
 was computed; hashes, dates and deviations are in the decision record
-(`docs/DECISIONS.md`, D66–D97), and Table 1(b) gives the timeline. The
+(`docs/DECISIONS.md`, D66–D102), and Table 1(b) gives the timeline. The
 confirmatory script refuses to run on a plan whose hash differs from
 D75's.
 
@@ -860,18 +1031,30 @@ release.
 **Seeds.** Traces are greedy. The confirmatory bootstrap uses seed
 20261019 with 2,000 replicates; Stage 1's positions, folds and bootstrap
 use seed 20261020, with five further cross-validation seeds as a
-robustness check; the rewording null uses seed 20261019.
+robustness check; the rewording null uses seed 20261019; the
+stopping-policy pilot uses seed 20261024 for its re-forcing sample, its
+model fitting and its bootstrap.
+
+**The stopping-policy pilot.** Its protocol (`configs/stopping_pilot_protocol.json`,
+SHA-256 `79c51284…3dc01`) and its two run configurations are hashed in
+D99, with line endings pinned so that the hashes hold on any checkout. It
+ran from a clean clone of the recorded commit in a separate directory,
+with hash-verified copies of its inputs; `scripts/stopping_pilot.py`
+refuses to run on an unfrozen protocol or out of order. The hashes of its
+outputs are listed in D101 and D102, and its supplementary analyses are
+`scripts/complete_pilot_c2.py` and `scripts/describe_pilot_stops.py`.
 
 **Run artifacts.** The main run's artifacts are published as the GitHub
 release `data-runs-2026-10-19`. The replication's artifacts, its
 follow-ups and the rewording null are prepared as a release candidate
 (sections 7 and 8 of `docs/ARCHIVE_PLAN_REP1.md`); its identifier will be added here
-when it is published. Blinded annotation sheets and their keys are
+when it is published. The pilot's outputs are not yet in that candidate;
+whether they join it is an open release decision (D102). Blinded annotation sheets and their keys are
 withheld until the human annotation is complete.
 
 # Tables
 
-## Table 1. Setting and preregistration timeline
+## Table 1. Setting and pre-registration timeline
 
 **(a) Setting** (from `configs/base.yaml` merged with `configs/main.yaml` and `configs/replication.yaml`; the NLA arm size of `main` is the D48 run override).
 
@@ -1065,7 +1248,7 @@ reasoning phase; it is not a faithfulness claim.
 
 # References
 
-*The v2 manuscript's single bibliography, numbered by first citation (generated once by `scripts/consolidate_references_v2.py` on 2026-10-24 from `paper/references.md` and `paper/v2/references_additions.md`, which keep their own numbering as historical records). Each entry notes its former number. Verification: entries formerly [1]-[27] were checked on 2026-10-19 (`paper/references.md`); [28]-[32] on 2026-10-21 and [33]-[42] on 2026-10-23 (`paper/v2/references_additions.md`), each against its arXiv record, ACL Anthology or proceedings page, or DOI/journal record. These are machine and agent checks; no human has yet verified them for this manuscript.*
+*The v2 manuscript's single bibliography, numbered by first citation (generated once by `scripts/consolidate_references_v2.py` on 2026-10-24 from `paper/references.md` and `paper/v2/references_additions.md`, which keep their own numbering as historical records). Each entry notes its former number. Verification: entries formerly [1]-[27] were checked on 2026-10-19 (`paper/references.md`); [28]-[32] on 2026-10-21 and [33]-[42] on 2026-10-23 (`paper/v2/references_additions.md`); the two entries added for the stopping-policy pilot on 2026-10-25 (now [31] and [32]; they have no former number) on that date; each against its arXiv record, ACL Anthology or proceedings page, or DOI/journal record. These are machine and agent checks; no human has yet verified them for this manuscript.*
 
 [1] S. Caldarella, D. Talon, R. Aljundi, E. Ricci, and M. Mancini, "Thinking past the answer: evaluating harmful overthinking in large reasoning models," preprint, 2026, arXiv:2606.02835. (Formerly [7].)
 
@@ -1126,3 +1309,7 @@ reasoning phase; it is not a faithfulness claim.
 [29] S. Holm, "A simple sequentially rejective multiple test procedure," *Scandinavian Journal of Statistics*, vol. 6, no. 2, pp. 65–70, 1979. (Formerly [41].)
 
 [30] D. J. Schuirmann, "A comparison of the two one-sided tests procedure and the power approach for assessing the equivalence of average bioavailability," *Journal of Pharmacokinetics and Biopharmaceutics*, vol. 15, no. 6, pp. 657–680, 1987, doi: 10.1007/BF01068419. (Formerly [42].)
+
+[31] Y. Geifman and R. El-Yaniv, "Selective classification for deep neural networks," in *Advances in Neural Information Processing Systems 30 (NIPS 2017)*, 2017, arXiv:1705.08500. (Added 2026-10-25; checked against the NeurIPS proceedings page.)
+
+[32] C. J. Clopper and E. S. Pearson, "The use of confidence or fiducial limits illustrated in the case of the binomial," *Biometrika*, vol. 26, no. 4, pp. 404–413, 1934, doi: 10.1093/biomet/26.4.404. (Added 2026-10-25; checked against its Crossref record.)

@@ -1,4 +1,4 @@
-# Manuscript freeze checklist (prepared 2026-10-24)
+# Manuscript freeze checklist (prepared 2026-10-24; re-run 2026-10-25 after the pilot was added, D102)
 
 > **Status: revised candidate, awaiting author review. Not approved, not
 > frozen.** This checklist prepares a freeze; it does not perform one. Only
@@ -6,14 +6,14 @@
 
 ## A. Checks that pass on the candidate (re-run before freezing)
 
-| check | command | result on 2026-10-24 |
+| check | command | result on 2026-10-25 |
 |---|---|---|
-| Every key number equals its stored output | `python scripts/verify_manuscript_numbers.py --runs <runs> --d76 <d76 runs>` | 84 of 84 facts, 0 failures |
+| Every key number equals its stored output | `python scripts/verify_manuscript_numbers.py --runs <runs> --d76 <d76 runs> --pilot <pilot runs>` | 112 of 112 facts, 0 failures (84 of 84 before the pilot was added) |
 | Citations resolve, are all cited, and are numbered by first citation; figures and tables captioned and cited in order; every § reference exists | `python scripts/assemble_manuscript_v2.py --check` | 0 problems |
 | The replication's readings, hashes, gates and listed numbers | `python scripts/check_run_consistency.py --replication --complete --runs-root <runs>` | 169 checks, 0 failed |
-| Tables 1–3 regenerate from configs, record and outputs | `python scripts/make_paper_tables_v2.py --runs <runs>` | regenerated; no manual edits |
+| Tables 1–3 regenerate from configs, record and outputs | `python scripts/make_paper_tables_v2.py --runs <runs>` | regenerated; the committed file had been stale in one heading ("preregistration"), now fixed |
 | Figures 1–7 regenerate from outputs | `python scripts/make_paper_figures_v2.py --runs <runs>` | all seven regenerate byte-identically to the committed files |
-| CPU test suite | `python -m pytest -m "not slow"` | 1,182 passed, 31 skipped |
+| CPU test suite | `python -m pytest -m "not slow"` | 1,204 passed, 31 skipped, 0 failed |
 | Bibliography entries match their verified sources | `scripts/consolidate_references_v2.py` provenance notes; external metadata re-check (review §4) | see `review/REVIEW_2026-10-24.md` |
 | scientific-writing linter (text) | `lint_manuscript.py MANUSCRIPT.md --manifest evidence/manuscript_manifest.json` | no text issues; 2 manifest errors that need a human (confidentiality and policy review) |
 
@@ -34,7 +34,10 @@
       not run)".
 - [ ] **Data and code availability**: confirm the wording once the archive
       is published (its identifier goes into §7).
-- [ ] **Human verification of the references**: open each cited source and
+- [ ] **The stopping-policy pilot's place in the paper** (§3.9, §4.9, contribution 5): keep it
+      as written (exploratory; safety criterion not met), shorten it, or move it to a
+      supplement. Its numbers and wording follow claim-matrix §S.
+- [ ] **Human verification of the references** ([1]–[32]): open each cited source and
       confirm the bibliographic details and the cited proposition.
 - [ ] **Target venue** (sets the template, length and reference style).
 

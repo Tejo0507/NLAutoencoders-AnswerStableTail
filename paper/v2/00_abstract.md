@@ -1,8 +1,9 @@
 # Do verbalised activations know when reasoning is done? A pre-registered test of a natural-language autoencoder as an early-stopping signal
 
-*Revised candidate, 2026-10-24. Awaiting author review; not frozen. Every
-number is bound to a stored output in `paper/v2/evidence/key_numbers.json`
-and checked by `scripts/verify_manuscript_numbers.py`.*
+*Revised candidate, 2026-10-24; the stopping-policy pilot added
+2026-10-25 (D102). Awaiting author review; not frozen. Every number is
+bound to a stored output in `paper/v2/evidence/key_numbers.json` and
+checked by `scripts/verify_manuscript_numbers.py`.*
 
 ## Abstract
 
@@ -29,9 +30,14 @@ does predict stopping-related labels. At 1,600 positions in 400 problems
 chosen without reference to the outcome, however, its increment over
 position and a linear probe trained for the same label on the same
 activation was 0.00002 AUC (−0.004 to 0.004), equivalent within the
-pre-specified ±0.01 margin. These are findings about prediction and
-incremental value; we did not test whether the explanations are faithful
-to the computation, and no stopping rule studied here is shown to be safe
-to deploy. We also show how outcome-derived candidate points, an estimand
+pre-specified ±0.01 margin. In an exploratory pilot, a stopping policy
+built on that probe was calibrated on 300 fresh problems and evaluated on
+150 others. It saved 5.5% of tokens with an observed unsafe-stop rate of
+4.1%, but the one-sided 95% upper bound on that rate, 7.8%, exceeded the
+5% target, so its pre-specified safety criterion was not met; a
+position-only policy could not be calibrated at all. The findings about
+the explanations concern prediction and incremental value; we did not test
+whether the explanations are faithful to the computation, and no stopping
+rule studied here is shown to be safe to deploy. We also show how outcome-derived candidate points, an estimand
 that rewards abstention, and a short forcing budget can each manufacture a
 stopping advantage.
