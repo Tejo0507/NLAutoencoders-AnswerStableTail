@@ -1,7 +1,17 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-24.
+Last reviewed 2026-10-25.
+
+> **Update 2026-10-25, about 13:30 IST (D99–D101): stopping-policy pilot
+> run and complete.** No GPU work is running, and nothing is published.
+>
+> | area | state |
+> |---|---|
+> | Stopping-policy pilot | protocol frozen (D99); one recorded deviation, the re-forcing check redone in the original batch pairs (D100); ran 9.1 GPU-hours in `D:\NLAutoencoders-experiments\stopping-pilot-2026-10-25\`. **P1 at τ\* = 0.945 on 150 fresh problems: coverage 0.987, selective risk 0.041 [0.015, 0.086], one-sided upper bound 0.078 > α = 0.05 (gate not passed); net saving 0.055 [0.046, 0.065].** P0 cannot be calibrated. Exploratory; not a safety certification. A confirmatory study as designed is not warranted (§3.9 criterion 1 not met) |
+> | Manuscript | revised candidate, awaiting author review (unchanged since D98) |
+> | Release | candidate 2 verified, not published; `CITATION.cff` v0.2.0 merged (#57); Zenodo later |
+> | Pipeline checkout | not touched |
 
 > **Update 2026-10-24, about 10:00 IST (D98): manuscript at revised
 > candidate; release candidate 2 verified; pilot prepared.** No GPU work is

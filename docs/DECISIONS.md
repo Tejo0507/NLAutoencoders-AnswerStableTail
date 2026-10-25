@@ -4358,3 +4358,88 @@ flags, token counts; no gold answer, label or score was read):
 - That is a property of the instrument under NF4 batching. It will be
   reported with the pilot's results.
 
+## D101. Stopping-policy pilot: results (exploratory; not a safety certification)
+
+**Recorded 2026-10-25, about 13:30 IST, after the pilot completed under
+D99 and D100.** Isolated tree
+`D:\NLAutoencoders-experiments\stopping-pilot-2026-10-25\` (clone at
+`7dfdda8`, inputs hash-verified). The protocol, both configs and the
+calibration file were not changed after freezing (protocol sha256
+`79c51284…3dc01`).
+
+**Run.**
+- 9.1 GPU-hours by step (calibration traces 1.37 h, forcing 4.49 h; the
+  D100 paired recheck 0.08 h; evaluation traces 0.60 h, forcing 2.45 h;
+  activations, fitting and scoring under 0.1 h), against the 13.5 h cap.
+  Local RTX 4050 only; no cloud spending.
+- Calibration: 300 problems, 3,554/3,554 boundaries forced. Evaluation:
+  150 fresh problems (90 GSM8K, 60 MATH), 1,727/1,727 boundaries forced.
+- **Instrument gate (D100's paired check): 50/50 on calibration and 50/50
+  on evaluation, against 0.95.** The single-boundary check on calibration
+  stays at 0.92 and is reported beside it.
+
+**Calibration (SGR, k = 8, 0.99375 per step).**
+- **P0 (position): no threshold is certified.** Its best step (201 stops,
+  19 unsafe) has a bound of 0.158. P0 never stops.
+- **P1 (same-label probe): τ\* = 0.9453.** 292 of 300 stop, 5 unsafe;
+  bound 0.0466 < α = 0.05.
+
+**Evaluation, P1 at τ\* on the 150 fresh problems.**
+
+| quantity | value |
+|---|---|
+| stops (coverage) | 148 of 150 (0.987, 95% CI [0.953, 0.998]) |
+| unsafe stops | 6 (GSM8K 3 of 90; MATH 3 of 58) |
+| selective risk | **0.041** (95% CI [0.015, 0.086]) |
+| one-sided 95% upper bound | **0.078 > α = 0.05**: safety gate not passed |
+| mean net saving, P1 − P0 | **0.055** (95% bootstrap CI [0.046, 0.065]), above δ_save = 0.02 |
+| stops before the answer is formed (cut-off) | 0 |
+
+- The three truncation rules (`cut_off_unsafe`, `as_parsed`,
+  `as_no_answer`) give identical results, since no stop cut an answer off.
+- `evaluate` skipped the paired P1 − P0 saving because P0 has no
+  threshold. P0's saving is then 0 on every problem, so the pre-specified
+  estimand is defined. It was computed with the same functions, the frozen
+  threshold and the protocol's bootstrap seed, into a separate file
+  (`runs/pilot_evaluation_supplement/c2_completed.json`, by
+  `scripts/complete_pilot_c2.py`, also kept in the pilot tree);
+  `evaluation.json` is untouched.
+
+**Against protocol §3.9.**
+- *Criterion 1, upper bound on r below α:* **not met** (0.078).
+- *Criterion 2, P1's coverage above 0 and above P0's:* met (0.987 against
+  0).
+- **A confirmatory study of this policy at α = 0.05 is not warranted as
+  designed.** The point estimate (0.041) is consistent with the SGR
+  guarantee, but it sits close to α. At that rate, an evaluation set needs
+  about 2,000 stops before the upper bound falls below 0.05 (300 stops:
+  0.064; 1,000: 0.052), against 148 here. With 148 stops, the bound clears
+  α only with 2 or fewer unsafe stops.
+
+**What it does and does not show.**
+- It shows that the probe's ranking generalises well enough for a
+  calibrated threshold to keep out-of-sample risk near its target. The
+  position baseline cannot be calibrated at all at α = 0.05.
+- The saving is modest (5.5% of tokens), because τ\* is high and stops
+  come late.
+- **It does not certify safety.** The bound is above α, the evaluation set
+  is small, and this is one model under NF4 on two datasets. It is not
+  deployment evidence and says nothing about faithfulness.
+- About 11% of single 256-token forced answers changed with batch
+  composition (D100). The forced-answer outcome therefore carries a small
+  batch-dependent component.
+
+**Outputs (sha256).**
+- `runs/pilot_calibration/calibration.json` `533237f2…3101`
+- `runs/pilot_evaluation/evaluation.json` `763c1f53…608a`
+- `runs/pilot_evaluation_supplement/c2_completed.json` `3375850f…a81b`
+- `runs/pilot_models/models.pkl` `1ed0a1ac…6723`; `models.json`
+  `e4ed4f56…4e65`
+- Full list: `logs/OUTPUT_SHA256SUMS.txt` in the pilot tree.
+
+**Next.** A follow-up needs its own frozen plan. Options: a lower target
+risk for τ\*, so the true risk sits further below α; an evaluation set
+sized from these numbers; or reporting the pilot as planning evidence
+only. The pilot's evaluation set is never reused as confirmatory data
+(§3.9).
+
