@@ -41,5 +41,35 @@ def test_stops_where_the_walk_stops():
     assert d["stops_at_first_boundary"] == 1
 
 
+def test_stops_that_save_nothing_are_counted():
+    rows = ROWS + [_row("d", 1, 0.99, 100),            # at the trace's end
+                   _row("e", 1, 0.99, 97, forced=5)]   # prefix + forced answer exceed the trace
+    d = dps.describe(rows, 0.95)
+    assert d["n_stopped"] == 4
+    assert d["stops_with_zero_saving"] == 2 and d["stops_at_trace_end"] == 1
+    assert d["problems_with_a_saving_stop"] == 2
+    assert np.isclose(d["share_with_a_saving_stop"], 2 / 5)
+
+
+def test_an_existing_output_is_never_overwritten(tmp_path):
+    import hashlib
+    import json
+    import pytest
+    runs = tmp_path / "runs"
+    (runs / "pilot_calibration").mkdir(parents=True)
+    (runs / "pilot_eval").mkdir()
+    cal = runs / "pilot_calibration" / "calibration.json"
+    cal.write_text(json.dumps({"policies": {dps.POLICY: {"tau": 0.95}}}), encoding="utf-8")
+    (runs / "pilot_calibration" / "calibration.sha256").write_text(
+        hashlib.sha256(cal.read_bytes()).hexdigest() + "\n")
+    (runs / "pilot_eval" / "pilot_scores.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in ROWS) + "\n", encoding="utf-8")
+    assert dps.main([str(tmp_path), "--out", "x.json"]) == 0
+    first = (runs / "pilot_posthoc" / "x.json").read_bytes()
+    with pytest.raises(SystemExit):
+        dps.main([str(tmp_path), "--out", "x.json"])
+    assert (runs / "pilot_posthoc" / "x.json").read_bytes() == first
+
+
 def test_a_threshold_nobody_reaches_reports_no_stops():
     assert dps.describe(ROWS, 1.5) == {"n_problems": 3, "n_stopped": 0}
