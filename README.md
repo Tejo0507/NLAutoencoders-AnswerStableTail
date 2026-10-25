@@ -91,7 +91,8 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
   run artifacts published as a GitHub release. The Zenodo deposit is
   prepared but not made, so there is no DOI yet.
 - **Confirmatory replication (D75, 400 fresh problems): registered verdict
-  computed (2026-10-22, D94).** Follow-ups are still running.
+  computed (2026-10-22, D94).** Its pre-specified follow-ups finished on
+  2026-10-23 (D95–D96).
   - On the registered 48-token outcome (380 problems), both hypotheses are
     **supported**:
     - H1, readout − layer-20 probe: +0.047 [0.019, 0.075], Holm p 0.002;
@@ -115,16 +116,27 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
     result.
   - The pipeline finished on 2026-10-23. Claims and their evidence class:
     [`paper/CLAIM_EVIDENCE_MATRIX.md`](paper/CLAIM_EVIDENCE_MATRIX.md) §R.
-  - **The manuscript is drafted** (abstract and §1–§7 in
-    [`paper/v2/`](paper/v2/); outline:
-    [`paper/MANUSCRIPT_OUTLINE.md`](paper/MANUSCRIPT_OUTLINE.md)) and
-    awaits review and a recorded freeze.
+  - **The manuscript is a revised candidate** (assembled in
+    [`paper/v2/MANUSCRIPT.md`](paper/v2/MANUSCRIPT.md) from the section
+    files; outline:
+    [`paper/MANUSCRIPT_OUTLINE.md`](paper/MANUSCRIPT_OUTLINE.md)). It
+    awaits the authors' review and a recorded freeze
+    ([`paper/v2/FREEZE_CHECKLIST.md`](paper/v2/FREEZE_CHECKLIST.md)).
     - Tables 1–3: [`paper/v2/tables_generated.md`](paper/v2/tables_generated.md).
     - Figures: [`paper/figures_v2/`](paper/figures_v2/).
     - The D76 rewording null ran (exploratory; D97).
-    - A follow-up stopping-policy pilot is drafted but **not approved or
-      run**: [`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`](docs/STOPPING_POLICY_PILOT_PROTOCOL.md)
-      (proposal: [`docs/STOPPING_POLICY_PROPOSAL.md`](docs/STOPPING_POLICY_PROPOSAL.md)).
+    - **The stopping-policy pilot ran** (exploratory, frozen protocol;
+      D99–D101):
+      - a same-label-probe policy calibrated on 300 fresh problems and
+        evaluated on 150 others saved 5.5% of tokens;
+      - its unsafe-stop rate was 0.041, but the one-sided 95% upper
+        bound, 0.078, is above α = 0.05, so **its safety criterion was not
+        met**, and a confirmatory study as designed is not warranted;
+      - a position-only policy could not be calibrated;
+      - it is not a safety certification.
+
+      Protocol:
+      [`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`](docs/STOPPING_POLICY_PILOT_PROTOCOL.md).
   - Live state and next steps: [`docs/STATUS.md`](docs/STATUS.md).
   - Resume procedure: [`docs/RESUME_2026-10-20.md`](docs/RESUME_2026-10-20.md).
 
@@ -133,7 +145,7 @@ the post-hoc audit of 2026-10-19 ([addendum](paper/ADDENDUM_2026-10-19.md),
 | The report (Abstract to Limitations, frozen) | [`paper/REPORT.md`](paper/REPORT.md), assembled from the sections in [`paper/`](paper/README.md) |
 | Corrections to how the report reads (post hoc, D68) | [`paper/ADDENDUM_2026-10-19.md`](paper/ADDENDUM_2026-10-19.md); evidence in [`docs/SCIENTIFIC_AUDIT_2026-10-19.md`](docs/SCIENTIFIC_AUDIT_2026-10-19.md) |
 | The research questions, pre-registered definitions and falsification battery | [`PROJECT_PLAN.md`](PROJECT_PLAN.md) §1, §5 and §6 |
-| Every deviation and decision, with reasons (D1–D67) | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
+| Every deviation and decision, with reasons (D1–D102) | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | Open and closed work items, and the release's verification evidence | [`docs/AUDIT_2026-10-17.md`](docs/AUDIT_2026-10-17.md), a living register opened on that date |
 | Stage-by-stage manual | [`docs/PIPELINE.md`](docs/PIPELINE.md) |
 | State of the run, and the pilot's detail | [`docs/STATUS.md`](docs/STATUS.md) |
