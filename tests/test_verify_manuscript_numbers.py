@@ -92,3 +92,23 @@ def test_a_missing_source_is_a_failure_not_a_pass(tmp_path):
     reg, _, v2 = _setup(tmp_path)
     failures, checked = vmn.check(reg, {"runs": tmp_path / "nowhere"}, v2)
     assert checked == 0 and len(failures) == 4
+
+
+def test_facts_under_the_pilot_root_are_read_from_it(tmp_path):
+    reg, roots, v2 = _setup(tmp_path)
+    for fact in reg["facts"]:
+        fact["root"] = "pilot"
+    failures, checked = vmn.check(reg, {"pilot": roots["runs"]}, v2)
+    assert failures == [] and checked == 4
+    failures, checked = vmn.check(reg, roots, v2)          # no --pilot given
+    assert checked == 0 and all("source pilot:" in f for f in failures)
+
+
+def test_main_passes_every_given_root(tmp_path, monkeypatch):
+    reg, _, _ = _setup(tmp_path)
+    path = tmp_path / "reg.json"
+    path.write_text(json.dumps(reg), encoding="utf-8")
+    seen = {}
+    monkeypatch.setattr(vmn, "check", lambda registry, roots: (seen.update(roots) or ([], 1)))
+    assert vmn.main(["--runs", "a", "--d76", "b", "--pilot", "c", "--registry", str(path)]) == 0
+    assert seen == {"runs": Path("a"), "d76": Path("b"), "pilot": Path("c")}
