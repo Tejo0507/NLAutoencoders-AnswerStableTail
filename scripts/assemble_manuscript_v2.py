@@ -29,7 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 V2 = ROOT / "paper" / "v2"
 SECTIONS = ("00_abstract.md", "01_introduction.md", "02_related_work.md", "03_methods.md",
-            "04_results.md", "05_discussion.md", "06_limitations.md", "07_reproducibility.md")
+            "04_results.md", "05_discussion.md", "06_limitations.md", "07_reproducibility.md",
+            "09_declarations.md")
 CAPTIONS = "08_figures_tables.md"
 TABLES = "tables_generated.md"
 REFERENCES = "references.md"

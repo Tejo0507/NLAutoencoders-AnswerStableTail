@@ -39,8 +39,11 @@ commitment within 48 tokens. The explanation text does carry predictive
 information about the reasoning phase, concluding as against setting up
 [X, S]. At positions chosen without reference to the outcome, however, it
 adds no practically relevant predictive information beyond position and a
-linear probe trained for the same label on the same activation [S]. We do
-not test whether the explanations are faithful to the computation.
+linear probe trained for the same label on the same activation [S]. In an
+exploratory pilot on fresh problems, a stopping policy built on that probe
+saved tokens, but its unsafe-stop rate could not be bounded below the
+pre-specified target [X]. We do not test whether the explanations are
+faithful to the computation.
 
 **Contributions.** Prior work establishes that stopping signals should be
 charged for their compute and compared at matched risk [10, 11], that
@@ -64,12 +67,18 @@ none of these. Within the focused review of §2, this paper contributes:
 4. **An incremental-value test of NLA text against a same-label probe on
    the same activation at outcome-blind positions**, using the control of
    Li et al. [13] for a reasoning-state label (§4.4).
+5. **An exploratory, prospectively calibrated pilot of a probe-based
+   stopping policy on fresh problems.** It did not meet its safety
+   criterion, and it supplies the out-of-sample risk, coverage and saving
+   estimates that a confirmatory study would need (§4.9).
 
 **Scope.** All claims concern one target model, one layer and one released
 NLA. They concern prediction and incremental value, not faithfulness.
 Selective-risk results are measured at outcome-selected candidate points
 and are not evidence that any stopping policy is safe to deploy (§4.5,
-§5.4). Cost-aware and risk-controlled evaluation are not new [9, 10, 11].
+§5.4). The one out-of-sample estimate, from the pilot, is not a safety
+certification (§4.9). Cost-aware and risk-controlled evaluation are not
+new [9, 10, 11].
 The contribution is a carefully qualified negative result about NLAs as
 stopping signals, together with measurements of the evaluation choices
 that would otherwise have suggested a positive one.

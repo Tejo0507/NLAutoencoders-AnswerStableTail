@@ -60,10 +60,22 @@ dependence is not faithfulness.
 
 **No established safe stopping policy.** The selective-risk results use
 the outcome-selected menu and 48-token labels, and none exists for the
-same-label probe on the replication. The planning replay that motivates a
-stopping-policy study chose its thresholds in sample on four positions
-per problem. No out-of-sample estimate of unsafe-stop risk exists for any
-policy studied here.
+same-label probe on the replication's menu. The planning replay chose its
+thresholds in sample on four positions per problem. The only out-of-sample
+estimate of unsafe-stop risk comes from the exploratory pilot (§4.9), and
+it is narrow:
+- it covers one probe-based policy, not the NLA;
+- it has 150 evaluation problems, from one model under NF4 and two
+  benchmarks;
+- its α was set for the pilot without a deployment use case;
+- its safety criterion was not met;
+- its safety label inherits the forcing instrument's limits, a 256-token
+  budget and a small batch-composition effect (4 of 36 single re-forcings
+  changed);
+- its net saving does not charge the probe's computation.
+
+Two of its departures from the protocol were found only after the run
+(§3.9, D102). Neither changes a reported estimate.
 
 **Post-hoc analyses and provenance.** The falling-position rule, the
 same-label probe, the multiplicity and whole-prefix checks, the unfitted
@@ -82,9 +94,12 @@ power was audited on proxies from stored data before any Stage 1 data
 existed, and its sample was raised to all 400 problems in response.
 
 **Engineering.** Batch sizes for continuations and forcing differ between
-the main run (4) and the replication (2); only the random draws differ.
-The forcing instrument was checked for reproducibility before any outcome
-was used.
+the main run (4) and the replication (2). With NF4 weights, what shares a
+batch can change a greedy forced answer: in the pilot, 4 of 36 boundaries
+forced in a pair and re-forced alone gave a different answer. The forcing
+instrument was checked for reproducibility before any outcome was used;
+on the replication and in the pilot, the check re-forced boundaries in
+batches of their original size (D80, D100).
 
 **A focused review.** The related-work review read abstracts and selected
 full texts (§2). Where we say that prior work does not report something,

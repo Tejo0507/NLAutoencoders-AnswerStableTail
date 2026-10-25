@@ -1,6 +1,6 @@
 # References
 
-*The v2 manuscript's single bibliography, numbered by first citation (generated once by `scripts/consolidate_references_v2.py` on 2026-10-24 from `paper/references.md` and `paper/v2/references_additions.md`, which keep their own numbering as historical records). Each entry notes its former number. Verification: entries formerly [1]-[27] were checked on 2026-10-19 (`paper/references.md`); [28]-[32] on 2026-10-21 and [33]-[42] on 2026-10-23 (`paper/v2/references_additions.md`), each against its arXiv record, ACL Anthology or proceedings page, or DOI/journal record. These are machine and agent checks; no human has yet verified them for this manuscript.*
+*The v2 manuscript's single bibliography, numbered by first citation (generated once by `scripts/consolidate_references_v2.py` on 2026-10-24 from `paper/references.md` and `paper/v2/references_additions.md`, which keep their own numbering as historical records). Each entry notes its former number. Verification: entries formerly [1]-[27] were checked on 2026-10-19 (`paper/references.md`); [28]-[32] on 2026-10-21 and [33]-[42] on 2026-10-23 (`paper/v2/references_additions.md`); the two entries added for the stopping-policy pilot on 2026-10-25 (now [31] and [32]; they have no former number) on that date; each against its arXiv record, ACL Anthology or proceedings page, or DOI/journal record. These are machine and agent checks; no human has yet verified them for this manuscript.*
 
 [1] S. Caldarella, D. Talon, R. Aljundi, E. Ricci, and M. Mancini, "Thinking past the answer: evaluating harmful overthinking in large reasoning models," preprint, 2026, arXiv:2606.02835. (Formerly [7].)
 
@@ -61,3 +61,7 @@
 [29] S. Holm, "A simple sequentially rejective multiple test procedure," *Scandinavian Journal of Statistics*, vol. 6, no. 2, pp. 65–70, 1979. (Formerly [41].)
 
 [30] D. J. Schuirmann, "A comparison of the two one-sided tests procedure and the power approach for assessing the equivalence of average bioavailability," *Journal of Pharmacokinetics and Biopharmaceutics*, vol. 15, no. 6, pp. 657–680, 1987, doi: 10.1007/BF01068419. (Formerly [42].)
+
+[31] Y. Geifman and R. El-Yaniv, "Selective classification for deep neural networks," in *Advances in Neural Information Processing Systems 30 (NIPS 2017)*, 2017, arXiv:1705.08500. (Added 2026-10-25; checked against the NeurIPS proceedings page.)
+
+[32] C. J. Clopper and E. S. Pearson, "The use of confidence or fiducial limits illustrated in the case of the binomial," *Biometrika*, vol. 26, no. 4, pp. 404–413, 1934, doi: 10.1093/biomet/26.4.404. (Added 2026-10-25; checked against its Crossref record.)

@@ -14,7 +14,8 @@ pre-specified analyses that qualify it (§4.2, §4.3), then what the
 explanation text carries (§4.4) and selective risk (§4.5). We then show,
 on the earlier main run, how evaluation choices can manufacture a stopping
 advantage (§4.6), report the 256-token pass on the 240-problem arm (§4.7)
-and the rewording null (§4.8), and summarise (§4.9).
+and the rewording null (§4.8), report the exploratory stopping-policy
+pilot on fresh problems (§4.9), and summarise (§4.10).
 
 ## 4.1 The registered replication [C]
 
@@ -201,7 +202,51 @@ is therefore not mainly an artefact of a null that barely edits. Whether
 they do is unvalidated, fewer than half of the claims received a
 rewording, and reconstruction dependence is not faithfulness.
 
-## 4.9 Summary
+## 4.9 A stopping-policy pilot on fresh problems [X]
+
+The pilot (§3.9) generated a trace for every calibration and evaluation
+problem and forced every planned boundary at 256 tokens: 3,554 boundaries
+in calibration and 1,727 in evaluation. The re-forcing check in the
+original pairs agreed on 50 of 50 sampled boundaries in each set. Re-forced
+alone, the same calibration boundaries agreed on only 0.92 (46 of 50), and
+all four disagreements were boundaries originally forced in a pair.
+The 256-token forced answer, and with it the safety label, therefore
+depends slightly on what it is batched with.
+
+**Calibration.** No threshold was accepted for the position-only policy
+P0. The lowest bound in its search, 0.158 against the target of 0.05, came
+at a threshold that stopped on 201 problems, 19 of them unsafely, so P0
+never stops. For P1 the accepted threshold was τ = 0.945, at which it
+stopped on 292 of the 300 calibration problems with 5 unsafe stops (upper
+bound 0.047).
+
+**Evaluation.** On the 150 evaluation problems, P1 stopped on 148
+(coverage 0.987 [0.953, 0.998]). Six of those stops were unsafe:
+3 of 90 on GSM8K and 3 of 58 on MATH. P1's selective risk was
+0.041 [0.015, 0.086], and its one-sided 95% upper bound was 0.078, above
+α = 0.05. **The pilot's safety criterion was not met.** No stop fell at a
+boundary whose 256-token forced answer was still cut off, so the three
+truncation conventions give identical results. P1's mean net saving was 0.055 [0.046, 0.065],
+above the pre-set minimum of 0.02; because P0 never stops, this is also the
+paired P1 − P0 difference. The saving is small because the threshold is
+high and P1 stops late [P]: at a mean of 0.861 of the trace's tokens
+(median 0.924), with the forced answer adding a further 0.089 on average.
+Coverage therefore overstates how often a stop is useful. 11 of the 148
+stops saved nothing once the forced answer was charged, so 137 of the 150
+problems (0.913) had a stop that saved tokens [P].
+
+**Against the fixed criteria.** P1's coverage is above 0 and above P0's,
+so criterion (2) is met. The upper bound is above α, so criterion (1) is
+not, and by the protocol's rule a confirmatory study of this policy as
+designed is not warranted. The failed criterion is not evidence that P1 is
+unsafe: with 148 stops the bound falls below 0.05 only if at most 2 stops
+are unsafe, and at the observed rate an evaluation would need roughly
+1,500 to 2,000 stops before the bound fell below 0.05 [A]. Nor is it
+evidence that P1 is safe: the interval includes risks up to 0.086, and the
+evaluation risk (6 of 148) was higher than the calibration risk (5 of
+292).
+
+## 4.10 Summary
 
 | question | answer | class |
 |---|---|---|
@@ -213,4 +258,5 @@ rewording, and reconstruction dependence is not faithfulness.
 | Which signal stops more safely on the candidate menu (48-token labels; not deployment evidence)? | The registered probe, at a much smaller saving; no rule dominates | [S] |
 | Are the explanations faithful to the computation? | Not tested | — |
 | Is reconstruction dependence robust to a rewording null? | Little change (0.797 to 0.764 on 246 claims), but the rewordings' meaning is unvalidated | [X] |
+| Does a calibrated probe-based stopping policy bound its unsafe-stop rate below 0.05 on fresh problems? | Not shown. In a 150-problem pilot: risk 0.041, upper bound 0.078; saving 0.055; a position-only policy could not be calibrated | [X] |
 | Is there a safe and useful stopping policy? | Open (§5.4) | — |

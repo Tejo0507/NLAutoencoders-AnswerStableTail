@@ -8,6 +8,14 @@
 > budget with a 13.5-hour cap, pilot first, OMEN quit. The text below is the
 > design as frozen; the "draft" wording in it is historical.
 >
+> **Post-run notes (2026-10-25), outside the frozen design:**
+> - The pilot ran under D99 with one deviation, the re-forcing check redone
+>   in the original batch pairs (D100). Results are in D101: the safety
+>   criterion (§3.9, 1) was **not met**.
+> - The "256-token stability" check in §2 and §3.8 was not run. It is not in
+>   the frozen `gates`, and it has no counterpart when forcing at a single
+>   budget (D102).
+>
 > Earlier status: draft, not frozen, not approved, not run. Revised 2026-10-24
 > before any pilot data: SGR replaces fixed-sequence testing (§3.2), the
 > compute estimate is re-derived from measured rates (§3.6), and the code

@@ -4,7 +4,7 @@
 a field of a stored output. For every fact this script
 
 1. reads the field (or derives the quantity, for the few listed derivations)
-   from the output under `--runs` or `--d76`;
+   from the output under `--runs`, `--d76` or `--pilot`;
 2. formats it the way the manuscript writes numbers (U+2212 for minus, the
    fact's decimals) and compares it with the fact's `written` form;
 3. checks that `written` appears in every file the fact lists, and that each
@@ -13,7 +13,8 @@ a field of a stored output. For every fact this script
 It writes nothing. Exit code 0 when every fact checks, 1 otherwise, and 2 when
 no fact could be checked (for example, no runs directory).
 
-    python scripts/verify_manuscript_numbers.py --runs D:/elsewhere/runs --d76 D:/exp/d76/repo/runs
+    python scripts/verify_manuscript_numbers.py --runs D:/elsewhere/runs --d76 D:/exp/d76/repo/runs \
+        --pilot D:/exp/stopping-pilot/repo/runs
 """
 
 from __future__ import annotations
@@ -171,18 +172,22 @@ def check(registry: dict, roots: dict[str, Path], v2: Path = V2) -> tuple[list[s
     return failures, checked
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", type=Path, default=ROOT / "runs", help="stored run outputs (read only)")
     ap.add_argument("--d76", type=Path, default=None,
                     help="the D76 experiment's runs directory (read only)")
+    ap.add_argument("--pilot", type=Path, default=None,
+                    help="the stopping-policy pilot's runs directory (read only)")
     ap.add_argument("--registry", type=Path, default=REGISTRY)
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     registry = json.loads(a.registry.read_text(encoding="utf-8"))
     roots = {"runs": a.runs}
     if a.d76 is not None:
         roots["d76"] = a.d76
+    if a.pilot is not None:
+        roots["pilot"] = a.pilot
     failures, checked = check(registry, roots)
     n = len(registry["facts"])
     for f in failures:

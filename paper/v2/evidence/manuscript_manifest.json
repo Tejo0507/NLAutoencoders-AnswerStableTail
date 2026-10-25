@@ -22,13 +22,13 @@
   },
   "reporting_guidelines": [],
   "required_statements": {
-    "ai_disclosure": "missing",
+    "ai_disclosure": "draft",
     "author_contributions": "missing",
-    "code_availability": "missing",
+    "code_availability": "draft",
     "conflicts": "missing",
-    "consent": "missing",
-    "data_availability": "missing",
-    "ethics": "missing",
+    "consent": "draft",
+    "data_availability": "draft",
+    "ethics": "draft",
     "funding": "missing"
   },
   "schema_version": "1.0",

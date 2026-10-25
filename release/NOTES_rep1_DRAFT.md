@@ -14,8 +14,14 @@ confirmatory replication on 400 fresh problems (`rep1`), built from commit
 - **What is new since `data-runs-2026-10-19`:** the replication and its
   pre-specified analyses (`rep1*`), the post-hoc and exploratory analyses
   of the main run (D68–D84, D96), the D76 rewording null
-  (`main_paraphrase_llm*`, exploratory), and the hash manifest of the
+  (`main_paraphrase_llm*`, exploratory), the stopping-policy pilot
+  (`pilot_cal`, `pilot_eval`, `pilot_models`, `pilot_calibration`,
+  `pilot_evaluation*`, `pilot_posthoc`, `pilot_logs`; exploratory, D99–D102,
+  if the researcher includes it), and the hash manifest of the
   replication's code state.
+- **The pilot is not a safety certification.** Its safety criterion was
+  not met: P1's one-sided 95% upper bound on unsafe stops, 0.078, is above
+  α = 0.05.
 - **Evidence classes:** only `runs/main/` (registered) and the rep1
   confirmatory directories carry registered or confirmatory results;
   `RUNS.json` classifies every directory. Nothing here establishes that the

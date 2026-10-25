@@ -183,8 +183,10 @@ sheets stay withheld.
 **Also to update at release:** `CITATION.cff` still describes v0.1.0 (the
 frozen main-run report at `4713607`). Its abstract, version, commit and
 date, and a data reference for the rep1 archive, must be updated together
-with the release. GitHub reports the MIT `LICENSE` as `NOASSERTION`
-because of its appended third-party note. The text is correct.
+with the release. GitHub reported the MIT `LICENSE` as `NOASSERTION`
+because of its appended third-party note. The note now lives in the
+README's licence section, and `LICENSE` holds the unmodified MIT text
+(D103); the licence terms are unchanged.
 
 ## 8. Release decisions and candidate 2 (2026-10-24; not published)
 
@@ -196,6 +198,7 @@ because of its appended third-party note. The text is correct.
 | Checkout-state bundle (90 files) | **Excluded** from the public archive. Its SHA-256 list, `git status`, `HEAD` and branch are released as `runs/rep1_checkout_state_manifest/`; the files stay in `D:\NLAutoencoders-release\rc-2026-10-23\checkout_state_rep1\` (and the pipeline checkout itself) | Its value is byte-identity with the code state the outputs record. Sanitising its 15 local paths would destroy that, and publishing them would expose local paths. The manifest keeps it verifiable: any copy can be checked against the published hashes |
 | D76 outputs | **Included** as `runs/main_paraphrase_llm/` (all 7 outputs, labelled exploratory) and `runs/main_paraphrase_llm_logs/` (phase logs and hash lists; `00_header.txt` left out because its `nvidia-smi` listing names local applications under a path the sanitiser cannot rewrite; its code hashes follow from the public commit `deaeb5d`) | The manuscript reports D76 (§4.8, §5.2), so its outputs are needed for transparency |
 | `CITATION.cff` | Updated in a separate draft PR, merged only when the release is published | Its version and date describe a release that does not exist yet |
+| Stopping-policy pilot outputs (added 2026-10-25, D102; **the researcher confirms at publication**) | **Proposed: included** as `runs/pilot_cal/`, `pilot_eval/`, `pilot_models/`, `pilot_calibration/`, `pilot_evaluation/`, `pilot_evaluation_supplement/` (exploratory pilot), `pilot_posthoc/` (post hoc) and `pilot_logs/` (orchestrator and step logs with the input and output hash lists; `00_header.txt` left out for the same reason as D76's). The pilot tree's `train/` copies of rep1 inputs are not duplicated. About 45 MB | The manuscript reports the pilot (§3.9, §4.9), so D98's rule for D76 applies. The builder classifies these entries. **Decided: included** (D103). Release candidate 3 (`D:\NLAutoencoders-release\rc3-2026-10-25\`, from `2ff663d`; archive SHA-256 `99b7323a…7a71`) includes them and passes every check in the table below: 3,778 run files, 3,786/3,786 checksums, every file traced, nothing missing, annotation sheets withheld (D103 §8) |
 
 **Candidate 2:** `--status final` from a clean clone at `0b20d35`, with
 the three entries above staged through `--extra-run` from verified copies
@@ -220,7 +223,10 @@ entries (this commit); the final build includes them.
 2. Merge the `CITATION.cff` PR at the freeze commit or just before the
    release.
 3. Rebuild with `--status final` from a clean clone at that commit, with
-   the same three `--extra-run` arguments and `--date <release date>`.
+   the same three `--extra-run` arguments, plus the eight pilot entries
+   (from the pilot tree's `repo/runs/`, and a copy of its `logs/` without
+   `00_header.txt`) unless the researcher leaves the pilot out, and
+   `--date <release date>`.
 4. Re-run every check in the table above on the new package; all must pass.
 5. Push the tag `data-runs-<date>` on the build commit, and create the
    GitHub release with the archive and its `.sha256` (`release/PUBLISHING.md`,

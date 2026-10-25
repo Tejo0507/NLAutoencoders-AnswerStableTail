@@ -1,5 +1,13 @@
 # Proposal: a safety-constrained stopping-policy evaluation (draft 2, 2026-10-23)
 
+> **Update 2026-10-25.** The pilot that §6.8 suggests was frozen
+> (`docs/STOPPING_POLICY_PILOT_PROTOCOL.md`, D99) and run (D100–D101). Its
+> safety criterion was **not met**: the one-sided 95% upper bound on P1's
+> unsafe-stop rate was 0.078, above α = 0.05. By the pilot protocol's §3.9,
+> the confirmatory study as designed is not warranted. This proposal itself
+> remains unapproved; any confirmatory study needs a new frozen plan. The
+> status below is the proposal's own, as written.
+>
 > **STATUS: NOT APPROVED. NOT RUN. NOT FROZEN.**
 > - This is a proposal for review. It authorises no generation, forcing,
 >   training or analysis.
