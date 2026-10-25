@@ -26,6 +26,7 @@ def _write(v2: Path, **over):
         "05_discussion.md": "# 5. Discussion\n\nD.\n",
         "06_limitations.md": "# 6. Limitations\n\nL.\n",
         "07_reproducibility.md": "# 7. Reproducibility\n\nP.\n",
+        "09_declarations.md": "# Declarations\n\n*note*\n\n**Funding.** To be supplied.\n",
         "08_figures_tables.md": "# Figures and tables\n\n*note*\n\n**Figure 1. One.**\n\n"
                                 "**Figure 2. Two.**\n\n**Table 1. T.**\n",
         "tables_generated.md": "# Tables\n\n*gen*\n\n## Table 1. T\n\n| a |\n",
@@ -67,3 +68,4 @@ def test_assembly_drops_notes_and_keeps_the_status(tmp_path):
     assert out.startswith("# A title")
     assert "> **Status:** Revised candidate." in out
     assert "*note*" not in out and "[1] A" in out and "## Table 1. T" in out
+    assert out.index("# 7. Reproducibility") < out.index("# Declarations") < out.index("# Tables")
