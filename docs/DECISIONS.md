@@ -4443,3 +4443,97 @@ sized from these numbers; or reporting the pilot as planning evidence
 only. The pilot's evaluation set is never reused as confirmatory data
 (§3.9).
 
+## D102. The pilot in the manuscript; two departures found after the run; release preparation
+
+**Recorded 2026-10-25, about 18:30 IST.** No GPU work ran, nothing was
+published, and no frozen file or stored output was changed. The pilot's
+frozen outputs still match `logs/OUTPUT_SHA256SUMS.txt` (6 of 6).
+
+**1. Two departures from the protocol, found while writing the pilot up.**
+Both were found after the results were known. Neither changes a reported
+estimate.
+- **The 256-token stability check was not run.** Protocol §2 and §3.8
+  (and proposal §3) list "256-token stability ≥ 0.95 on finished
+  boundaries" as an instrument check carried over from D82. In D82 it
+  compares answers re-forced at 256 tokens with answers forced at 48. The
+  pilot forces at one budget, so the check has no counterpart. It is not
+  in the frozen `gates` (`configs/stopping_pilot_protocol.json`), it was
+  not implemented, and it did not run. The paired re-forcing check (D100)
+  is the only instrument check of the forced answers. The `force`
+  docstring in `scripts/stopping_pilot.py`, which said "plus the
+  re-forcing and stability checks", is corrected on `main`; the pilot ran
+  from its own clone at `7dfdda8`, which is unchanged.
+- **The paired saving was computed outside `evaluate`.** D101 already
+  records this (`scripts/complete_pilot_c2.py`). It is listed here so that
+  the paper's §3.9 names both departures in one place.
+
+**2. One post hoc description.** Where P1 stops on the evaluation set:
+`scripts/describe_pilot_stops.py` (tested) applies the frozen τ\* with
+`walk`'s first-crossing rule to `pilot_eval/pilot_scores.jsonl`. It wrote
+a new directory, `runs/pilot_posthoc/stop_positions.json` (SHA-256
+`8761428f39f3033f6abcefc2bb3870355b65a4c4c0f6ea10a8d9cd965d60f234`), in
+the pilot tree. Over the 148 stops:
+- mean stop prefix 0.861 of the trace's tokens (median 0.924);
+- forced answer 0.089 of the trace on average;
+- stop at boundary 9.3 of 11.4 on average;
+- 1 stop at the first boundary.
+
+That is why the saving is small. It is marked [P] in the paper.
+
+**3. Sample-size arithmetic for a follow-up ([A], one-sided 95%
+Clopper–Pearson at x = round(r̂ n) with r̂ = 6/148).** With 148 stops,
+the bound is ≤ α only for ≤ 2 unsafe stops (2: 0.042; 3: 0.052). At r̂,
+the bound is 0.064 at 300 stops, 0.053 at 1,000, 0.050 at 1,500 (just
+above α) and 0.049 at 2,000. D101's "about 2,000" stands; the paper says
+"roughly 1,500 to 2,000".
+
+**4. Reading.** The paper reports the pilot as [X] (the evidence class is
+widened to cover a study designated exploratory by its own frozen
+protocol) and keeps four findings apart:
+- P0 cannot be calibrated at α = 0.05;
+- P1 saves 0.055 at τ\*;
+- P1's observed risk 0.041 is below α, but its upper bound 0.078 is not,
+  so criterion (1) is not met and a confirmatory study as designed is not
+  warranted. The protocol's own reading (§1) holds as well: at this size,
+  a failed gate is not evidence of unsafety;
+- the forced-answer label has a small batch-composition component (D100).
+
+D101's sentence that the probe's ranking "generalises well enough for a
+calibrated threshold to keep out-of-sample risk near its target" is left
+as written. The paper uses the narrower reading above: the observed risk
+is below the target, and the pilot cannot bound it there.
+
+**5. Manuscript (revised candidate; still awaiting author review, not
+frozen).**
+- §3.9 (pilot methods, departures) and §4.9 (results) are new; the
+  summary moves to §4.10.
+- The abstract, §1 (findings, contribution 5, scope), §2 (LYNX),
+  §5.4, §5.6, §6 and §7 are updated.
+- References [31] (Geifman and El-Yaniv, NIPS 2017) and [32] (Clopper and
+  Pearson, *Biometrika* 1934) are added, each checked against its
+  primary record.
+- Key numbers N85–N111 (28 facts) are bound to the pilot's outputs.
+  `scripts/verify_manuscript_numbers.py` gains `--pilot` (tested) and
+  passes 112 of 112.
+- The claim matrix gains §S (S1–S4) and E6. The review CSV gains
+  CLAIM-013 and CLAIM-014 (validator: `VALID_WITH_ALIGNMENT_GAPS`, the two
+  pre-existing gaps).
+
+**6. Release (prepared, not published).**
+- `scripts/build_results_release.py` classifies the pilot's directories
+  (`pilot_cal`, `pilot_eval`, `pilot_models`, `pilot_calibration`,
+  `pilot_evaluation`, `pilot_evaluation_supplement`: exploratory pilot;
+  `pilot_posthoc`: post hoc; `pilot_logs`: logs).
+- The release README template describes them.
+- This follows D98's rule for D76: the paper reports the pilot, so its
+  outputs ship. The pilot tree's `train/` copies of rep1 inputs are
+  already released under rep1 and are not duplicated.
+- Whether the pilot ships, and when the release is published, remain the
+  researcher's decisions. The final build waits on the manuscript freeze.
+
+**7. Unchanged:**
+- the frozen protocol and both pilot configs;
+- every pilot output listed in D101;
+- every registered result, plan and stored output;
+- the pipeline checkout.
+

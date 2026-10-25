@@ -1,7 +1,71 @@
 # Current state and next steps
 
 What exists, what has run, what it found, and the next command to type.
-Last reviewed 2026-10-25.
+Last reviewed 2026-10-25, 18:30 IST.
+
+> **Handover, 2026-10-25 evening (D102).** Written for a researcher picking
+> the project up cold. The pilot is now in the manuscript. No GPU work ran
+> this session, and no project process was running. Nothing is published.
+>
+> **The project.** Does a natural-language autoencoder (NLA) readout of
+> Qwen2.5-7B-Instruct's layer-20 activations tell when step-by-step
+> reasoning has settled its answer, beyond cheaper signals? It was studied
+> through a registered report (`paper/REPORT.md`, frozen at D66), a
+> confirmatory replication on 400 fresh problems (rep1, D75 → D94–D96),
+> the D76 rewording null (D97), and an exploratory stopping-policy pilot
+> (D99–D101). The manuscript is `paper/v2/`.
+>
+> **Findings, in one line each.**
+> - H1 and H2 are supported on the registered 48-token outcome [C].
+> - The advantage cannot be attributed to explanation content: a
+>   position-only rule does better [S].
+> - The hypotheses are not supported at 256 tokens [S].
+> - The text adds nothing practically relevant beyond a same-label probe
+>   (Δ₁ +0.00002, within ±0.01) [S].
+> - Pilot [X]: P1's risk is 0.041 with an upper bound of 0.078 > α = 0.05,
+>   so the **safety criterion was not met**; saving 0.055; P0 cannot be
+>   calibrated.
+> - Faithfulness is untested.
+>
+> | state | items |
+> |---|---|
+> | **Completed and verified** | rep1 and its follow-ups (D94–D96; replication checker 169/169, re-run 2026-10-25); D76 (D97); the pilot (D101; output hashes 6/6 re-verified 2026-10-25; Clopper–Pearson bounds recomputed independently); the manuscript's 112 key numbers against outputs (`verify_manuscript_numbers.py --pilot`); structure, citations and § references (`assemble_manuscript_v2.py --check`); figures regenerate byte-identically; Tables 1–3 regenerated; CPU suite 1,204 passed, 31 skipped, 0 failed (2026-10-25); branch protection (D97) |
+> | **Implemented, not fully verified** | the release builder's pilot entries (unit tests pass; no archive containing them has been built and extracted yet); the two new references [31], [32] (checked against their primary records by the assistant; no human check) |
+> | **In progress** | PR for D102 (manuscript integration, the pilot records, release classification); see `git log` and the PR list for its state |
+> | **Outstanding (no decision needed)** | the final release build at the freeze commit; an independent (not self-) review of the manuscript |
+> | **Explicitly deferred** | Zenodo (`docs/ZENODO_FOLLOWUP.md`; no account); Stage 0 on rep1; human annotation (blinded sheets withheld); any confirmatory stopping study |
+> | **Blocked on the researcher** | approving and freezing the manuscript (`paper/v2/FREEZE_CHECKLIST.md` §B: authors, funding, competing interests, AI-use disclosure, ethics, data availability, venue, human reference check, the pilot's place in the paper); publishing the GitHub release, and whether the pilot's outputs ship in it; any follow-up study (needs its own frozen plan, a use-case α, and fresh evaluation data) |
+>
+> **Where things are.**
+> - The paper and docs worktree is `D:\NLAutoencoders-wt`. Edit
+>   `paper/v2/00_*.md`–`08_*.md`, `references.md` and
+>   `evidence/key_numbers.json`, then regenerate `MANUSCRIPT.md` with
+>   `scripts/assemble_manuscript_v2.py`.
+> - The protected pipeline checkout is `D:\NLAutoencoders-AnswerStableTail`
+>   (`research/d69-d75-followup` @ `b17c131`, with uncommitted work). It
+>   holds every original `runs/` output. Do not modify it.
+> - The pilot's isolated tree is
+>   `D:\NLAutoencoders-experiments\stopping-pilot-2026-10-25\`, and D76's
+>   is `D:\NLAutoencoders-experiments\d76-2026-10-23\`.
+> - The release candidate is `D:\NLAutoencoders-release\rc2-2026-10-24\`.
+>
+> **Check commands** (CPU, read only):
+> ```
+> python scripts/verify_manuscript_numbers.py --runs D:/NLAutoencoders-AnswerStableTail/runs \
+>   --d76 D:/NLAutoencoders-experiments/d76-2026-10-23/repo/runs \
+>   --pilot D:/NLAutoencoders-experiments/stopping-pilot-2026-10-25/repo/runs
+> python scripts/assemble_manuscript_v2.py --check
+> python scripts/check_run_consistency.py --replication --complete --runs-root D:/NLAutoencoders-AnswerStableTail/runs
+> python -m pytest -m "not slow"
+> ```
+>
+> **Risks to keep in view.**
+> - Forced answers under NF4 depend on batch composition (D80, D100).
+> - The pilot's α has no use-case justification.
+> - The protocol listed a stability check the pilot could not run (D102).
+> - Every review so far is a self-review.
+> - The release README pins the commit it is built from, so it must be
+>   rebuilt at the freeze.
 
 > **Update 2026-10-25, about 13:30 IST (D99–D101): stopping-policy pilot
 > run and complete.** No GPU work is running, and nothing is published.
