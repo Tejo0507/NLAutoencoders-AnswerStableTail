@@ -123,7 +123,8 @@ others. Its results separate four findings [X]:
    bound, so P0 never stops.
 2. **Utility.** At its calibrated threshold, P1 stopped on almost every
    evaluation problem and saved 5.5% of tokens, above the pre-set minimum
-   of 2%. The saving is modest because the stops come late.
+   of 2%. The saving is modest because the stops come late, and 11 of the
+   stops saved nothing once the forced answer was charged.
 3. **Safety.** P1's observed unsafe-stop rate, 4.1%, is below the 5%
    target, but 148 stops cannot bound it there: the one-sided upper bound
    is 7.8%. The pilot's safety criterion was not met, and by the

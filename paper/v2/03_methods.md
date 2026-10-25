@@ -22,7 +22,13 @@ exploratory **240-problem arm** (`main_nla240`, D54) extends the NLA arm
 and contains the main run's 120 problems, so it is not an independent
 sample. The **replication** (`rep1`, D75) uses 400 problems (240 GSM8K,
 160 MATH) that no earlier run had used, selected in the registered hash
-order after excluding every problem identifier used before.
+order after excluding every problem identifier used before. Its frozen plan
+fixed N = 400 before any outcome existed. From the main run's standard
+error, the plan expected a 95% interval half-width of about 0.028 for H1,
+and power of about 0.45, 0.80 and 0.98 for true gaps of 0.027, 0.040 and
+0.057. It also fixed that with fewer than 200 problems with a tail, the
+result would be reported as an underpowered replication rather than a
+confirmatory test.
 
 ## 3.2 The answer-stable tail and the safety outcome [R]
 
@@ -266,7 +272,11 @@ is reported (§4.9). Two further departures were found after the run and
 are recorded in D102. First, the protocol's list of instrument checks
 included a 256-token stability check carried over from §3.6, where it
 compares answers across two budgets; the pilot forces at a single budget,
-so the check had no counterpart and was not run. Second, the evaluation
+so the check had no counterpart and was not run. For an answer that
+finished within its budget, a larger budget cannot change the greedy tokens
+generated before the end token in the same batch [A]. The remaining risk
+that the check guarded against, a forced answer that changes between
+calls, is what the re-forcing check measures. Second, the evaluation
 code skipped the pre-specified paired saving because P0 had no threshold.
 That estimand was computed separately with the same functions, the frozen
 threshold and the protocol's seed.

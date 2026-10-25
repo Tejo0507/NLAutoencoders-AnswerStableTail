@@ -401,6 +401,15 @@
    "fmt": "plain3", "written": "0.924", "files": ["04_results.md"]},
   {"id": "N111", "label": "P1 forced-answer share at the stop (post hoc)", "class": "P", "root": "pilot",
    "file": "pilot_posthoc/stop_positions.json", "value": ["P1_same_label_probe", "forced_share_mean"],
-   "fmt": "plain3", "written": "0.089", "files": ["04_results.md"]}
+   "fmt": "plain3", "written": "0.089", "files": ["04_results.md"]},
+  {"id": "N112", "label": "P1 stops with zero net saving (post hoc, D103)", "class": "P", "root": "pilot",
+   "file": "pilot_posthoc/stop_savings.json", "value": ["P1_same_label_probe", "stops_with_zero_saving"],
+   "fmt": "int", "written": "11 of the 148", "files": ["04_results.md"]},
+  {"id": "N113", "label": "P1 problems with a stop that saves tokens (post hoc, D103)", "class": "P", "root": "pilot",
+   "file": "pilot_posthoc/stop_savings.json", "value": ["P1_same_label_probe", "problems_with_a_saving_stop"],
+   "fmt": "int", "written": "137 of the 150", "files": ["04_results.md"]},
+  {"id": "N114", "label": "P1 share of problems with a saving stop (post hoc, D103)", "class": "P", "root": "pilot",
+   "file": "pilot_posthoc/stop_savings.json", "value": ["P1_same_label_probe", "share_with_a_saving_stop"],
+   "fmt": "plain3", "written": "0.913", "files": ["04_results.md"]}
  ]
 }

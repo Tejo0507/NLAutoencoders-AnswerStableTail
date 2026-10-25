@@ -231,6 +231,9 @@ above the pre-set minimum of 0.02; because P0 never stops, this is also the
 paired P1 − P0 difference. The saving is small because the threshold is
 high and P1 stops late [P]: at a mean of 0.861 of the trace's tokens
 (median 0.924), with the forced answer adding a further 0.089 on average.
+Coverage therefore overstates how often a stop is useful. 11 of the 148
+stops saved nothing once the forced answer was charged, so 137 of the 150
+problems (0.913) had a stop that saved tokens [P].
 
 **Against the fixed criteria.** P1's coverage is above 0 and above P0's,
 so criterion (2) is met. The upper bound is above α, so criterion (1) is

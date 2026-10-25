@@ -34,9 +34,10 @@ checklist `paper/v2/FREEZE_CHECKLIST.md`.
 | 5 | `05_discussion.md` | revised; conclusion in §5.6 |
 | 6 | `06_limitations.md` | revised; multiplicity and benchmark-contamination added |
 | 7 | `07_reproducibility.md` | revised; versions and seeds; archive identifier pending publication |
+| Declarations | `09_declarations.md` | drafted from the record (D103); author-only fields open |
 | Captions | `08_figures_tables.md` | new; Figs 1–7 and Tables 1–3 |
 | Refs | `references.md` | one bibliography, [1]–[32] in order of first citation ([31]–[32] added for the pilot); each entry notes its former number in `../references.md` or `references_additions.md` |
-| Evidence | `evidence/key_numbers.json` | 112 key numbers bound to stored outputs (84 before the pilot); `scripts/verify_manuscript_numbers.py` |
+| Evidence | `evidence/key_numbers.json` | 115 key numbers bound to stored outputs (84 before the pilot); `scripts/verify_manuscript_numbers.py` |
 
 ## 1. Introduction (about 1 page)
 

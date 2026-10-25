@@ -224,7 +224,13 @@ exploratory **240-problem arm** (`main_nla240`, D54) extends the NLA arm
 and contains the main run's 120 problems, so it is not an independent
 sample. The **replication** (`rep1`, D75) uses 400 problems (240 GSM8K,
 160 MATH) that no earlier run had used, selected in the registered hash
-order after excluding every problem identifier used before.
+order after excluding every problem identifier used before. Its frozen plan
+fixed N = 400 before any outcome existed. From the main run's standard
+error, the plan expected a 95% interval half-width of about 0.028 for H1,
+and power of about 0.45, 0.80 and 0.98 for true gaps of 0.027, 0.040 and
+0.057. It also fixed that with fewer than 200 problems with a tail, the
+result would be reported as an underpowered replication rather than a
+confirmatory test.
 
 ## 3.2 The answer-stable tail and the safety outcome [R]
 
@@ -468,7 +474,11 @@ is reported (§4.9). Two further departures were found after the run and
 are recorded in D102. First, the protocol's list of instrument checks
 included a 256-token stability check carried over from §3.6, where it
 compares answers across two budgets; the pilot forces at a single budget,
-so the check had no counterpart and was not run. Second, the evaluation
+so the check had no counterpart and was not run. For an answer that
+finished within its budget, a larger budget cannot change the greedy tokens
+generated before the end token in the same batch [A]. The remaining risk
+that the check guarded against, a forced answer that changes between
+calls, is what the re-forcing check measures. Second, the evaluation
 code skipped the pre-specified paired saving because P0 had no threshold.
 That estimand was computed separately with the same functions, the frozen
 threshold and the protocol's seed.
@@ -701,6 +711,9 @@ above the pre-set minimum of 0.02; because P0 never stops, this is also the
 paired P1 − P0 difference. The saving is small because the threshold is
 high and P1 stops late [P]: at a mean of 0.861 of the trace's tokens
 (median 0.924), with the forced answer adding a further 0.089 on average.
+Coverage therefore overstates how often a stop is useful. 11 of the 148
+stops saved nothing once the forced answer was charged, so 137 of the 150
+problems (0.913) had a stop that saved tokens [P].
 
 **Against the fixed criteria.** P1's coverage is above 0 and above P0's,
 so criterion (2) is met. The upper bound is above α, so criterion (1) is
@@ -850,7 +863,8 @@ others. Its results separate four findings [X]:
    bound, so P0 never stops.
 2. **Utility.** At its calibrated threshold, P1 stopped on almost every
    evaluation problem and saved 5.5% of tokens, above the pre-set minimum
-   of 2%. The saving is modest because the stops come late.
+   of 2%. The saving is modest because the stops come late, and 11 of the
+   stops saved nothing once the forced answer was charged.
 3. **Safety.** P1's observed unsafe-stop rate, 4.1%, is below the 5%
    target, but 148 stops cannot bound it there: the one-sided upper bound
    is 7.8%. The pilot's safety criterion was not met, and by the
@@ -1051,6 +1065,63 @@ follow-ups and the rewording null are prepared as a release candidate
 when it is published. The pilot's outputs are not yet in that candidate;
 whether they join it is an open release decision (D102). Blinded annotation sheets and their keys are
 withheld until the human annotation is complete.
+
+# Declarations
+
+**Author.** [record] Tejo Sridhar M V S, the author named in
+`CITATION.cff` and `LICENSE`. [author] Affiliation, ORCID, a corresponding
+address, and confirmation that the author list is complete.
+
+**Author contributions.** [author] To be supplied, for example in CRediT
+terms.
+
+**Funding.** [author] To be supplied. The project's records name no funder;
+that is not a statement that the work was unfunded.
+
+**Competing interests.** [author] To be supplied.
+
+**Ethics and consent.** [record] The study uses two public benchmarks,
+GSM8K [27] and MATH [28], and openly released models. No human participants
+were recruited and no personal data were collected. The planned
+two-annotator protocol was not run, and its blinded sheets are withheld.
+The one annotation pass that exists (the RQ2 amendment A1, D56–D57) was made
+by an AI system, not by people. [author] Whether an institutional ethics
+review applies.
+
+**Use of AI assistance.** [record] The project's session records, from
+2026-10-16 onwards, show that an AI assistant (Anthropic's Claude, used
+through Claude Code):
+- wrote and tested analysis code;
+- ran the experiments the researcher approved;
+- checked numbers and citations against their sources;
+- drafted and revised the text of this manuscript.
+
+The researcher's decisions, including every plan freeze and approval, are
+recorded in `docs/DECISIONS.md`. [author] The extent of AI use before
+2026-10-16, the wording the venue requires, and whether to cite the
+assistant's skill packages.
+
+**Data availability.** [record]
+- The main run's artifacts are published as the GitHub release
+  `data-runs-2026-10-19` (CC BY 4.0) of the code repository.
+- The artifacts of the replication, its follow-ups, the rewording null
+  and the stopping-policy pilot are prepared as a verified release
+  candidate and are not yet published (§7).
+- The blinded annotation sheets and their key are withheld until the
+  annotation is complete.
+- Problem text comes from GSM8K and MATH (MIT). Traces, activations and
+  verbalisations come from Qwen2.5-7B-Instruct and the released layer-20
+  NLA (Apache 2.0). No model weights are redistributed.
+
+**Code availability.** [record] All code, configurations, frozen plans
+and the decision record are at
+https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail under the MIT
+licence. The vendored `third_party/nla_inference/` is Apache 2.0.
+
+**Compute.** [record] Every run in the record used one local NVIDIA RTX
+4050 Laptop GPU, and the records list no cloud compute. The rewording null
+took about 101 GPU-minutes and the stopping-policy pilot 9.1 GPU-hours
+(D97, D101).
 
 # Tables
 
