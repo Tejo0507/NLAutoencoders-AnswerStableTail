@@ -4530,6 +4530,27 @@ frozen).**
   already released under rep1 and are not duplicated.
 - Whether the pilot ships, and when the release is published, remain the
   researcher's decisions. The final build waits on the manuscript freeze.
+- **Verification build (not a release).** Built with `--status final`
+  from a clean clone at `d5bd25d`, with candidate 2's three extra entries
+  and the eight pilot entries. `pilot_logs` was staged from a
+  hash-verified copy without `00_header.txt`
+  (`D:\NLAutoencoders-release\rc3-inputs-2026-10-25\`). Output:
+  `D:\NLAutoencoders-release\rc3-check-2026-10-25\`.
+  - 3,786 staged files and 3,777 run files (3,281 + 496 from the pilot);
+    115 sanitised.
+  - Archive 276,871,754 bytes, SHA-256
+    `dae9e2acbde4aab0b083a70b259cf95c0f4945b8b3039dc94759db6f755db348`.
+  - After extraction, 3,785 of 3,785 checksum entries pass, and the
+    archive's `.sha256` verifies.
+  - Provenance: 3,662 files are byte-identical to their sources, and 115
+    are sanitised, each traced to its original hash. Nothing is missing,
+    and no excluded entry is present (`main_claim_annotation` stays
+    withheld).
+  - The rescan flags only the pinned F6 validator.
+  - The sources are unchanged afterwards: the pipeline checkout's 3,415
+    files and status, the pilot's 6 outputs, and D76's 7.
+  - It is superseded by the build at the freeze commit, whose README
+    names that commit.
 
 **7. Unchanged:**
 - the frozen protocol and both pilot configs;
