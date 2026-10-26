@@ -326,6 +326,9 @@ D63–D67. The Zenodo deposit is prepared but not yet made, so no DOI exists.
 
 ## Getting started
 
+For pull requests, see [`CONTRIBUTING.md`](CONTRIBUTING.md): the CPU checks,
+which files are hash-pinned, how to record decisions, and the PR template.
+
 ### Hardware and what can be reproduced
 
 The study ran on an RTX 4050 Laptop GPU with **6.44 GB of VRAM** (6,141 MiB),
@@ -472,6 +475,7 @@ in the D68 audit, on CPU in roughly 20–30 minutes:
 
 ```
 CITATION.cff          citation metadata for this repository
+CONTRIBUTING.md       how to run checks, what not to edit, and the PR template
 PROJECT_PLAN.md       the plan and pre-registration (§5–§6 are the registered definitions)
 EXECUTION_REPORT_SUPERVISED.md   generated report of the supervised analyses on the main run
 classification.py,    root-level supervised analyses by repeated cross-validation;
