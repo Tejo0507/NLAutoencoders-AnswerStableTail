@@ -17,6 +17,23 @@ permissions:
   contents: read
 
 jobs:
+  # Defects only (undefined names, unused imports and variables); the rule set
+  # is in pyproject.toml. Pinned so a ruff release cannot fail a pull request.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: ruff
+        run: |
+          python -m pip install ruff==0.17.2
+          ruff check --output-format=github .
+
   pytest:
     runs-on: ubuntu-latest
     timeout-minutes: 30
