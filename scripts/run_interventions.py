@@ -141,7 +141,7 @@ def main() -> int:
         return 1
 
     store = ActivationStore(cfg.dir / "acts")
-    layer, ccfg = cfg.target.layer, cfg.causal
+    ccfg = cfg.causal
     direction, dir_info = fit_tail_direction(cfg, ast_rows, traces, store, log)
 
     # Interventions are evaluated on the eval split only - the direction came

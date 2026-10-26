@@ -1,0 +1,14 @@
+# Keeps the CI workflow's actions current. Python dependencies are
+# deliberately not included: requirements.lock.txt pins the versions this study
+# ran on, and changing them is a reproducibility decision, not a routine update.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
