@@ -31,7 +31,7 @@ from _stage import base_parser, setup, should_skip
 from nlaast.activations.store import ActivationStore
 from nlaast.baselines.probe import CorrectnessProbe
 from nlaast.data.answers import PERMISSIVE, equivalent, extract_answer
-from nlaast.faithfulness.audit import audit_explanation, summarise
+from nlaast.faithfulness.audit import audit_explanation
 from nlaast.logging_utils import JsonlWriter, read_jsonl, write_json
 from nlaast.models import loading
 from nlaast.nla.reconstructor import ActivationReconstructor

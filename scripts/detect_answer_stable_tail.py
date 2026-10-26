@@ -25,7 +25,6 @@ from _stage import base_parser, setup, should_skip
 
 from nlaast.ast_detect import (
     BoundaryEvidence,
-    TailStatus,
     detect_ast,
     matched_windows,
 )
