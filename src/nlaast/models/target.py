@@ -273,8 +273,6 @@ class TargetModel:
         ``output_hidden_states=True`` because the latter keeps all 29 layers and
         there is no VRAM for that here.
         """
-        import torch
-
         layer = self.tcfg.layer if layer is None else layer
         store: dict[str, Any] = {"hidden": None}
 

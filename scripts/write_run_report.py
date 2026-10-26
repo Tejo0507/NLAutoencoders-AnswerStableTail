@@ -35,7 +35,6 @@ def main() -> int:
     ast_rows = read_jsonl(cfg.dir / "ast" / "ast.jsonl")
     recon = read_jsonl(cfg.dir / "nla" / "reconstructions.jsonl")
     audits = read_jsonl(cfg.dir / "faithfulness" / "audits.jsonl")
-    curves_path = cfg.dir / "analysis" / "tables" / "stopping_at_matched_budget.json"
     results_path = cfg.dir / "analysis" / "results.json"
     results = read_json(results_path) if results_path.exists() else {}
     robust_path = cfg.dir / "robustness" / "robustness.json"
