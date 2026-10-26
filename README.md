@@ -9,6 +9,37 @@ already settled — beyond what much cheaper signals already say?*
 [![cpu-tests](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/actions/workflows/cpu-tests.yml/badge.svg?branch=main)](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/actions/workflows/cpu-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+<p align="center">
+  <img src="docs/assets/answer_stable_tail.gif" alt="Animated schematic: a reasoning trace is cut into chunks; the answer the model would give if forced to answer changes until chunk 8, then stays at 42 for the rest of the trace. That final stretch is the answer-stable tail." width="760">
+</p>
+
+### In 30 seconds
+
+Reasoning models often keep writing after their answer has settled. Could a
+model's own **natural-language autoencoder (NLA)** readout say where that
+stretch begins, and so when it is safe to stop early? This repository holds a
+**pre-registered** test of that, with the code, the decision record and the
+data to check it. The short answer: not beyond what cheaper signals give.
+
+- **Registered result, supported.** On 400 fresh GSM8K and MATH problems
+  (Qwen2.5-7B-Instruct), the readout beat a correctness probe by **0.047**
+  (95% CI 0.019 to 0.075) in safe-stopping rate, on the registered 48-token
+  forced-answer outcome.
+- **But it does not hold up.** A rule using only prefix length beat the
+  readout by 0.025, and under a 256-token outcome neither hypothesis was
+  supported. Beyond position and a same-label probe on the same activation, the
+  explanation text adds **0.00002 AUC**.
+- **No safe stopping rule.** An exploratory pilot saved 5.5% of tokens with
+  4.1% unsafe stops, but the 95% upper bound (7.8%) exceeded the 5% target, so
+  its safety criterion was not met.
+- **Not tested:** whether the explanations are faithful to the computation.
+
+These figures are from the abstract of the revised-candidate manuscript
+([`paper/v2/`](paper/v2/00_abstract.md); awaiting author review, not frozen).
+Each is bound to a stored output and checked by
+`scripts/verify_manuscript_numbers.py`. The animation is an illustration, not
+data. The full account follows.
+
 ## Overview
 
 Reasoning models often keep writing after their answer is settled. This
@@ -461,6 +492,7 @@ paper/                the frozen report: section files, generated REPORT.md, ref
                       tables, evidence manifests and the internal review
   figures_v2/         the revised manuscript's figures (make_paper_figures_v2.py)
 .github/              the CPU test workflow and Dependabot configuration
+docs/assets/          the README animation (make_readme_animation.py; illustrative, not data)
 release/              templates, notices and licence texts for the run-artifact release,
                       and PUBLISHING.md (gates and procedure)
 outputs/              pilot-scale supervised cross-validation tables and figures; not
