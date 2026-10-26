@@ -127,7 +127,6 @@ def main() -> int:
         return 0
 
     traces = [t for t in read_jsonl(cfg.dir / "traces" / "traces.jsonl") if t.get("ok")]
-    ast_rows = {r["problem_id"]: r for r in read_jsonl(cfg.dir / "ast" / "ast.jsonl")}
     if not traces:
         log.error("no traces - run scripts/generate_traces.py first")
         return 1
