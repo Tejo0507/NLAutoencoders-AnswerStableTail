@@ -6,8 +6,8 @@
 useful about the part of a reasoning trace that comes after the answer has
 already settled — beyond what much cheaper signals already say?*
 
+[![cpu-tests](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/actions/workflows/cpu-tests.yml/badge.svg?branch=main)](https://github.com/Tejo0507/NLAutoencoders-AnswerStableTail/actions/workflows/cpu-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-complete-brightgreen)]()
 
 ## Overview
 
@@ -377,7 +377,15 @@ target still exists. The orchestrator orders the stages for that, and
 
 On 2026-10-19 the whole suite gave 971 passed, 3 skipped on the RTX 4050,
 including the 5 GPU tests. The 3 skips need the released autoencoder sidecars
-in the local Hugging Face cache.
+in the local Hugging Face cache. The suite has grown since. On 2026-10-26 the
+CPU run gave 1,206 passed, 31 skipped. Those skips need staged benchmarks,
+cached sidecars or the stored runs, and each one says which.
+
+CI ([`.github/workflows/cpu-tests.yml`](.github/workflows/cpu-tests.yml))
+runs the CPU suite on every pull request and every push to `main`, on the
+locked versions with the CPU build of torch. It also runs a defects-only lint
+(`ruff check .`, configured in `pyproject.toml`). Branch protection requires
+the `pytest` job to pass before a merge.
 
 The end-to-end test runs every stage script against tiny stand-ins in about a
 minute on CPU; it proves wiring, not science. It deletes and rebuilds
@@ -449,6 +457,10 @@ scripts/              run_pipeline.py and one entry point per stage; read-only c
                       (build_results_release.py) and its scanner (scan_release.py)
 tests/                unit tests and the fixture-backed end-to-end test
 paper/                the frozen report: section files, generated REPORT.md, references.md
+  v2/                 the revised manuscript: section files, generated MANUSCRIPT.md,
+                      tables, evidence manifests and the internal review
+  figures_v2/         the revised manuscript's figures (make_paper_figures_v2.py)
+.github/              the CPU test workflow and Dependabot configuration
 release/              templates, notices and licence texts for the run-artifact release,
                       and PUBLISHING.md (gates and procedure)
 outputs/              pilot-scale supervised cross-validation tables and figures; not
