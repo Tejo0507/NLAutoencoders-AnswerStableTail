@@ -12,12 +12,22 @@ __pycache__/
 *.egg-info/
 .venv/
 .pytest_cache/
+.ruff_cache/
+
+# CI by-products, if the workflow's steps are run locally
+pytest-report.xml
+requirements.ci.txt
 
 # Microsoft Word lock files
 ~$*
 
-# Local editor and tooling settings
+# Local editor, assistant and OS files
 .claude/
+CLAUDE.md
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
 
 # Derived artefacts: the .docx is tracked, intermediate renders are not.
 *.pdf
