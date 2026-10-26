@@ -304,7 +304,7 @@ def test_a_retained_file_ships_unmodified_only_with_its_pinned_content(runs, tmp
 
 def test_a_retained_file_with_other_content_stops_the_build(runs, tmp_path, monkeypatch):
     pinned = f'R = Path(r"D:\\{REPO}")\n'.encode()
-    _retain(runs, monkeypatch, f'R = Path(r"E:\\Elsewhere\\x")\n'.encode(), pinned)
+    _retain(runs, monkeypatch, 'R = Path(r"E:\\Elsewhere\\x")\n'.encode(), pinned)
     with pytest.raises(SystemExit, match="validate.py"):
         _build(runs, tmp_path / "out")
 
