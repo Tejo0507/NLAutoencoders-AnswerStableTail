@@ -348,6 +348,12 @@ one at a time.
 powershell -ExecutionPolicy Bypass -File scripts/setup_env.ps1
 ```
 
+On Linux / macOS:
+
+```bash
+bash scripts/setup_env.sh
+```
+
 The script installs the CUDA build of torch from the PyTorch index (it is not
 on PyPI), then the project from `pyproject.toml`. It then verifies torch, CUDA,
 bitsandbytes and `math_verify`. `requirements.lock.txt` pins the 87 packages
