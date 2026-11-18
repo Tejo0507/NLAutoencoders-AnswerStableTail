@@ -29,13 +29,9 @@ CLAUDE.md
 Thumbs.db
 .DS_Store
 
-# Derived artefacts: the .docx is tracked, intermediate renders are not.
+# Rendered documents
 *.pdf
-output/**/*.zip
 
-# Working documents kept locally, not published: session notes and the review
-# submissions. PROJECT_PLAN.md (the pre-registration) and docs/ (the decision
-# record, status, checklist and audit) are tracked again from 2026-10-17 (D7):
-# a reproducibility record that exists only on one disk is not one.
+# Local working documents
 SESSION_HANDOFF.md
 Project_Review_*
